@@ -364,6 +364,39 @@ GenericNjfetModel builtInNjfetModel(const std::string& name, bool& ok) noexcept
     return {};
 }
 
+GenericOpAmpModel builtInOpAmpModel(const std::string& name, bool& ok) noexcept
+{
+    const std::string normalized = upper(name);
+    GenericOpAmpModel model;
+
+    if (normalized == "GENERIC_OPAMP" || normalized == "OPAMP")
+    {
+        ok = true;
+        return model;
+    }
+    if (normalized == "4558"
+        || normalized == "4558D"
+        || normalized == "JRC4558"
+        || normalized == "JRC4558D")
+    {
+        model.openLoopGain = 100000.0;
+        model.outputHeadroomVolts = 1.4;
+        ok = true;
+        return model;
+    }
+    if (normalized == "CA3130"
+        || normalized == "CA3130E"
+        || normalized == "CA3130EZ")
+    {
+        model.openLoopGain = 100000.0;
+        model.outputHeadroomVolts = 0.25;
+        ok = true;
+        return model;
+    }
+    ok = false;
+    return {};
+}
+
 GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
 {
     const std::string normalized = upper(name);
@@ -631,6 +664,31 @@ bool parseCircuitFileText(const std::string& text,
                 nodeFor(parsed.definition, tokens[2]),
                 nodeFor(parsed.definition, tokens[3]),
                 nodeFor(parsed.definition, tokens[4]),
+                model);
+        }
+        else if (command == "OPAMP")
+        {
+            if (tokens.size() != 8)
+            {
+                error = lineError(lineNumber,
+                    "OPAMP syntax: OPAMP <id> <plus> <minus> <out> "
+                    "<positive-rail> <negative-rail> <model>.");
+                return false;
+            }
+            bool modelOk = false;
+            const auto model = builtInOpAmpModel(tokens[7], modelOk);
+            if (!modelOk)
+            {
+                error = lineError(lineNumber,
+                    "Unknown op-amp model '" + tokens[7] + "'.");
+                return false;
+            }
+            parsed.definition.addOpAmp(
+                nodeFor(parsed.definition, tokens[2]),
+                nodeFor(parsed.definition, tokens[3]),
+                nodeFor(parsed.definition, tokens[4]),
+                nodeFor(parsed.definition, tokens[5]),
+                nodeFor(parsed.definition, tokens[6]),
                 model);
         }
         else if (command == "POT")
