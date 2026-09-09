@@ -176,6 +176,100 @@ void testNpnOperatingPoint()
            "NPN base-emitter voltage was implausible");
 }
 
+void testPnpOperatingPoint()
+{
+    circuitpedal::CircuitDefinition definition;
+    const auto vcc = definition.addNode("VCC");
+    const auto base = definition.addNode("B");
+    const auto collector = definition.addNode("C");
+
+    definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+    definition.addResistor(vcc, base, 10000.0);
+    definition.addResistor(base, circuitpedal::circuitGround, 100000.0);
+    definition.addResistor(collector, circuitpedal::circuitGround, 10000.0);
+
+    circuitpedal::GenericPnpBjtModel pnp;
+    pnp.saturationCurrentAmps = 2.0e-14;
+    pnp.forwardBeta = 150.0;
+    definition.addPnpBjt(collector, base, vcc, pnp);
+    definition.setOutputNode(collector);
+
+    circuitpedal::GenericCircuit circuit;
+    std::string error;
+    expect(circuit.compile(definition, 48000.0, error),
+           "PNP bias circuit failed to compile: " + error);
+
+    const double vb = circuit.nodeVoltage(base);
+    const double vc = circuit.nodeVoltage(collector);
+    expect(vb > 7.5 && vb < 8.8,
+           "PNP base DC voltage was implausible");
+    expect(vc > 0.1 && vc < 9.0,
+           "PNP collector DC voltage was implausible");
+    expect((9.0 - vb) > 0.45 && (9.0 - vb) < 1.0,
+           "PNP emitter-base voltage was implausible");
+}
+
+void testNjfetOperatingPointAndAudio()
+{
+    circuitpedal::CircuitDefinition definition;
+    const auto vcc = definition.addNode("VCC");
+    const auto input = definition.addNode("INPUT");
+    const auto gate = definition.addNode("G");
+    const auto drain = definition.addNode("D");
+    const auto source = definition.addNode("S");
+    const auto out = definition.addNode("OUT");
+
+    definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+    definition.addVoltageSource(input,
+                                circuitpedal::circuitGround,
+                                0.0,
+                                0.1);
+    definition.addCapacitor(input, gate, 100.0e-9);
+    definition.addResistor(gate, circuitpedal::circuitGround, 1.0e6);
+    definition.addResistor(vcc, drain, 4700.0);
+    definition.addResistor(source, circuitpedal::circuitGround, 1000.0);
+
+    circuitpedal::GenericNjfetModel jfet;
+    jfet.idssAmps = 3.0e-3;
+    jfet.pinchOffVoltageVolts = -2.5;
+    definition.addNjfet(drain, gate, source, jfet);
+
+    definition.addCapacitor(drain, out, 100.0e-9);
+    definition.addResistor(out, circuitpedal::circuitGround, 100000.0);
+    definition.setOutputNode(out);
+
+    circuitpedal::GenericCircuit circuit;
+    std::string error;
+    expect(circuit.compile(definition, 48000.0, error),
+           "N-JFET bias circuit failed to compile: " + error);
+
+    const double vd = circuit.nodeVoltage(drain);
+    const double vs = circuit.nodeVoltage(source);
+    const double vg = circuit.nodeVoltage(gate);
+    expect(vs > 0.1 && vs < 2.5,
+           "N-JFET source DC voltage was implausible");
+    expect(vd > vs && vd < 9.0,
+           "N-JFET drain DC voltage was implausible");
+    expect(std::abs(vg) < 0.05,
+           "N-JFET gate DC bias was not near ground");
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 12000; ++n)
+    {
+        const float inputSample = static_cast<float>(
+            0.6 * std::sin(2.0 * pi * 220.0 * static_cast<double>(n) / 48000.0));
+        const float outputSample = circuit.processSample(inputSample);
+        expect(std::isfinite(outputSample),
+               "N-JFET audio produced non-finite output");
+        expect(circuit.lastSolveConverged(),
+               "N-JFET transient solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(outputSample)));
+    }
+    expect(peak > 1.0e-5,
+           "N-JFET audio stage produced no meaningful output");
+}
+
 void testOversampledGenericCircuit()
 {
     circuitpedal::CircuitDefinition definition;
@@ -295,6 +389,8 @@ int main()
     testRcTransient();
     testDiodeClamp();
     testNpnOperatingPoint();
+    testPnpOperatingPoint();
+    testNjfetOperatingPointAndAudio();
     testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
 
@@ -304,6 +400,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.8 generic circuit validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.9 generic circuit validation suite\n";
     return 0;
 }
