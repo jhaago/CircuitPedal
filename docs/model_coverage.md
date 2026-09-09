@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.9
+## Component support in V0.10
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ real pedal circuits have reached each validation stage.
 | N-channel MOSFET | Working | Compact enhancement square-law + body diode |
 | Op-amp | Working, early | Static high-gain nonlinear controlled source with rail limiting |
 | SPST/SPDT switch | Not yet | Planned |
-| Linked / dual-gang pot | Not yet | Planned |
+| Linked / dual-gang pot | Working | `POT_LINK` maps multiple electrical gangs to one live control |
 | P-channel JFET/MOSFET | Not yet | Add when a reference circuit needs it |
 | Inductor / transformer | Not yet | Later |
 | Full SPICE/Gummel-Poon semiconductor model | Not yet | Fidelity phase |
@@ -27,7 +27,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.9
+## Named model aliases in V0.10
 
 NPN BJTs currently include compact aliases for:
 
@@ -43,6 +43,7 @@ PNP BJTs include:
 
 - generic PNP
 - AC128 / generic germanium PNP
+- AC128_LOW / AC128_HIGH (Fuzz Factory matching bins)
 - 2N1308
 
 N-channel JFETs include:
@@ -82,6 +83,7 @@ Diodes include:
 - Big Muff — Green Russian
 - Big Muff — NYC
 - Naga Viper / Hydra Treble Booster
+- Fuzz Factory Reference
 - Woolly Mammoth Reference Draft
 - generic two-transistor fuzz demo
 
@@ -96,12 +98,12 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Blueberry Bass Overdrive — CA3130 + 2N5457; engine devices now exist.
 - Lovepedal Kalamazoo — 4558 + diodes; engine devices now exist.
 - TS10 Tube Screamer — 4558 + NPN buffers + diodes; engine devices now exist.
-- ST9 Super Tube Screamer — 4558 + NPN + diodes; needs linked/dual-gang Mids control.
+- ST9 Super Tube Screamer — 4558 + NPN + diodes; linked/dual-gang Mids infrastructure now exists, circuit conversion still queued.
 - Arctic White Fuzz — BC550C + J113; engine devices now exist.
 - Baby Blue OD — multiple N-JFET stages; engine devices now exist.
 - Honey Bee — CA3130 + JFET stages + LEDs; engine devices now exist.
 - Pink Purple Fuzz — JFET + NPN + germanium PNP; engine devices now exist.
-- Fuzz Factory — NPN + germanium PNP; needs five-control GUI before convenient live use.
+- Fuzz Factory — converted and CI-validated; five-control GUI support is now available.
 - Fat Fuzz Factory — same plus switchable capacitor network; needs switch support.
 - Fuzzolo — NPN + BS170; engine devices now exist, plus input-mode switch if both modes are exposed.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
