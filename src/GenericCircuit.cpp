@@ -279,6 +279,18 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     diodes_ = definition.diodes_;
     npnBjts_ = definition.npnBjts_;
     potentiometers_ = definition.potentiometers_;
+    if (potentiometers_.size() > maximumLivePotentiometers)
+    {
+        error = "Circuit has too many live potentiometers.";
+        return false;
+    }
+    potentiometerTargetCount_ = potentiometers_.size();
+    for (std::size_t i = 0; i < potentiometerTargetCount_; ++i)
+    {
+        potentiometerTargets_[i].store(
+            static_cast<float>(potentiometers_[i].position),
+            std::memory_order_relaxed);
+    }
     outputNode_ = definition.outputNode_;
     outputFullScalePerVolt_ = definition.outputFullScalePerVolt_;
 
@@ -358,15 +370,20 @@ double GenericCircuit::nodeVoltage(CircuitNode node) const noexcept
 bool GenericCircuit::setPotentiometerPosition(std::size_t index,
                                               double normalized) noexcept
 {
-    if (index >= potentiometers_.size() || !std::isfinite(normalized))
+    if (index >= potentiometerTargetCount_ || !std::isfinite(normalized))
         return false;
-    potentiometers_[index].position = std::clamp(normalized, 0.0, 1.0);
+    potentiometerTargets_[index].store(
+        static_cast<float>(std::clamp(normalized, 0.0, 1.0)),
+        std::memory_order_relaxed);
     return true;
 }
 
 double GenericCircuit::potentiometerPosition(std::size_t index) const noexcept
 {
-    return index < potentiometers_.size() ? potentiometers_[index].position : 0.0;
+    return index < potentiometerTargetCount_
+        ? static_cast<double>(
+              potentiometerTargets_[index].load(std::memory_order_relaxed))
+        : 0.0;
 }
 
 bool GenericCircuit::solveOperatingPoint() noexcept
@@ -475,10 +492,13 @@ void GenericCircuit::stampLinear(bool dcMode, double input) noexcept
                      conductance * (voltage(resistor.a) - voltage(resistor.b)));
     }
 
-    for (const auto& pot : potentiometers_)
+    for (std::size_t potIndex = 0; potIndex < potentiometers_.size(); ++potIndex)
     {
+        const auto& pot = potentiometers_[potIndex];
+        const double livePosition = static_cast<double>(
+            potentiometerTargets_[potIndex].load(std::memory_order_relaxed));
         const double fraction =
-            std::pow(std::clamp(pot.position, 0.0, 1.0), pot.taperExponent);
+            std::pow(std::clamp(livePosition, 0.0, 1.0), pot.taperExponent);
         const double r1 = std::max(minimumResistance,
                                    pot.totalResistanceOhms * fraction);
         const double r3 = std::max(minimumResistance,
