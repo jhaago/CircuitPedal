@@ -1,10 +1,12 @@
-# CircuitPedal V0.3
+# CircuitPedal V0.4
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.3 adds a minimal native macOS test GUI around the V0.2 circuit and live-audio implementation. The circuit model, parameter smoothing and bypass crossfade remain the same.
+V0.4 begins the Circuit Lab phase. It preserves the proven V0.3 macOS live-audio path and adds selectable clipping-diode circuit models so physical component substitutions can be explored without replacing the circuit solver with generic DSP blocks.
 
-## V0.3 GUI Test
+The original V0.2 germanium model remains the reference setting. Silicon-like and LED-like options are intentionally marked experimental until they are fitted to measured devices.
+
+## V0.4 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -23,11 +25,21 @@ In the GUI:
 2. Select a duplex audio interface. Only devices with both input and output capability are listed.
 3. Select the physical input channel carrying the guitar; do not assume this is always input 1.
 4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio and try 128 or 256.
-5. Click **Start Audio**. Device, channel and buffer controls are locked until **Stop Audio** is clicked.
-6. Adjust **Distortion** and **Output**, or enable **Bypass**. These controls drive the existing circuit-model parameters and bypass crossfade directly.
-7. Read the input/output peak meters and the status area. The status shows sample rate, requested and actual buffer sizes, buffer duration, Core Audio input/output latency and safety offsets, DSP FIR delay, and their reported component sum.
+5. Choose a **Clipping Diodes** preset. Start with **Reference germanium (V0.2)** when checking that V0.3 behaviour has not regressed. The experimental silicon-like and LED-like models, plus a no-diodes option, are provided for comparative listening rather than component-accuracy claims.
+6. Click **Start Audio**. Device, channel, buffer and diode controls are locked until **Stop Audio** is clicked.
+7. Adjust **Distortion** and **Output**, or enable **Bypass**. These controls drive the circuit-model parameters and bypass crossfade directly.
+8. Read the input/output peak meters and the status area. The status shows sample rate, requested and actual buffer sizes, buffer duration, Core Audio input/output latency and safety offsets, DSP FIR delay, and their reported component sum.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Circuit Lab changes introduced in V0.4
+
+- Adds a typed clipping-diode preset API to the circuit core.
+- Preserves the exact V0.2 reference germanium parameters as the default.
+- Adds experimental silicon-like and LED-like diode curves plus a no-clipping-diode comparison mode.
+- Exposes diode selection in the native macOS GUI and locks topology-affecting selection while audio is running.
+- Extends automated validation across all diode presets and safe fallback behaviour.
+- Keeps the real-time audio callback allocation-free and preserves the existing Distortion, Output and Bypass control path.
 
 ## Circuit-engine changes introduced in V0.2
 
