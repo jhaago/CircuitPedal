@@ -286,6 +286,47 @@ void testBigMuffRepositoryModels()
 #endif
 }
 
+void testNagaViperRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Naga validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR) + "/circuits/naga_viper.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Naga Viper model did not load: " + error);
+    expect(document.controls.size() == 3,
+           "Naga Viper did not expose Range/Boost/Heat controls");
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    expect(circuit.compile(document.definition, 48000.0, error),
+           "Naga Viper did not compile at 4x: " + error);
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 9600; ++n)
+    {
+        if (n == 3200)
+            (void)circuit.setPotentiometerPosition(0, 1.0);
+        if (n == 6400)
+            (void)circuit.setPotentiometerPosition(2, 1.0);
+
+        const float input = static_cast<float>(
+            0.5 * std::sin(2.0 * pi * 220.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Naga Viper produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "Naga Viper nonlinear solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-5, "Naga Viper produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -307,6 +348,7 @@ int main()
     testParserFailures();
     testRepositoryWoollyReference();
     testBigMuffRepositoryModels();
+    testNagaViperRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)
