@@ -14,6 +14,36 @@ struct CircuitCalibration {
     double outputLoadOhms = 1.0e6;
 };
 
+// V0.5 moves the fixed Distortion+ component values into an explicit circuit
+// definition object. This is still a dedicated Distortion+ solver, but it is an
+// important boundary on the road to a compiled general netlist/MNA engine.
+struct DistortionPlusCircuitParameters {
+    double inputBiasResistanceOhms = 1.0e6;
+    double opAmpInputResistanceOhms = 2.0e6;
+    double inputCouplingCapacitanceFarads = 10.0e-9;
+    double inputRfCapacitanceFarads = 1.0e-9;
+
+    double feedbackResistanceOhms = 1.0e6;
+    double gainMinimumResistanceOhms = 4.7e3;
+    double gainPotentiometerResistanceOhms = 500.0e3;
+    double gainCapacitanceFarads = 47.0e-9;
+    double gainPotCurveExponent = 2.2;
+
+    double clipSeriesResistanceOhms = 10.0e3;
+    double postOpAmpCouplingCapacitanceFarads = 1.0e-6;
+    double clipShuntCapacitanceFarads = 1.0e-9;
+    double outputPotentiometerResistanceOhms = 50.0e3;
+    double outputTaperExponent = 3.321928094887362;
+
+    double opAmpGainBandwidthHz = 1.0e6;
+    double opAmpSlewRateVoltsPerSecond = 0.5e6;
+    double opAmpSwingVolts = 3.2;
+    double opAmpSoftKneeVolts = 0.2;
+};
+
+bool distortionPlusCircuitParametersValid(
+    const DistortionPlusCircuitParameters& parameters) noexcept;
+
 // V0.4 starts exposing physical circuit substitutions without replacing the
 // circuit solver with generic DSP blocks. The reference germanium setting is
 // exactly the V0.2 diode model; the other presets are deliberately labelled
@@ -93,14 +123,17 @@ public:
     void setOutput(float normalized) noexcept;
     void setBypass(bool shouldBypass) noexcept;
     void setClippingDiodePreset(ClippingDiodePreset preset) noexcept;
-    // Calibration is configuration, not a live control. Call only while audio
-    // processing is stopped, then call reset() before restarting.
+    // Circuit parameters and calibration are configuration, not live controls.
+    // Call only while audio processing is stopped, then prepare/reset before
+    // restarting the real-time engine.
+    bool setCircuitParameters(const DistortionPlusCircuitParameters& parameters) noexcept;
     void setCalibration(const CircuitCalibration& calibration) noexcept;
 
     float getDistortion() const noexcept;
     float getOutput() const noexcept;
     bool getBypass() const noexcept;
     ClippingDiodePreset getClippingDiodePreset() const noexcept;
+    DistortionPlusCircuitParameters getCircuitParameters() const noexcept;
     CircuitCalibration getCalibration() const noexcept;
 
     float processSample(float input) noexcept;
@@ -113,28 +146,11 @@ private:
                                  double outputLoad) noexcept;
     double processInputNetwork(double sourceVolts, double sourceResistance) noexcept;
     double processOpAmp(double inputVolts, double feedbackCurrentAmps, double noiseGain) noexcept;
-    static double outputWiperFraction(double normalized) noexcept;
+    double outputWiperFraction(double normalized) const noexcept;
     static double smoothToward(double current, double target, double coefficient) noexcept;
     void recoverFromNonFinite() noexcept;
 
-    // Pinned V0.2 reference values. See docs/reference_circuit.md.
-    static constexpr double R_inputBias = 1.0e6;
-    static constexpr double R_opAmpInput = 2.0e6;
-    static constexpr double C_inputCoupling = 10.0e-9;
-    static constexpr double C_inputRf = 1.0e-9;
-    static constexpr double R_feedback = 1.0e6;
-    static constexpr double R_gainMinimum = 4.7e3;
-    static constexpr double R_gainPotentiometer = 500.0e3;
-    static constexpr double C_gain = 47.0e-9;
-    static constexpr double R_clip = 10.0e3;
-    static constexpr double C_postOpAmpCoupling = 1.0e-6;
-    static constexpr double C_clip = 1.0e-9;
-    static constexpr double R_outputPotentiometer = 50.0e3;
-
-    static constexpr double opAmpGainBandwidthHz = 1.0e6;
-    static constexpr double opAmpSlewRateVoltsPerSecond = 0.5e6;
-    static constexpr double opAmpSwingVolts = 3.2;
-    static constexpr double opAmpSoftKneeVolts = 0.2;
+    DistortionPlusCircuitParameters circuitParameters_ {};
 
     double sampleRate_ = 48000.0;
     double substepRate_ = 192000.0;
