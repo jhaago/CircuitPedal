@@ -1,12 +1,14 @@
-# CircuitPedal V0.4
+# CircuitPedal V0.6
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.4 begins the Circuit Lab phase. It preserves the proven V0.3 macOS live-audio path and adds selectable clipping-diode circuit models so physical component substitutions can be explored without replacing the circuit solver with generic DSP blocks.
+V0.6 adds the first topology-independent Modified Nodal Analysis circuit engine alongside the proven Distortion+ live path. The generic engine now supports arbitrary node connections for resistors, capacitors, voltage sources, potentiometers, diodes and NPN BJTs, including DC operating-point and nonlinear transient solving.
 
-The original V0.2 germanium model remains the reference setting. Silicon-like and LED-like options are intentionally marked experimental until they are fitted to measured devices.
+The macOS GUI still uses the validated Distortion+ path while the generic engine is developed and tested in parallel. The original V0.2 germanium model remains the reference Distortion+ setting; experimental silicon-like and LED-like substitutions remain available for comparison.
 
-## V0.4 Circuit Lab Test
+See [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the V0.6 architecture and the path toward loadable `.cpedal` files.
+
+## V0.6 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -31,6 +33,17 @@ In the GUI:
 8. Read the input/output peak meters and the status area. The status shows sample rate, requested and actual buffer sizes, buffer duration, Core Audio input/output latency and safety offsets, DSP FIR delay, and their reported component sum.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Generic circuit engine introduced in V0.6
+
+- Adds a topology-independent dense Modified Nodal Analysis solver.
+- Adds named nodes, resistors, capacitors, independent/audio voltage sources and potentiometers.
+- Adds exponential diode junctions and compact Ebers-Moll NPN BJT devices.
+- Solves a DC operating point before transient audio processing.
+- Uses Newton iteration with a stamped Jacobian and damped corrections for nonlinear devices.
+- Preallocates all transient working storage so the generic `processSample()` path performs no heap allocation.
+- Adds automated RC, diode, transistor and two-transistor fuzz-like validation in addition to the existing Distortion+ suite.
+- Keeps the proven Distortion+ macOS live path unchanged while the generic engine matures.
 
 ## Circuit Lab changes introduced in V0.4
 
@@ -59,7 +72,7 @@ Startup errors remain visible in the window so settings can be changed and Start
 
 The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-V0.2 still is not a general arbitrary-netlist solver. Its public audio boundary is intended to remain stable while the dedicated internals are migrated toward a compiled MNA circuit representation.
+The legacy V0.2 Distortion+ implementation remains a dedicated model, but V0.6 now includes a separate compiled MNA engine for arbitrary supported component topology. V0.7 will add the human-readable circuit-file layer needed to load new pedal definitions without recompiling C++.
 
 ## Build and test
 
@@ -145,6 +158,11 @@ The automated suite currently checks:
 - harmonic growth across the distortion-control range;
 - output-control monotonicity;
 - delayed-dry bypass accuracy and smoothed switching;
-- long random-input stability.
+- long random-input stability;
+- generic resistor-divider and potentiometer operation;
+- RC transient behaviour;
+- generic nonlinear diode operation;
+- NPN BJT DC bias;
+- one second of stable two-transistor fuzz-like transient audio.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
