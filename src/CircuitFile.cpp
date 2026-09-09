@@ -302,6 +302,24 @@ GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
+    if (normalized == "AC128_LOW")
+    {
+        model.saturationCurrentAmps = 5.0e-8;
+        model.forwardBeta = 70.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.5;
+        ok = true;
+        return model;
+    }
+    if (normalized == "AC128_HIGH")
+    {
+        model.saturationCurrentAmps = 5.0e-8;
+        model.forwardBeta = 110.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.5;
+        ok = true;
+        return model;
+    }
     if (normalized == "2N1308")
     {
         model.saturationCurrentAmps = 2.0e-8;
