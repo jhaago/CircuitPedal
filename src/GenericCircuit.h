@@ -99,6 +99,9 @@ public:
                                  double totalResistanceOhms,
                                  double position = 0.5,
                                  double taperExponent = 1.0);
+    bool setPotentiometerPosition(std::size_t index, double normalized) noexcept;
+    double potentiometerPosition(std::size_t index) const noexcept;
+    std::size_t potentiometerCount() const noexcept { return potentiometers_.size(); }
 
     void setOutputNode(CircuitNode node) noexcept { outputNode_ = node; }
     CircuitNode outputNode() const noexcept { return outputNode_; }
