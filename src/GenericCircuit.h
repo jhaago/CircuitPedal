@@ -46,6 +46,14 @@ struct GenericNjfetModel {
     double thermalVoltageVolts = 0.02585;
 };
 
+struct GenericOpAmpModel {
+    // V0.9 static nonlinear op-amp core. GBW/slew/input-bias refinements are
+    // intentionally separate from establishing topology-independent op-amps.
+    double openLoopGain = 100000.0;
+    double outputHeadroomVolts = 1.0;
+    double inputOffsetVolts = 0.0;
+};
+
 struct CircuitResistor {
     CircuitNode a = circuitGround;
     CircuitNode b = circuitGround;
@@ -94,6 +102,15 @@ struct CircuitNjfet {
     GenericNjfetModel model;
 };
 
+struct CircuitOpAmp {
+    CircuitNode nonInverting = circuitGround;
+    CircuitNode inverting = circuitGround;
+    CircuitNode output = circuitGround;
+    CircuitNode positiveRail = circuitGround;
+    CircuitNode negativeRail = circuitGround;
+    GenericOpAmpModel model;
+};
+
 struct CircuitPotentiometer {
     CircuitNode terminal1 = circuitGround;
     CircuitNode wiper = circuitGround;
@@ -133,6 +150,12 @@ public:
                   CircuitNode gate,
                   CircuitNode source,
                   const GenericNjfetModel& model = {});
+    void addOpAmp(CircuitNode nonInverting,
+                  CircuitNode inverting,
+                  CircuitNode output,
+                  CircuitNode positiveRail,
+                  CircuitNode negativeRail,
+                  const GenericOpAmpModel& model = {});
     std::size_t addPotentiometer(CircuitNode terminal1,
                                  CircuitNode wiper,
                                  CircuitNode terminal3,
@@ -161,6 +184,7 @@ private:
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
+    std::vector<CircuitOpAmp> opAmps_;
     std::vector<CircuitPotentiometer> potentiometers_;
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
@@ -217,6 +241,7 @@ private:
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
+    std::vector<CircuitOpAmp> opAmps_;
     std::vector<CircuitPotentiometer> potentiometers_;
     std::array<std::atomic<float>, maximumLivePotentiometers> potentiometerTargets_ {};
     std::size_t potentiometerTargetCount_ = 0;
