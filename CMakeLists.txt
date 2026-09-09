@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.4.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.6.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -27,6 +27,7 @@ endfunction()
 
 add_library(circuit_core
     src/DistortionPlusModel.cpp
+    src/GenericCircuit.cpp
 )
 target_include_directories(circuit_core PUBLIC src)
 circuitpedal_target_defaults(circuit_core)
@@ -37,8 +38,15 @@ add_executable(circuit_core_test
 target_link_libraries(circuit_core_test PRIVATE circuit_core)
 circuitpedal_target_defaults(circuit_core_test)
 
+add_executable(generic_circuit_test
+    src/generic_circuit_test.cpp
+)
+target_link_libraries(generic_circuit_test PRIVATE circuit_core)
+circuitpedal_target_defaults(generic_circuit_test)
+
 if(BUILD_TESTING)
     add_test(NAME circuit_core_validation COMMAND circuit_core_test)
+    add_test(NAME generic_circuit_validation COMMAND generic_circuit_test)
 endif()
 
 if(APPLE)
