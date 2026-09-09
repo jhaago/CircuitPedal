@@ -365,6 +365,9 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     }
 
     [_circuitLibraryPopup.menu addItem:[NSMenuItem separatorItem]];
+    // NSPopUpButton selection indices include separator menu items, so keep a
+    // placeholder entry to preserve one-to-one index mapping.
+    _circuitLibraryPaths.emplace_back();
     [_circuitLibraryPopup addItemWithTitle:@"Load External…"];
     _circuitLibraryPaths.emplace_back("__external__");
     [_circuitLibraryPopup selectItemAtIndex:0];
