@@ -1,4 +1,4 @@
-# CircuitPedal .cpedal format — V0.9
+# CircuitPedal .cpedal format — V0.10
 
 The circuit file is intentionally small and human-readable. It is designed
 so a reviewed schematic can be translated into a circuit definition without
@@ -36,6 +36,7 @@ NMOS <id> <drain> <gate> <source> <model>
 OPAMP <id> <plus> <minus> <out> <positive-rail> <negative-rail> <model>
 
 POT <name> <terminal1> <wiper> <terminal3> <resistance> <taper> <initial>
+POT_LINK <existing-control-name> <terminal1> <wiper> <terminal3> <resistance> <taper>
 
 OUTPUT <node> [digital-full-scale-per-volt]
 ```
@@ -69,6 +70,12 @@ The initial value is normalized from 0 to 1.
 A pot can also be wired as a rheostat by tying the wiper node to one end in the
 file, just as the physical pot would be wired.
 
+For dual-gang or otherwise mechanically linked controls, define the first gang
+with `POT`, then add the other electrical section(s) with `POT_LINK` using the
+same control name. The linked section inherits the primary control's initial
+position and moves from the same live GUI control. This is intended for circuits
+such as the ST9 Super Tube Screamer's dual-gang Mids control.
+
 ## Built-in device models
 
 V0.9 adds compact named aliases for common pedal parts.
@@ -92,7 +99,7 @@ input-bias refinements remain fidelity work.
 2. Click **Load .cpedal…**.
 3. Choose a circuit file.
 4. CircuitPedal parses and validates it.
-5. The first four named POT controls currently appear in the macOS GUI.
+5. Up to sixteen named controls appear in the scrollable macOS GUI.
 6. Click **Start Audio**.
 7. CircuitPedal calculates the DC operating point and starts the real-time MNA
    transient solver.
