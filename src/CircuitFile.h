@@ -34,6 +34,7 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept;
 GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept;
 GenericNjfetModel builtInNjfetModel(const std::string& name, bool& ok) noexcept;
 GenericOpAmpModel builtInOpAmpModel(const std::string& name, bool& ok) noexcept;
+GenericNmosModel builtInNmosModel(const std::string& name, bool& ok) noexcept;
 GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept;
 
 } // namespace circuitpedal
