@@ -8,6 +8,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <cmath>
@@ -293,6 +294,8 @@ struct MacAudioEngine::Impl {
     GenericCircuit genericCircuit;
     CircuitFileDocument circuitDocument;
     bool circuitFileSelected = false;
+    std::array<float, GenericCircuit::maximumLivePotentiometers> circuitControlTargets {};
+    std::size_t circuitControlCount = 0;
     std::atomic<bool> genericBypass { false };
     double genericWetMix = 1.0;
     double genericBypassCoefficient = 1.0;
@@ -638,6 +641,12 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                 stop();
                 return false;
             }
+            for (std::size_t control = 0; control < impl_->circuitControlCount; ++control)
+            {
+                (void)impl_->genericCircuit.setPotentiometerPosition(
+                    control,
+                    static_cast<double>(impl_->circuitControlTargets[control]));
+            }
             impl_->genericWetMix =
                 impl_->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
             constexpr double bypassSmoothingSeconds = 0.005;
@@ -730,6 +739,12 @@ bool MacAudioEngine::loadCircuitFile(const std::string& path, std::string& error
     }
 
     impl_->circuitDocument = std::move(document);
+    impl_->circuitControlCount = impl_->circuitDocument.controls.size();
+    for (std::size_t i = 0; i < impl_->circuitControlCount; ++i)
+    {
+        impl_->circuitControlTargets[i] = static_cast<float>(
+            impl_->circuitDocument.controls[i].initialPosition);
+    }
     impl_->circuitFileSelected = true;
     impl_->genericBypass.store(false, std::memory_order_relaxed);
     return true;
@@ -764,18 +779,34 @@ std::vector<CircuitFileControl> MacAudioEngine::circuitControls() const
 
 bool MacAudioEngine::setCircuitControl(std::size_t index, float normalized) noexcept
 {
-    if (!impl_->circuitFileSelected)
+    if (!impl_->circuitFileSelected
+        || index >= impl_->circuitControlCount
+        || !std::isfinite(normalized))
+    {
         return false;
-    return impl_->genericCircuit.setPotentiometerPosition(
-        index,
-        static_cast<double>(normalized));
+    }
+
+    const float bounded = std::clamp(normalized, 0.0f, 1.0f);
+    impl_->circuitControlTargets[index] = bounded;
+    if (isRunning())
+    {
+        return impl_->genericCircuit.setPotentiometerPosition(
+            index,
+            static_cast<double>(bounded));
+    }
+    return true;
 }
 
 float MacAudioEngine::circuitControl(std::size_t index) const noexcept
 {
-    if (!impl_->circuitFileSelected)
+    if (!impl_->circuitFileSelected || index >= impl_->circuitControlCount)
         return 0.0f;
-    return static_cast<float>(impl_->genericCircuit.potentiometerPosition(index));
+    if (isRunning())
+    {
+        return static_cast<float>(
+            impl_->genericCircuit.potentiometerPosition(index));
+    }
+    return impl_->circuitControlTargets[index];
 }
 
 void MacAudioEngine::setDistortion(float normalized) noexcept
