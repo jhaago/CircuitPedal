@@ -2,6 +2,7 @@
 
 #include "DistortionPlusModel.h"
 #include "GenericCircuit.h"
+#include "GenericCircuitProcessor.h"
 
 #include <AudioUnit/AudioUnit.h>
 #include <CoreAudio/CoreAudio.h>
@@ -291,9 +292,11 @@ bool outputBuffersAreValid(const AudioBufferList* data, UInt32 frameCount) noexc
 struct MacAudioEngine::Impl {
     AudioUnit unit = nullptr;
     DistortionPlusModel pedal;
-    GenericCircuit genericCircuit;
+    OversampledGenericCircuit genericCircuit;
     CircuitFileDocument circuitDocument;
     bool circuitFileSelected = false;
+    std::array<double, 64> genericDryDelay {};
+    std::size_t genericDryDelayWriteIndex = 0;
     std::array<float, GenericCircuit::maximumLivePotentiometers> circuitControlTargets {};
     std::size_t circuitControlCount = 0;
     std::atomic<bool> genericBypass { false };
@@ -349,12 +352,25 @@ struct MacAudioEngine::Impl {
             if (state->circuitFileSelected)
             {
                 const float wet = state->genericCircuit.processSample(input);
+
+                const std::size_t dryReadIndex =
+                    (state->genericDryDelayWriteIndex
+                     + state->genericDryDelay.size()
+                     - OversampledGenericCircuit::delayHostSamples)
+                    % state->genericDryDelay.size();
+                const double delayedDry =
+                    state->genericDryDelay[dryReadIndex];
+                state->genericDryDelay[state->genericDryDelayWriteIndex] = input;
+                state->genericDryDelayWriteIndex =
+                    (state->genericDryDelayWriteIndex + 1)
+                    % state->genericDryDelay.size();
+
                 const double wetTarget =
                     state->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
                 state->genericWetMix += state->genericBypassCoefficient
                     * (wetTarget - state->genericWetMix);
                 const double mixed =
-                    static_cast<double>(input) * (1.0 - state->genericWetMix)
+                    delayedDry * (1.0 - state->genericWetMix)
                     + static_cast<double>(wet) * state->genericWetMix;
                 output = static_cast<float>(std::clamp(mixed, -1.0, 1.0));
             }
@@ -649,6 +665,8 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
             }
             impl_->genericWetMix =
                 impl_->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+            impl_->genericDryDelay.fill(0.0);
+            impl_->genericDryDelayWriteIndex = 0;
             constexpr double bypassSmoothingSeconds = 0.005;
             impl_->genericBypassCoefficient =
                 1.0 - std::exp(-1.0 / (bypassSmoothingSeconds * sampleRate));
@@ -681,8 +699,10 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                                                             kAudioDevicePropertySafetyOffset,
                                                             kAudioObjectPropertyScopeOutput);
         runtime.dspDelayFrames = impl_->circuitFileSelected
-            ? 0U
-            : static_cast<std::uint32_t>(Oversampler4x::wetDelayHostSamples);
+            ? static_cast<std::uint32_t>(
+                  OversampledGenericCircuit::delayHostSamples)
+            : static_cast<std::uint32_t>(
+                  Oversampler4x::wetDelayHostSamples);
         impl_->info = runtime;
 
         status = AudioOutputUnitStart(impl_->unit);
