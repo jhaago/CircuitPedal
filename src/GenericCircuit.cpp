@@ -19,6 +19,19 @@ bool finitePositive(double value, double minimum = 0.0) noexcept
     return std::isfinite(value) && value > minimum;
 }
 
+std::uint32_t switchPositionCount(CircuitSwitchMode mode) noexcept
+{
+    switch (mode)
+    {
+    case CircuitSwitchMode::Spst:
+    case CircuitSwitchMode::Spdt:
+        return 2;
+    case CircuitSwitchMode::OnOffOn:
+        return 3;
+    }
+    return 0;
+}
+
 struct ExponentialJunction {
     double current = 0.0;
     double conductance = 0.0;
@@ -282,6 +295,43 @@ void CircuitDefinition::addNmos(CircuitNode drain,
     nmosFets_.push_back({ drain, gate, source, model });
 }
 
+std::size_t CircuitDefinition::addSwitch(CircuitSwitchMode mode,
+                                         CircuitNode common,
+                                         CircuitNode throwA,
+                                         CircuitNode throwB,
+                                         std::uint32_t initialPosition,
+                                         double onResistanceOhms,
+                                         double offResistanceOhms)
+{
+    switches_.push_back({
+        mode,
+        common,
+        throwA,
+        throwB,
+        initialPosition,
+        onResistanceOhms,
+        offResistanceOhms
+    });
+    return switches_.size() - 1;
+}
+
+bool CircuitDefinition::setSwitchPosition(std::size_t index,
+                                          std::uint32_t position) noexcept
+{
+    if (index >= switches_.size()
+        || position >= switchPositionCount(switches_[index].mode))
+    {
+        return false;
+    }
+    switches_[index].position = position;
+    return true;
+}
+
+std::uint32_t CircuitDefinition::switchPosition(std::size_t index) const noexcept
+{
+    return index < switches_.size() ? switches_[index].position : 0U;
+}
+
 std::size_t CircuitDefinition::addPotentiometer(CircuitNode terminal1,
                                                 CircuitNode wiper,
                                                 CircuitNode terminal3,
@@ -468,6 +518,24 @@ bool CircuitDefinition::validate(std::string& error) const
             return false;
         }
     }
+    for (const auto& component : switches_)
+    {
+        const std::uint32_t positions = switchPositionCount(component.mode);
+        const bool needsThrowB = component.mode != CircuitSwitchMode::Spst;
+        if (!pairValid(component.common, component.throwA)
+            || (needsThrowB
+                && (!pairValid(component.common, component.throwB)
+                    || component.throwA == component.throwB))
+            || positions == 0
+            || component.position >= positions
+            || !finitePositive(component.onResistanceOhms, minimumResistance)
+            || !finitePositive(component.offResistanceOhms,
+                               component.onResistanceOhms))
+        {
+            error = "Circuit contains an invalid switch.";
+            return false;
+        }
+    }
     for (const auto& pot : potentiometers_)
     {
         if (!nodeValid(pot.terminal1)
@@ -533,6 +601,7 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     njfets_ = definition.njfets_;
     opAmps_ = definition.opAmps_;
     nmosFets_ = definition.nmosFets_;
+    switches_ = definition.switches_;
     potentiometers_ = definition.potentiometers_;
     if (potentiometers_.size() > maximumLivePotentiometers)
     {
@@ -544,6 +613,18 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     {
         potentiometerTargets_[i].store(
             static_cast<float>(potentiometers_[i].position),
+            std::memory_order_relaxed);
+    }
+    if (switches_.size() > maximumLiveSwitches)
+    {
+        error = "Circuit has too many live switches.";
+        return false;
+    }
+    switchTargetCount_ = switches_.size();
+    for (std::size_t i = 0; i < switchTargetCount_; ++i)
+    {
+        switchTargets_[i].store(
+            switches_[i].position,
             std::memory_order_relaxed);
     }
     outputNode_ = definition.outputNode_;
@@ -640,6 +721,25 @@ double GenericCircuit::potentiometerPosition(std::size_t index) const noexcept
         ? static_cast<double>(
               potentiometerTargets_[index].load(std::memory_order_relaxed))
         : 0.0;
+}
+
+bool GenericCircuit::setSwitchPosition(std::size_t index,
+                                       std::uint32_t position) noexcept
+{
+    if (index >= switchTargetCount_
+        || position >= switchPositionCount(switches_[index].mode))
+    {
+        return false;
+    }
+    switchTargets_[index].store(position, std::memory_order_relaxed);
+    return true;
+}
+
+std::uint32_t GenericCircuit::switchPosition(std::size_t index) const noexcept
+{
+    return index < switchTargetCount_
+        ? switchTargets_[index].load(std::memory_order_relaxed)
+        : 0U;
 }
 
 bool GenericCircuit::solveOperatingPoint() noexcept
@@ -763,6 +863,41 @@ void GenericCircuit::stampLinear(bool dcMode, double input) noexcept
         stampCurrent(resistor.a,
                      resistor.b,
                      conductance * (voltage(resistor.a) - voltage(resistor.b)));
+    }
+
+    for (std::size_t switchIndex = 0; switchIndex < switches_.size(); ++switchIndex)
+    {
+        const auto& component = switches_[switchIndex];
+        const std::uint32_t position =
+            switchTargets_[switchIndex].load(std::memory_order_relaxed);
+
+        const auto stampSwitchBranch =
+            [this, &component](CircuitNode target, bool closed) noexcept {
+                const double resistance =
+                    closed ? component.onResistanceOhms
+                           : component.offResistanceOhms;
+                const double conductance = 1.0 / resistance;
+                stampConductance(component.common, target, conductance);
+                stampCurrent(component.common,
+                             target,
+                             conductance
+                                 * (voltage(component.common) - voltage(target)));
+            };
+
+        if (component.mode == CircuitSwitchMode::Spst)
+        {
+            stampSwitchBranch(component.throwA, position == 1U);
+        }
+        else if (component.mode == CircuitSwitchMode::Spdt)
+        {
+            stampSwitchBranch(component.throwA, position == 0U);
+            stampSwitchBranch(component.throwB, position == 1U);
+        }
+        else
+        {
+            stampSwitchBranch(component.throwA, position == 0U);
+            stampSwitchBranch(component.throwB, position == 2U);
+        }
     }
 
     for (std::size_t potIndex = 0; potIndex < potentiometers_.size(); ++potIndex)
