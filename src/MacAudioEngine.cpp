@@ -646,9 +646,23 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
 
         if (impl_->circuitFileSelected)
         {
+            CircuitDefinition configuredDefinition =
+                impl_->circuitDocument.definition;
+            for (std::size_t control = 0; control < impl_->circuitControlCount; ++control)
+            {
+                if (!configuredDefinition.setPotentiometerPosition(
+                        control,
+                        static_cast<double>(impl_->circuitControlTargets[control])))
+                {
+                    error = "Could not apply circuit control values before DC bias solve.";
+                    stop();
+                    return false;
+                }
+            }
+
             std::string circuitError;
             if (!impl_->genericCircuit.compile(
-                    impl_->circuitDocument.definition,
+                    configuredDefinition,
                     sampleRate,
                     circuitError))
             {
@@ -656,12 +670,6 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                     + "': " + circuitError;
                 stop();
                 return false;
-            }
-            for (std::size_t control = 0; control < impl_->circuitControlCount; ++control)
-            {
-                (void)impl_->genericCircuit.setPotentiometerPosition(
-                    control,
-                    static_cast<double>(impl_->circuitControlTargets[control]));
             }
             impl_->genericWetMix =
                 impl_->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
