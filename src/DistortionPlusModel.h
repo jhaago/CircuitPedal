@@ -131,10 +131,6 @@ private:
     static constexpr double C_clip = 1.0e-9;
     static constexpr double R_outputPotentiometer = 50.0e3;
 
-    static constexpr double diodeIs = 1.0e-6;
-    static constexpr double diodeN = 1.6;
-    static constexpr double thermalV = 0.02585;
-
     static constexpr double opAmpGainBandwidthHz = 1.0e6;
     static constexpr double opAmpSlewRateVoltsPerSecond = 0.5e6;
     static constexpr double opAmpSwingVolts = 3.2;
