@@ -25,6 +25,9 @@ C C4 BASE COLLECTOR 47p
 # Collector/output control. Boost wiper is AC-coupled to the output.
 POT BOOST VA BOOST_W COLLECTOR 10k LIN 0.70
 C C6 BOOST_W OUT 10n
+# Explicit amplifier/input load keeps the AC-coupled output node defined for
+# the DC operating-point solve.
+R R_OUT_LOAD OUT 0 1M
 
 # Emitter bias plus Heat-controlled AC bypass.
 R R3 EMITTER 0 8k2
