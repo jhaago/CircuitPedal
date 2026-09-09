@@ -361,6 +361,50 @@ void testHarmonicBehaviour()
            "distortion control did not materially increase harmonic content");
 }
 
+void testCircuitParameters()
+{
+    circuitpedal::DistortionPlusModel reference;
+    reference.setDistortion(1.0f);
+    reference.setOutput(1.0f);
+    reference.prepare(48000.0);
+    const auto referenceOutput = renderSine(reference, 48000.0, 997.0, 0.25, 48000);
+    const double referenceRms = rmsAfterWarmup(referenceOutput, 4096);
+
+    circuitpedal::DistortionPlusModel modified;
+    auto parameters = modified.getCircuitParameters();
+    parameters.clipSeriesResistanceOhms = 47000.0;
+    parameters.gainCapacitanceFarads = 100.0e-9;
+    parameters.outputPotentiometerResistanceOhms = 100.0e3;
+    expect(circuitpedal::distortionPlusCircuitParametersValid(parameters),
+           "valid modified circuit parameters were rejected");
+    expect(modified.setCircuitParameters(parameters),
+           "valid circuit parameters could not be installed");
+    const auto stored = modified.getCircuitParameters();
+    expect(stored.clipSeriesResistanceOhms == parameters.clipSeriesResistanceOhms
+               && stored.gainCapacitanceFarads == parameters.gainCapacitanceFarads
+               && stored.outputPotentiometerResistanceOhms
+                    == parameters.outputPotentiometerResistanceOhms,
+           "circuit parameters were not retained");
+
+    modified.setDistortion(1.0f);
+    modified.setOutput(1.0f);
+    modified.prepare(48000.0);
+    const auto modifiedOutput = renderSine(modified, 48000.0, 997.0, 0.25, 48000);
+    const double modifiedRms = rmsAfterWarmup(modifiedOutput, 4096);
+    expect(std::abs(referenceRms - modifiedRms) > 1.0e-4,
+           "component substitutions did not alter circuit response");
+
+    auto invalid = stored;
+    invalid.feedbackResistanceOhms = -1.0;
+    expect(!circuitpedal::distortionPlusCircuitParametersValid(invalid),
+           "invalid negative component value passed validation");
+    expect(!modified.setCircuitParameters(invalid),
+           "invalid circuit parameters were accepted");
+    expect(modified.getCircuitParameters().feedbackResistanceOhms
+               == stored.feedbackResistanceOhms,
+           "rejected circuit parameters still modified model state");
+}
+
 void testDiodePresets()
 {
     using circuitpedal::ClippingDiodePreset;
@@ -440,6 +484,7 @@ int main()
     testDeterminismAndSymmetry();
     testControlSweepsAndBypass();
     testHarmonicBehaviour();
+    testCircuitParameters();
     testDiodePresets();
     testLongRunStability();
 
@@ -449,6 +494,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.4 validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.5 validation suite\n";
     return 0;
 }
