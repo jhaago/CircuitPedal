@@ -91,6 +91,60 @@ FetChannelEvaluation evaluateNjfetChannel(double drainVolts,
     };
 }
 
+FetChannelEvaluation forwardNmosChannel(double drainVolts,
+                                        double gateVolts,
+                                        double sourceVolts,
+                                        const GenericNmosModel& model) noexcept
+{
+    const double vds = drainVolts - sourceVolts;
+    const double overdrive =
+        (gateVolts - sourceVolts) - model.thresholdVoltageVolts;
+    if (vds < 0.0 || overdrive <= 0.0)
+        return {};
+
+    const double beta = model.betaAmpsPerVoltSquared;
+    double current = 0.0;
+    double gm = 0.0;
+    double gds = 0.0;
+    if (vds < overdrive)
+    {
+        current = beta * (overdrive * vds - 0.5 * vds * vds);
+        gm = beta * vds;
+        gds = beta * (overdrive - vds);
+    }
+    else
+    {
+        current = 0.5 * beta * overdrive * overdrive;
+        gm = beta * overdrive;
+        gds = 0.0;
+    }
+
+    return {
+        current,
+        gds,
+        gm,
+        -(gds + gm)
+    };
+}
+
+FetChannelEvaluation evaluateNmosChannel(double drainVolts,
+                                         double gateVolts,
+                                         double sourceVolts,
+                                         const GenericNmosModel& model) noexcept
+{
+    if (drainVolts >= sourceVolts)
+        return forwardNmosChannel(drainVolts, gateVolts, sourceVolts, model);
+
+    const auto reverse =
+        forwardNmosChannel(sourceVolts, gateVolts, drainVolts, model);
+    return {
+        -reverse.current,
+        -reverse.dCurrent_dSource,
+        -reverse.dCurrent_dGate,
+        -reverse.dCurrent_dDrain
+    };
+}
+
 ExponentialJunction exponentialJunction(double voltage,
                                         double saturationCurrent,
                                         double scaleVoltage) noexcept
@@ -218,6 +272,14 @@ void CircuitDefinition::addOpAmp(CircuitNode nonInverting,
         negativeRail,
         model
     });
+}
+
+void CircuitDefinition::addNmos(CircuitNode drain,
+                                CircuitNode gate,
+                                CircuitNode source,
+                                const GenericNmosModel& model)
+{
+    nmosFets_.push_back({ drain, gate, source, model });
 }
 
 std::size_t CircuitDefinition::addPotentiometer(CircuitNode terminal1,
@@ -387,6 +449,25 @@ bool CircuitDefinition::validate(std::string& error) const
             return false;
         }
     }
+    for (const auto& transistor : nmosFets_)
+    {
+        if (!nodeValid(transistor.drain)
+            || !nodeValid(transistor.gate)
+            || !nodeValid(transistor.source)
+            || transistor.drain == transistor.gate
+            || transistor.drain == transistor.source
+            || transistor.gate == transistor.source
+            || !finitePositive(transistor.model.thresholdVoltageVolts)
+            || !finitePositive(transistor.model.betaAmpsPerVoltSquared)
+            || !std::isfinite(transistor.model.bodyDiodeSaturationCurrentAmps)
+            || transistor.model.bodyDiodeSaturationCurrentAmps < 0.0
+            || !finitePositive(transistor.model.bodyDiodeIdealityFactor)
+            || !finitePositive(transistor.model.thermalVoltageVolts))
+        {
+            error = "Circuit contains an invalid N-MOSFET model.";
+            return false;
+        }
+    }
     for (const auto& pot : potentiometers_)
     {
         if (!nodeValid(pot.terminal1)
@@ -451,6 +532,7 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     pnpBjts_ = definition.pnpBjts_;
     njfets_ = definition.njfets_;
     opAmps_ = definition.opAmps_;
+    nmosFets_ = definition.nmosFets_;
     potentiometers_ = definition.potentiometers_;
     if (potentiometers_.size() > maximumLivePotentiometers)
     {
