@@ -14,6 +14,26 @@ struct CircuitCalibration {
     double outputLoadOhms = 1.0e6;
 };
 
+// V0.4 starts exposing physical circuit substitutions without replacing the
+// circuit solver with generic DSP blocks. The reference germanium setting is
+// exactly the V0.2 diode model; the other presets are deliberately labelled
+// experimental until they are fitted to measured devices.
+enum class ClippingDiodePreset : std::uint32_t {
+    ReferenceGermanium = 0,
+    SiliconLike = 1,
+    LedLike = 2,
+    NoDiodes = 3
+};
+
+struct DiodeModelParameters {
+    double saturationCurrentAmps = 1.0e-6;
+    double idealityFactor = 1.6;
+    double thermalVoltageVolts = 0.02585;
+};
+
+const char* clippingDiodePresetName(ClippingDiodePreset preset) noexcept;
+DiodeModelParameters diodeModelParameters(ClippingDiodePreset preset) noexcept;
+
 struct ClipNetworkParameters {
     double seriesResistanceOhms = 10.0e3;
     double couplingCapacitanceFarads = 1.0e-6;
@@ -72,6 +92,7 @@ public:
     void setDistortion(float normalized) noexcept;
     void setOutput(float normalized) noexcept;
     void setBypass(bool shouldBypass) noexcept;
+    void setClippingDiodePreset(ClippingDiodePreset preset) noexcept;
     // Calibration is configuration, not a live control. Call only while audio
     // processing is stopped, then call reset() before restarting.
     void setCalibration(const CircuitCalibration& calibration) noexcept;
@@ -79,6 +100,7 @@ public:
     float getDistortion() const noexcept;
     float getOutput() const noexcept;
     bool getBypass() const noexcept;
+    ClippingDiodePreset getClippingDiodePreset() const noexcept;
     CircuitCalibration getCalibration() const noexcept;
 
     float processSample(float input) noexcept;
@@ -141,6 +163,9 @@ private:
     std::atomic<float> distortionTarget_ { 0.65f };
     std::atomic<float> outputTarget_ { 0.70f };
     std::atomic<bool> bypassTarget_ { false };
+    std::atomic<std::uint32_t> clippingDiodePresetTarget_ {
+        static_cast<std::uint32_t>(ClippingDiodePreset::ReferenceGermanium)
+    };
     CircuitCalibration calibration_;
 };
 
