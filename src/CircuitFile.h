@@ -3,10 +3,16 @@
 #include "GenericCircuit.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace circuitpedal {
+
+enum class CircuitFileControlKind : std::uint8_t {
+    Potentiometer,
+    Switch
+};
 
 struct CircuitFileControl {
     std::string name;
@@ -15,6 +21,12 @@ struct CircuitFileControl {
     // Additional pot sections mechanically/electrically linked to this one
     // GUI control (for example a dual-gang tone or mids control).
     std::vector<std::size_t> linkedPotentiometerIndices;
+
+    CircuitFileControlKind kind = CircuitFileControlKind::Potentiometer;
+    std::size_t switchIndex = 0;
+    std::uint32_t switchPositionCount = 0;
+    std::uint32_t initialSwitchPosition = 0;
+    std::vector<std::string> switchPositionNames;
 };
 
 struct CircuitFileDocument {
