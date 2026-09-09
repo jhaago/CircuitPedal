@@ -1,6 +1,7 @@
 #include "MacAudioEngine.h"
 
 #include "DistortionPlusModel.h"
+#include "GenericCircuit.h"
 
 #include <AudioUnit/AudioUnit.h>
 #include <CoreAudio/CoreAudio.h>
@@ -289,6 +290,13 @@ bool outputBuffersAreValid(const AudioBufferList* data, UInt32 frameCount) noexc
 struct MacAudioEngine::Impl {
     AudioUnit unit = nullptr;
     DistortionPlusModel pedal;
+    GenericCircuit genericCircuit;
+    CircuitFileDocument circuitDocument;
+    bool circuitFileSelected = false;
+    std::atomic<bool> genericBypass { false };
+    double genericWetMix = 1.0;
+    double genericBypassCoefficient = 1.0;
+
     std::vector<Float32> inputScratch;
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
@@ -334,7 +342,23 @@ struct MacAudioEngine::Impl {
         for (UInt32 frame = 0; frame < frameCount; ++frame)
         {
             const float input = state->inputScratch[frame];
-            const float output = state->pedal.processSample(input);
+            float output = 0.0f;
+            if (state->circuitFileSelected)
+            {
+                const float wet = state->genericCircuit.processSample(input);
+                const double wetTarget =
+                    state->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+                state->genericWetMix += state->genericBypassCoefficient
+                    * (wetTarget - state->genericWetMix);
+                const double mixed =
+                    static_cast<double>(input) * (1.0 - state->genericWetMix)
+                    + static_cast<double>(wet) * state->genericWetMix;
+                output = static_cast<float>(std::clamp(mixed, -1.0, 1.0));
+            }
+            else
+            {
+                output = state->pedal.processSample(input);
+            }
             if (std::isfinite(input))
                 blockInputPeak = std::max(blockInputPeak, std::abs(input));
             blockOutputPeak = std::max(blockOutputPeak, std::abs(output));
@@ -601,7 +625,29 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
         if (status != noErr)
             return failStatus("Install render callback", status);
 
-        impl_->pedal.prepare(sampleRate);
+        if (impl_->circuitFileSelected)
+        {
+            std::string circuitError;
+            if (!impl_->genericCircuit.compile(
+                    impl_->circuitDocument.definition,
+                    sampleRate,
+                    circuitError))
+            {
+                error = "Could not compile loaded circuit '" + impl_->circuitDocument.name
+                    + "': " + circuitError;
+                stop();
+                return false;
+            }
+            impl_->genericWetMix =
+                impl_->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
+            constexpr double bypassSmoothingSeconds = 0.005;
+            impl_->genericBypassCoefficient =
+                1.0 - std::exp(-1.0 / (bypassSmoothingSeconds * sampleRate));
+        }
+        else
+        {
+            impl_->pedal.prepare(sampleRate);
+        }
         impl_->inputPeak.store(0.0f, std::memory_order_relaxed);
         impl_->outputPeak.store(0.0f, std::memory_order_relaxed);
 
@@ -625,7 +671,9 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
         runtime.outputSafetyOffsetFrames = latencyProperty(device,
                                                             kAudioDevicePropertySafetyOffset,
                                                             kAudioObjectPropertyScopeOutput);
-        runtime.dspDelayFrames = static_cast<std::uint32_t>(Oversampler4x::wetDelayHostSamples);
+        runtime.dspDelayFrames = impl_->circuitFileSelected
+            ? 0U
+            : static_cast<std::uint32_t>(Oversampler4x::wetDelayHostSamples);
         impl_->info = runtime;
 
         status = AudioOutputUnitStart(impl_->unit);
@@ -664,6 +712,72 @@ bool MacAudioEngine::isRunning() const noexcept
     return impl_->running.load(std::memory_order_acquire);
 }
 
+bool MacAudioEngine::loadCircuitFile(const std::string& path, std::string& error)
+{
+    if (isRunning())
+    {
+        error = "Stop audio before loading a circuit file.";
+        return false;
+    }
+
+    CircuitFileDocument document;
+    if (!circuitpedal::loadCircuitFile(path, document, error))
+        return false;
+    if (document.controls.size() > GenericCircuit::maximumLivePotentiometers)
+    {
+        error = "Circuit file exposes too many live controls.";
+        return false;
+    }
+
+    impl_->circuitDocument = std::move(document);
+    impl_->circuitFileSelected = true;
+    impl_->genericBypass.store(false, std::memory_order_relaxed);
+    return true;
+}
+
+bool MacAudioEngine::useBuiltInDistortionPlus() noexcept
+{
+    if (isRunning())
+        return false;
+    impl_->circuitFileSelected = false;
+    return true;
+}
+
+bool MacAudioEngine::usingCircuitFile() const noexcept
+{
+    return impl_->circuitFileSelected;
+}
+
+std::string MacAudioEngine::activeModelName() const
+{
+    return impl_->circuitFileSelected
+        ? impl_->circuitDocument.name
+        : "Built-in Distortion+";
+}
+
+std::vector<CircuitFileControl> MacAudioEngine::circuitControls() const
+{
+    return impl_->circuitFileSelected
+        ? impl_->circuitDocument.controls
+        : std::vector<CircuitFileControl> {};
+}
+
+bool MacAudioEngine::setCircuitControl(std::size_t index, float normalized) noexcept
+{
+    if (!impl_->circuitFileSelected)
+        return false;
+    return impl_->genericCircuit.setPotentiometerPosition(
+        index,
+        static_cast<double>(normalized));
+}
+
+float MacAudioEngine::circuitControl(std::size_t index) const noexcept
+{
+    if (!impl_->circuitFileSelected)
+        return 0.0f;
+    return static_cast<float>(impl_->genericCircuit.potentiometerPosition(index));
+}
+
 void MacAudioEngine::setDistortion(float normalized) noexcept
 {
     impl_->pedal.setDistortion(normalized);
@@ -677,6 +791,7 @@ void MacAudioEngine::setOutput(float normalized) noexcept
 void MacAudioEngine::setBypass(bool bypassed) noexcept
 {
     impl_->pedal.setBypass(bypassed);
+    impl_->genericBypass.store(bypassed, std::memory_order_relaxed);
 }
 
 void MacAudioEngine::setClippingDiodePreset(ClippingDiodePreset preset) noexcept
@@ -694,7 +809,12 @@ bool MacAudioEngine::setCircuitParameters(
 
 float MacAudioEngine::distortion() const noexcept { return impl_->pedal.getDistortion(); }
 float MacAudioEngine::output() const noexcept { return impl_->pedal.getOutput(); }
-bool MacAudioEngine::bypassed() const noexcept { return impl_->pedal.getBypass(); }
+bool MacAudioEngine::bypassed() const noexcept
+{
+    return impl_->circuitFileSelected
+        ? impl_->genericBypass.load(std::memory_order_relaxed)
+        : impl_->pedal.getBypass();
+}
 ClippingDiodePreset MacAudioEngine::clippingDiodePreset() const noexcept
 {
     return impl_->pedal.getClippingDiodePreset();
