@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.7.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.8.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -28,6 +28,7 @@ endfunction()
 add_library(circuit_core
     src/DistortionPlusModel.cpp
     src/GenericCircuit.cpp
+    src/GenericCircuitProcessor.cpp
     src/CircuitFile.cpp
 )
 target_include_directories(circuit_core PUBLIC src)
