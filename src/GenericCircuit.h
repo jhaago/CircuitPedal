@@ -127,6 +127,22 @@ struct CircuitNmos {
     GenericNmosModel model;
 };
 
+enum class CircuitSwitchMode : std::uint8_t {
+    Spst,
+    Spdt,
+    OnOffOn
+};
+
+struct CircuitSwitch {
+    CircuitSwitchMode mode = CircuitSwitchMode::Spst;
+    CircuitNode common = circuitGround;
+    CircuitNode throwA = circuitGround;
+    CircuitNode throwB = circuitGround;
+    std::uint32_t position = 0;
+    double onResistanceOhms = 0.1;
+    double offResistanceOhms = 1.0e12;
+};
+
 struct CircuitPotentiometer {
     CircuitNode terminal1 = circuitGround;
     CircuitNode wiper = circuitGround;
@@ -176,6 +192,17 @@ public:
                  CircuitNode gate,
                  CircuitNode source,
                  const GenericNmosModel& model = {});
+    std::size_t addSwitch(CircuitSwitchMode mode,
+                          CircuitNode common,
+                          CircuitNode throwA,
+                          CircuitNode throwB = circuitGround,
+                          std::uint32_t initialPosition = 0,
+                          double onResistanceOhms = 0.1,
+                          double offResistanceOhms = 1.0e12);
+    bool setSwitchPosition(std::size_t index, std::uint32_t position) noexcept;
+    std::uint32_t switchPosition(std::size_t index) const noexcept;
+    std::size_t switchCount() const noexcept { return switches_.size(); }
+
     std::size_t addPotentiometer(CircuitNode terminal1,
                                  CircuitNode wiper,
                                  CircuitNode terminal3,
@@ -206,6 +233,7 @@ private:
     std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitOpAmp> opAmps_;
     std::vector<CircuitNmos> nmosFets_;
+    std::vector<CircuitSwitch> switches_;
     std::vector<CircuitPotentiometer> potentiometers_;
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
@@ -217,6 +245,7 @@ private:
 class GenericCircuit {
 public:
     static constexpr std::size_t maximumLivePotentiometers = 16;
+    static constexpr std::size_t maximumLiveSwitches = 16;
     bool compile(const CircuitDefinition& definition,
                  double sampleRate,
                  std::string& error);
@@ -229,6 +258,10 @@ public:
     std::size_t potentiometerCount() const noexcept { return potentiometers_.size(); }
     bool setPotentiometerPosition(std::size_t index, double normalized) noexcept;
     double potentiometerPosition(std::size_t index) const noexcept;
+
+    std::size_t switchCount() const noexcept { return switches_.size(); }
+    bool setSwitchPosition(std::size_t index, std::uint32_t position) noexcept;
+    std::uint32_t switchPosition(std::size_t index) const noexcept;
 
     double sampleRate() const noexcept { return sampleRate_; }
     std::size_t unknownCount() const noexcept { return unknownCount_; }
@@ -264,9 +297,12 @@ private:
     std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitOpAmp> opAmps_;
     std::vector<CircuitNmos> nmosFets_;
+    std::vector<CircuitSwitch> switches_;
     std::vector<CircuitPotentiometer> potentiometers_;
     std::array<std::atomic<float>, maximumLivePotentiometers> potentiometerTargets_ {};
     std::size_t potentiometerTargetCount_ = 0;
+    std::array<std::atomic<std::uint32_t>, maximumLiveSwitches> switchTargets_ {};
+    std::size_t switchTargetCount_ = 0;
 
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
