@@ -1,6 +1,6 @@
-# CircuitPedal .cpedal format — V0.7
+# CircuitPedal .cpedal format — V0.9
 
-The V0.7 circuit file is intentionally small and human-readable. It is designed
+The circuit file is intentionally small and human-readable. It is designed
 so a reviewed schematic can be translated into a circuit definition without
 writing or recompiling a C++ effect algorithm.
 
@@ -30,6 +30,10 @@ C <id> <node-a> <node-b> <capacitance>
 
 D <id> <anode> <cathode> <model>
 Q <id> <collector> <base> <emitter> <model>
+PNP <id> <collector> <base> <emitter> <model>
+JFET <id> <drain> <gate> <source> <model>
+NMOS <id> <drain> <gate> <source> <model>
+OPAMP <id> <plus> <minus> <out> <positive-rail> <negative-rail> <model>
 
 POT <name> <terminal1> <wiper> <terminal3> <resistance> <taper> <initial>
 
@@ -54,7 +58,7 @@ Upper-case `M` means mega; lower-case `m` means milli.
 
 ## Potentiometers
 
-V0.7 supports:
+Potentiometers support:
 
 - `LIN` / `LINEAR`
 - `LOG` / `AUDIO`
@@ -65,22 +69,22 @@ The initial value is normalized from 0 to 1.
 A pot can also be wired as a rheostat by tying the wiper node to one end in the
 file, just as the physical pot would be wired.
 
-## Built-in semiconductor models
+## Built-in device models
 
-NPN:
+V0.9 adds compact named aliases for common pedal parts.
 
-- `2N3904`
-- `GENERIC_NPN`
+- NPN: `2N3904`, `2N2222A`, `2N5088`, `2N5133`, `BC239C`,
+  `BC550C`, `KT3102E`
+- PNP: `AC128`, `2N1308`, `GENERIC_PNP`
+- N-JFET: `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
+- N-MOSFET: `BS170`
+- op-amp: `JRC4558` / `4558`, `CA3130`
+- diode: `1N4148`, `1N914`, `KD521`, `1N34A`, `1N6263`
 
-Diode:
-
-- `1N4148` / `SILICON`
-- `1N34A` / `GERMANIUM`
-- `GENERIC_DIODE`
-
-These V0.7 semiconductor models are compact solver models. The named 2N3904 is
-not yet a complete manufacturer Gummel-Poon model, so CircuitPedal does not claim
-component-accurate reproduction from the name alone.
+These are compact real-time solver models. They are deliberately not described
+as complete manufacturer SPICE models. The op-amp model in particular is still
+an early static high-gain/rail-limited device; GBW, slew-rate, output-current and
+input-bias refinements remain fidelity work.
 
 ## macOS loading workflow
 
@@ -88,7 +92,7 @@ component-accurate reproduction from the name alone.
 2. Click **Load .cpedal…**.
 3. Choose a circuit file.
 4. CircuitPedal parses and validates it.
-5. The first four named POT controls appear in the V0.7 GUI.
+5. The first four named POT controls currently appear in the macOS GUI.
 6. Click **Start Audio**.
 7. CircuitPedal calculates the DC operating point and starts the real-time MNA
    transient solver.
