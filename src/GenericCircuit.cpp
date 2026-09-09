@@ -24,6 +24,73 @@ struct ExponentialJunction {
     double conductance = 0.0;
 };
 
+struct FetChannelEvaluation {
+    double current = 0.0;
+    double dCurrent_dDrain = 0.0;
+    double dCurrent_dGate = 0.0;
+    double dCurrent_dSource = 0.0;
+};
+
+FetChannelEvaluation forwardNjfetChannel(double drainVolts,
+                                         double gateVolts,
+                                         double sourceVolts,
+                                         const GenericNjfetModel& model) noexcept
+{
+    const double vds = drainVolts - sourceVolts;
+    const double vgs = gateVolts - sourceVolts;
+    if (vds < 0.0)
+        return {};
+
+    const double pinch = model.pinchOffVoltageVolts;
+    const double overdrive = vgs - pinch;
+    if (overdrive <= 0.0)
+        return {};
+
+    const double beta = 2.0 * model.idssAmps / (pinch * pinch);
+    double current = 0.0;
+    double gm = 0.0;
+    double gds = 0.0;
+
+    if (vds < overdrive)
+    {
+        current = beta * (overdrive * vds - 0.5 * vds * vds);
+        gm = beta * vds;
+        gds = beta * (overdrive - vds);
+    }
+    else
+    {
+        current = 0.5 * beta * overdrive * overdrive;
+        gm = beta * overdrive;
+        gds = 0.0;
+    }
+
+    return {
+        current,
+        gds,
+        gm,
+        -(gds + gm)
+    };
+}
+
+FetChannelEvaluation evaluateNjfetChannel(double drainVolts,
+                                          double gateVolts,
+                                          double sourceVolts,
+                                          const GenericNjfetModel& model) noexcept
+{
+    if (drainVolts >= sourceVolts)
+        return forwardNjfetChannel(drainVolts, gateVolts, sourceVolts, model);
+
+    const auto reverse =
+        forwardNjfetChannel(sourceVolts, gateVolts, drainVolts, model);
+    // reverse describes current S->D. Convert it to the requested D->S current.
+    return {
+        -reverse.current,
+        -reverse.dCurrent_dSource,
+        -reverse.dCurrent_dGate,
+        -reverse.dCurrent_dDrain
+    };
+}
+
 ExponentialJunction exponentialJunction(double voltage,
                                         double saturationCurrent,
                                         double scaleVoltage) noexcept
@@ -118,6 +185,22 @@ void CircuitDefinition::addNpnBjt(CircuitNode collector,
                                   const GenericNpnBjtModel& model)
 {
     npnBjts_.push_back({ collector, base, emitter, model });
+}
+
+void CircuitDefinition::addPnpBjt(CircuitNode collector,
+                                  CircuitNode base,
+                                  CircuitNode emitter,
+                                  const GenericPnpBjtModel& model)
+{
+    pnpBjts_.push_back({ collector, base, emitter, model });
+}
+
+void CircuitDefinition::addNjfet(CircuitNode drain,
+                                 CircuitNode gate,
+                                 CircuitNode source,
+                                 const GenericNjfetModel& model)
+{
+    njfets_.push_back({ drain, gate, source, model });
 }
 
 std::size_t CircuitDefinition::addPotentiometer(CircuitNode terminal1,
@@ -231,6 +314,44 @@ bool CircuitDefinition::validate(std::string& error) const
             return false;
         }
     }
+    for (const auto& transistor : pnpBjts_)
+    {
+        if (!nodeValid(transistor.collector)
+            || !nodeValid(transistor.base)
+            || !nodeValid(transistor.emitter)
+            || transistor.collector == transistor.base
+            || transistor.collector == transistor.emitter
+            || transistor.base == transistor.emitter
+            || !finitePositive(transistor.model.saturationCurrentAmps)
+            || !finitePositive(transistor.model.forwardBeta)
+            || !finitePositive(transistor.model.reverseBeta)
+            || !finitePositive(transistor.model.emissionCoefficient)
+            || !finitePositive(transistor.model.thermalVoltageVolts))
+        {
+            error = "Circuit contains an invalid PNP BJT model.";
+            return false;
+        }
+    }
+    for (const auto& transistor : njfets_)
+    {
+        if (!nodeValid(transistor.drain)
+            || !nodeValid(transistor.gate)
+            || !nodeValid(transistor.source)
+            || transistor.drain == transistor.gate
+            || transistor.drain == transistor.source
+            || transistor.gate == transistor.source
+            || !finitePositive(transistor.model.idssAmps)
+            || !std::isfinite(transistor.model.pinchOffVoltageVolts)
+            || transistor.model.pinchOffVoltageVolts >= -1.0e-6
+            || !std::isfinite(transistor.model.gateSaturationCurrentAmps)
+            || transistor.model.gateSaturationCurrentAmps < 0.0
+            || !finitePositive(transistor.model.gateIdealityFactor)
+            || !finitePositive(transistor.model.thermalVoltageVolts))
+        {
+            error = "Circuit contains an invalid N-JFET model.";
+            return false;
+        }
+    }
     for (const auto& pot : potentiometers_)
     {
         if (!nodeValid(pot.terminal1)
@@ -292,6 +413,8 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     voltageSources_ = definition.voltageSources_;
     diodes_ = definition.diodes_;
     npnBjts_ = definition.npnBjts_;
+    pnpBjts_ = definition.pnpBjts_;
+    njfets_ = definition.njfets_;
     potentiometers_ = definition.potentiometers_;
     if (potentiometers_.size() > maximumLivePotentiometers)
     {
