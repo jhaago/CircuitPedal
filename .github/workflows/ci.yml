@@ -21,4 +21,9 @@ jobs:
         run: ctest --test-dir build --output-on-failure
       - name: Confirm macOS GUI bundle
         if: runner.os == 'macOS'
-        run: test -x build/CircuitPedalGUI.app/Contents/MacOS/CircuitPedalGUI
+        run: |
+          test -x build/CircuitPedalGUI.app/Contents/MacOS/CircuitPedalGUI
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/woolly_mammoth_reference_draft.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fuzz_factory_reference.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
