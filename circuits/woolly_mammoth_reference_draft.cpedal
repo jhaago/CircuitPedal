@@ -22,9 +22,11 @@ Q Q2 C2_NODE C1_NODE E2 2N3904
 R R4 VCC C2_NODE 20k
 R R1 E2 0 2k2
 
-# WOOL: variable AC bypass of the Q2 emitter resistor.
+# WOOL: variable AC bypass of the Q2 emitter resistor. The node order is
+# chosen so a higher GUI value means more Wool, matching clockwise behaviour:
+# at 100% the 100u capacitor is effectively taken directly to ground.
 C C6 E2 WOOL_TOP 100u
-POT WOOL WOOL_TOP 0 0 2k LIN 0.75
+POT WOOL 0 0 WOOL_TOP 2k LIN 0.75
 
 # PINCH: 100k fixed feedback plus a 0..500k rheostat from Q2 emitter
 # back to Q1 base.
