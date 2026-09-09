@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -124,6 +126,7 @@ private:
 // performs no heap allocation, locking or console I/O.
 class GenericCircuit {
 public:
+    static constexpr std::size_t maximumLivePotentiometers = 16;
     bool compile(const CircuitDefinition& definition,
                  double sampleRate,
                  std::string& error);
@@ -168,6 +171,8 @@ private:
     std::vector<CircuitDiode> diodes_;
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPotentiometer> potentiometers_;
+    std::array<std::atomic<float>, maximumLivePotentiometers> potentiometerTargets_ {};
+    std::size_t potentiometerTargetCount_ = 0;
 
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
