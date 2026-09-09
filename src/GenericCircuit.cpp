@@ -138,6 +138,20 @@ std::size_t CircuitDefinition::addPotentiometer(CircuitNode terminal1,
     return potentiometers_.size() - 1;
 }
 
+bool CircuitDefinition::setPotentiometerPosition(std::size_t index,
+                                                 double normalized) noexcept
+{
+    if (index >= potentiometers_.size() || !std::isfinite(normalized))
+        return false;
+    potentiometers_[index].position = std::clamp(normalized, 0.0, 1.0);
+    return true;
+}
+
+double CircuitDefinition::potentiometerPosition(std::size_t index) const noexcept
+{
+    return index < potentiometers_.size() ? potentiometers_[index].position : 0.0;
+}
+
 bool CircuitDefinition::validate(std::string& error) const
 {
     error.clear();
