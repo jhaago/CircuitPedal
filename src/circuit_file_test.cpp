@@ -163,8 +163,8 @@ void testRepositoryWoollyReference()
            "Woolly reference did not expose four controls");
     if (document.controls.size() == 4)
     {
-        expect(document.controls[0].name == "PINCH", "Woolly PINCH control missing");
-        expect(document.controls[1].name == "WOOL", "Woolly WOOL control missing");
+        expect(document.controls[0].name == "WOOL", "Woolly WOOL control missing");
+        expect(document.controls[1].name == "PINCH", "Woolly PINCH control missing");
         expect(document.controls[2].name == "EQ", "Woolly EQ control missing");
         expect(document.controls[3].name == "OUTPUT", "Woolly OUTPUT control missing");
     }
