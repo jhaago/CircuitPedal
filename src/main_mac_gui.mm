@@ -54,6 +54,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     std::unique_ptr<circuitpedal::MacAudioEngine> _engine;
     std::vector<circuitpedal::AudioDeviceInfo> _devices;
     std::vector<circuitpedal::CircuitFileControl> _circuitControls;
+    std::vector<std::string> _circuitLibraryPaths;
 
     NSWindow* _window;
     NSPopUpButton* _devicePopup;
@@ -61,7 +62,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     NSPopUpButton* _bufferPopup;
 
     NSTextField* _modelValue;
-    NSButton* _loadCircuitButton;
+    NSPopUpButton* _circuitLibraryPopup;
     NSButton* _builtinButton;
 
     NSTextField* _diodeLabel;
@@ -127,15 +128,17 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _modelValue.lineBreakMode = NSLineBreakByTruncatingMiddle;
     [content addSubview:_modelValue];
 
-    _loadCircuitButton = makeButton(@"Load .cpedal…",
-                                    NSMakeRect(430.0, 724.0, 126.0, 30.0),
-                                    self,
-                                    @selector(loadCircuit:));
+    _circuitLibraryPopup = [[NSPopUpButton alloc]
+        initWithFrame:NSMakeRect(430.0, 724.0, 126.0, 30.0)
+            pullsDown:NO];
+    _circuitLibraryPopup.target = self;
+    _circuitLibraryPopup.action = @selector(circuitLibraryChanged:);
+    [content addSubview:_circuitLibraryPopup];
+
     _builtinButton = makeButton(@"Use Distortion+",
                                 NSMakeRect(566.0, 724.0, 130.0, 30.0),
                                 self,
                                 @selector(useBuiltin:));
-    [content addSubview:_loadCircuitButton];
     [content addSubview:_builtinButton];
 
     [content addSubview:makeLabel(@"Audio Device", NSMakeRect(24.0, 682.0, 110.0, 22.0))];
@@ -284,6 +287,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _errorLabel.usesSingleLineMode = NO;
     [content addSubview:_errorLabel];
 
+    [self populateCircuitLibrary];
     [self populateDevices];
     [self refreshModelControls];
     [self setRunningControls:NO];
@@ -311,6 +315,99 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     [_meterTimer invalidate];
     if (_engine)
         _engine->stop();
+}
+
+- (void)populateCircuitLibrary
+{
+    [_circuitLibraryPopup removeAllItems];
+    _circuitLibraryPaths.clear();
+
+    [_circuitLibraryPopup addItemWithTitle:@"Choose Circuit…"];
+    _circuitLibraryPaths.emplace_back();
+
+    NSMutableArray<NSURL*>* urls = [NSMutableArray array];
+    NSArray<NSURL*>* bundled =
+        [[NSBundle mainBundle] URLsForResourcesWithExtension:@"cpedal"
+                                                subdirectory:@"circuits"];
+    if (bundled != nil)
+        [urls addObjectsFromArray:bundled];
+
+    struct LibraryEntry {
+        std::string name;
+        std::string path;
+    };
+    std::vector<LibraryEntry> entries;
+    entries.reserve(urls.count);
+
+    for (NSURL* url in urls)
+    {
+        const char* utf8Path = url.path.UTF8String;
+        if (utf8Path == nullptr)
+            continue;
+
+        circuitpedal::CircuitFileDocument document;
+        std::string error;
+        if (!circuitpedal::loadCircuitFile(utf8Path, document, error))
+            continue;
+
+        entries.push_back({ document.name, utf8Path });
+    }
+
+    std::sort(entries.begin(), entries.end(),
+              [](const LibraryEntry& a, const LibraryEntry& b) {
+                  return a.name < b.name;
+              });
+
+    for (const auto& entry : entries)
+    {
+        [_circuitLibraryPopup addItemWithTitle:nsString(entry.name)];
+        _circuitLibraryPaths.push_back(entry.path);
+    }
+
+    [_circuitLibraryPopup.menu addItem:[NSMenuItem separatorItem]];
+    [_circuitLibraryPopup addItemWithTitle:@"Load External…"];
+    _circuitLibraryPaths.emplace_back("__external__");
+    [_circuitLibraryPopup selectItemAtIndex:0];
+}
+
+- (void)circuitLibraryChanged:(id)sender
+{
+    (void)sender;
+    if (_engine->isRunning())
+        return;
+
+    const NSInteger row = _circuitLibraryPopup.indexOfSelectedItem;
+    if (row < 0 || static_cast<std::size_t>(row) >= _circuitLibraryPaths.size())
+        return;
+
+    const std::string path =
+        _circuitLibraryPaths[static_cast<std::size_t>(row)];
+    if (path.empty())
+        return;
+
+    if (path == "__external__")
+    {
+        [_circuitLibraryPopup selectItemAtIndex:0];
+        [self loadCircuit:nil];
+        return;
+    }
+
+    std::string error;
+    if (!_engine->loadCircuitFile(path, error))
+    {
+        _errorLabel.stringValue = nsString(error);
+        [_circuitLibraryPopup selectItemAtIndex:0];
+        NSBeep();
+        return;
+    }
+
+    _bypassButton.state = NSControlStateValueOff;
+    _errorLabel.stringValue = @"";
+    _statusLabel.stringValue =
+        @"Circuit selected from the built-in library. Start Audio to compile "
+         "its operating point and begin real-time processing.";
+    [self refreshModelControls];
+    [self setRunningControls:NO];
 }
 
 - (void)populateDevices
@@ -439,7 +536,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _devicePopup.enabled = !running && !_devices.empty();
     _channelPopup.enabled = !running && _channelPopup.numberOfItems > 0;
     _bufferPopup.enabled = !running;
-    _loadCircuitButton.enabled = !running;
+    _circuitLibraryPopup.enabled = !running;
     _builtinButton.enabled = !running && _engine->usingCircuitFile();
 
     _diodePopup.enabled = !running && !_engine->usingCircuitFile();
@@ -485,10 +582,11 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         return;
     }
 
+    [_circuitLibraryPopup selectItemAtIndex:0];
     _bypassButton.state = NSControlStateValueOff;
     _errorLabel.stringValue = @"";
     _statusLabel.stringValue =
-        @"Circuit loaded. Start Audio to compile its DC operating point and "
+        @"External circuit loaded. Start Audio to compile its DC operating point and "
          "begin real-time processing.";
     [self refreshModelControls];
     [self setRunningControls:NO];
@@ -500,6 +598,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     if (!_engine->useBuiltInDistortionPlus())
         return;
 
+    [_circuitLibraryPopup selectItemAtIndex:0];
     _bypassButton.state =
         _engine->bypassed() ? NSControlStateValueOn : NSControlStateValueOff;
     _errorLabel.stringValue = @"";
