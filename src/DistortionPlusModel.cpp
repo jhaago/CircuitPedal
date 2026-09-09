@@ -11,6 +11,8 @@ static_assert(std::atomic<float>::is_always_lock_free,
               "Real-time parameter atomics must be lock-free on this target");
 static_assert(std::atomic<bool>::is_always_lock_free,
               "Real-time bypass atomic must be lock-free on this target");
+static_assert(std::atomic<std::uint32_t>::is_always_lock_free,
+              "Real-time preset atomic must be lock-free on this target");
 
 constexpr double pi = 3.14159265358979323846;
 constexpr double minimumResistance = 1.0;
@@ -103,6 +105,42 @@ double parallelResistance(double a, double b) noexcept
 }
 
 } // namespace
+
+const char* clippingDiodePresetName(ClippingDiodePreset preset) noexcept
+{
+    switch (preset)
+    {
+        case ClippingDiodePreset::ReferenceGermanium:
+            return "Reference germanium (V0.2)";
+        case ClippingDiodePreset::SiliconLike:
+            return "Silicon-like (experimental)";
+        case ClippingDiodePreset::LedLike:
+            return "LED-like (experimental)";
+        case ClippingDiodePreset::NoDiodes:
+            return "No clipping diodes";
+    }
+    return "Reference germanium (V0.2)";
+}
+
+DiodeModelParameters diodeModelParameters(ClippingDiodePreset preset) noexcept
+{
+    switch (preset)
+    {
+        case ClippingDiodePreset::ReferenceGermanium:
+            return { 1.0e-6, 1.6, 0.02585 };
+        case ClippingDiodePreset::SiliconLike:
+            // Approximate silicon behaviour only; this is not yet fitted to a
+            // measured 1N4148/1N914 device.
+            return { 2.5e-9, 1.75, 0.02585 };
+        case ClippingDiodePreset::LedLike:
+            // A deliberately high-threshold diode curve suitable for listening
+            // tests. It is not a claim to represent a particular LED part.
+            return { 1.0e-10, 3.6, 0.02585 };
+        case ClippingDiodePreset::NoDiodes:
+            return { 0.0, 1.0, 0.02585 };
+    }
+    return { 1.0e-6, 1.6, 0.02585 };
+}
 
 ClipNetworkResult processClipNetwork(double sourceVolts,
                                      double timestepSeconds,
@@ -355,6 +393,13 @@ void DistortionPlusModel::setBypass(bool shouldBypass) noexcept
     bypassTarget_.store(shouldBypass, std::memory_order_relaxed);
 }
 
+void DistortionPlusModel::setClippingDiodePreset(ClippingDiodePreset preset) noexcept
+{
+    const auto raw = static_cast<std::uint32_t>(preset);
+    const auto maximum = static_cast<std::uint32_t>(ClippingDiodePreset::NoDiodes);
+    clippingDiodePresetTarget_.store(raw <= maximum ? raw : 0U, std::memory_order_relaxed);
+}
+
 void DistortionPlusModel::setCalibration(const CircuitCalibration& calibration) noexcept
 {
     if (std::isfinite(calibration.inputVoltsPerFullScale)
@@ -392,6 +437,13 @@ float DistortionPlusModel::getOutput() const noexcept
 bool DistortionPlusModel::getBypass() const noexcept
 {
     return bypassTarget_.load(std::memory_order_relaxed);
+}
+
+ClippingDiodePreset DistortionPlusModel::getClippingDiodePreset() const noexcept
+{
+    const auto raw = clippingDiodePresetTarget_.load(std::memory_order_relaxed);
+    const auto maximum = static_cast<std::uint32_t>(ClippingDiodePreset::NoDiodes);
+    return static_cast<ClippingDiodePreset>(raw <= maximum ? raw : 0U);
 }
 
 CircuitCalibration DistortionPlusModel::getCalibration() const noexcept
@@ -556,9 +608,10 @@ double DistortionPlusModel::processCircuitSubstep(double inputVolts,
     clipParameters.couplingCapacitanceFarads = C_postOpAmpCoupling;
     clipParameters.shuntCapacitanceFarads = C_clip;
     clipParameters.loadResistanceOhms = clippingNodeLoad;
-    clipParameters.diodeSaturationCurrentAmps = diodeIs;
-    clipParameters.diodeIdealityFactor = diodeN;
-    clipParameters.thermalVoltageVolts = thermalV;
+    const auto diode = diodeModelParameters(getClippingDiodePreset());
+    clipParameters.diodeSaturationCurrentAmps = diode.saturationCurrentAmps;
+    clipParameters.diodeIdealityFactor = diode.idealityFactor;
+    clipParameters.thermalVoltageVolts = diode.thermalVoltageVolts;
 
     const auto clipResult = processClipNetwork(opAmpOutput,
                                                timestep_,
