@@ -139,6 +139,42 @@ void testParseAndCompile()
            "parsed circuit produced no meaningful output");
 }
 
+void testLinkedPotentiometerParsing()
+{
+    const char* linkedCircuit = R"CPEDAL(
+CPEDAL 1
+NAME "Linked Pot Test"
+V VCC VCC 0 9
+AUDIO IN INPUT 0 0.1
+POT MIDS INPUT MID_A_W 0 20k LIN 0.40
+POT_LINK MIDS VCC MID_B_W 0 20k LIN
+R R1 MID_A_W OUT 10k
+R R2 MID_B_W OUT 10k
+R RLOAD OUT 0 100k
+OUTPUT OUT 1
+)CPEDAL";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::parseCircuitFileText(linkedCircuit, document, error),
+           "linked-pot circuit did not parse: " + error);
+    expect(document.controls.size() == 1,
+           "linked pot incorrectly created a second GUI control");
+    expect(document.definition.potentiometerCount() == 2,
+           "linked pot did not create a second electrical pot section");
+    if (document.controls.size() == 1)
+    {
+        expect(document.controls[0].linkedPotentiometerIndices.size() == 1,
+               "linked pot index was not attached to the primary control");
+        expect(document.controls[0].initialPosition == 0.40,
+               "linked pot did not inherit the primary initial position");
+    }
+
+    circuitpedal::GenericCircuit circuit;
+    expect(circuit.compile(document.definition, 48000.0, error),
+           "linked-pot circuit did not compile: " + error);
+}
+
 void testParserFailures()
 {
     circuitpedal::CircuitFileDocument document;
@@ -159,6 +195,12 @@ void testParserFailures()
     expect(!circuitpedal::parseCircuitFileText(
                "CPEDAL 1\nR R1 A 0 10k\n", document, error),
            "file without OUTPUT was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nPOT_LINK MISSING A W B 10k LIN\nOUTPUT W\n",
+               document,
+               error),
+           "POT_LINK to an unknown control was accepted");
 }
 
 void testRepositoryWoollyReference()
@@ -401,6 +443,7 @@ int main()
 {
     testEngineeringValues();
     testParseAndCompile();
+    testLinkedPotentiometerParsing();
     testParserFailures();
     testRepositoryWoollyReference();
     testBigMuffRepositoryModels();
