@@ -1036,6 +1036,52 @@ void GenericCircuit::stampNonlinear() noexcept
                          gateDrain.conductance);
     }
 
+    for (const auto& transistor : nmosFets_)
+    {
+        const auto channel = evaluateNmosChannel(
+            voltage(transistor.drain),
+            voltage(transistor.gate),
+            voltage(transistor.source),
+            transistor.model);
+
+        const int drainIndex = nodeIndex(transistor.drain);
+        const int sourceIndex = nodeIndex(transistor.source);
+        if (drainIndex >= 0)
+            residual_[static_cast<std::size_t>(drainIndex)] += channel.current;
+        if (sourceIndex >= 0)
+            residual_[static_cast<std::size_t>(sourceIndex)] -= channel.current;
+
+        stampJacobianCurrent(transistor.drain,
+                             transistor.drain,
+                             channel.dCurrent_dDrain);
+        stampJacobianCurrent(transistor.drain,
+                             transistor.gate,
+                             channel.dCurrent_dGate);
+        stampJacobianCurrent(transistor.drain,
+                             transistor.source,
+                             channel.dCurrent_dSource);
+        stampJacobianCurrent(transistor.source,
+                             transistor.drain,
+                             -channel.dCurrent_dDrain);
+        stampJacobianCurrent(transistor.source,
+                             transistor.gate,
+                             -channel.dCurrent_dGate);
+        stampJacobianCurrent(transistor.source,
+                             transistor.source,
+                             -channel.dCurrent_dSource);
+
+        // Enhancement NMOS body diode: source anode, drain cathode.
+        const auto bodyDiode = exponentialJunction(
+            voltage(transistor.source) - voltage(transistor.drain),
+            transistor.model.bodyDiodeSaturationCurrentAmps,
+            transistor.model.bodyDiodeIdealityFactor
+                * transistor.model.thermalVoltageVolts);
+        stampCurrent(transistor.source, transistor.drain, bodyDiode.current);
+        stampConductance(transistor.source,
+                         transistor.drain,
+                         bodyDiode.conductance);
+    }
+
     for (std::size_t opAmpIndex = 0; opAmpIndex < opAmps_.size(); ++opAmpIndex)
     {
         const auto& opAmp = opAmps_[opAmpIndex];
