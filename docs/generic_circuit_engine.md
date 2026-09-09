@@ -79,17 +79,24 @@ V0.6 does not yet claim that the supplied stripboard image has been converted in
 an exact live Woolly Mammoth model. Before doing that we will trace every electrical
 node and verify the reconstructed netlist against a conventional schematic.
 
-## Next milestone: V0.7 circuit files
+## V0.7 circuit files
 
-The next architecture step is a human-readable `.cpedal` circuit format and
-parser. The intended workflow is:
+V0.7 completes the first circuit-file milestone described here. A human-readable
+`.cpedal` parser now feeds this generic solver, the macOS GUI can load those
+files directly, named potentiometers become live controls, and the selected
+circuit runs through the established Core Audio path.
+
+The current workflow is:
 
 1. inspect a schematic or verified stripboard layout;
 2. reconstruct and review its electrical netlist;
 3. write/export a `.cpedal` circuit file;
 4. load and compile it through the generic engine;
-5. expose named potentiometers as live GUI controls;
-6. run it through the proven macOS real-time audio path.
+5. solve the DC operating point at the active interface sample rate;
+6. expose named potentiometers as live GUI controls;
+7. run the circuit through the proven macOS real-time audio path.
 
-This is the milestone that removes the need to compile C++ for each new supported
-pedal topology.
+The remaining work is fidelity rather than basic file-loading architecture:
+generic oversampling, stronger semiconductor/device libraries, additional device
+types, automated schematic-to-netlist assistance, SPICE comparison and measured
+hardware validation.
