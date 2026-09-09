@@ -281,6 +281,89 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
     return {};
 }
 
+GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept
+{
+    const std::string normalized = upper(name);
+    GenericPnpBjtModel model;
+
+    if (normalized == "GENERIC_PNP" || normalized == "PNP")
+    {
+        ok = true;
+        return model;
+    }
+    if (normalized == "AC128" || normalized == "GERMANIUM_PNP" || normalized == "GE_PNP")
+    {
+        // Broad vintage-germanium approximation. Leakage and temperature
+        // behaviour will be refined when the SPICE/device-library work lands.
+        model.saturationCurrentAmps = 5.0e-8;
+        model.forwardBeta = 90.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.5;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N1308")
+    {
+        model.saturationCurrentAmps = 2.0e-8;
+        model.forwardBeta = 80.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.4;
+        ok = true;
+        return model;
+    }
+    ok = false;
+    return {};
+}
+
+GenericNjfetModel builtInNjfetModel(const std::string& name, bool& ok) noexcept
+{
+    const std::string normalized = upper(name);
+    GenericNjfetModel model;
+
+    if (normalized == "GENERIC_NJFET" || normalized == "NJFET" || normalized == "JFET")
+    {
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N5457")
+    {
+        model.idssAmps = 3.0e-3;
+        model.pinchOffVoltageVolts = -2.5;
+        ok = true;
+        return model;
+    }
+    if (normalized == "J201")
+    {
+        model.idssAmps = 0.8e-3;
+        model.pinchOffVoltageVolts = -0.8;
+        ok = true;
+        return model;
+    }
+    if (normalized == "J113")
+    {
+        model.idssAmps = 10.0e-3;
+        model.pinchOffVoltageVolts = -3.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "MPF4393")
+    {
+        model.idssAmps = 15.0e-3;
+        model.pinchOffVoltageVolts = -2.5;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N5952")
+    {
+        model.idssAmps = 6.0e-3;
+        model.pinchOffVoltageVolts = -2.0;
+        ok = true;
+        return model;
+    }
+    ok = false;
+    return {};
+}
+
 GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
 {
     const std::string normalized = upper(name);
@@ -501,6 +584,50 @@ bool parseCircuitFileText(const std::string& text,
                 return false;
             }
             parsed.definition.addNpnBjt(
+                nodeFor(parsed.definition, tokens[2]),
+                nodeFor(parsed.definition, tokens[3]),
+                nodeFor(parsed.definition, tokens[4]),
+                model);
+        }
+        else if (command == "PNP")
+        {
+            if (tokens.size() != 6)
+            {
+                error = lineError(lineNumber,
+                    "PNP syntax: PNP <id> <collector> <base> <emitter> <model>.");
+                return false;
+            }
+            bool modelOk = false;
+            const auto model = builtInPnpModel(tokens[5], modelOk);
+            if (!modelOk)
+            {
+                error = lineError(lineNumber,
+                    "Unknown PNP model '" + tokens[5] + "'.");
+                return false;
+            }
+            parsed.definition.addPnpBjt(
+                nodeFor(parsed.definition, tokens[2]),
+                nodeFor(parsed.definition, tokens[3]),
+                nodeFor(parsed.definition, tokens[4]),
+                model);
+        }
+        else if (command == "JFET" || command == "NJFET")
+        {
+            if (tokens.size() != 6)
+            {
+                error = lineError(lineNumber,
+                    "JFET syntax: JFET <id> <drain> <gate> <source> <model>.");
+                return false;
+            }
+            bool modelOk = false;
+            const auto model = builtInNjfetModel(tokens[5], modelOk);
+            if (!modelOk)
+            {
+                error = lineError(lineNumber,
+                    "Unknown N-JFET model '" + tokens[5] + "'.");
+                return false;
+            }
+            parsed.definition.addNjfet(
                 nodeFor(parsed.definition, tokens[2]),
                 nodeFor(parsed.definition, tokens[3]),
                 nodeFor(parsed.definition, tokens[4]),
