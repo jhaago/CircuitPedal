@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "========================================"
-echo " CircuitPedal V0.7 - Circuit Lab build + run"
+echo " CircuitPedal V0.8 - Circuit Lab build + run"
 echo "========================================"
 echo
 
