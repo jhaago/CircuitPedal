@@ -121,6 +121,44 @@ double taperExponent(const std::string& token, bool& ok)
     return 0.0;
 }
 
+bool parseSwitchPosition(CircuitSwitchMode mode,
+                         const std::string& text,
+                         std::uint32_t& position)
+{
+    const std::string normalized = upper(text);
+    if (mode == CircuitSwitchMode::Spst)
+    {
+        if (normalized == "OFF") { position = 0; return true; }
+        if (normalized == "ON") { position = 1; return true; }
+    }
+    else if (mode == CircuitSwitchMode::Spdt)
+    {
+        if (normalized == "A") { position = 0; return true; }
+        if (normalized == "B") { position = 1; return true; }
+    }
+    else
+    {
+        if (normalized == "A") { position = 0; return true; }
+        if (normalized == "OFF" || normalized == "CENTER") { position = 1; return true; }
+        if (normalized == "B") { position = 2; return true; }
+    }
+
+    try
+    {
+        std::size_t consumed = 0;
+        const unsigned long value = std::stoul(text, &consumed);
+        const std::uint32_t count =
+            mode == CircuitSwitchMode::OnOffOn ? 3U : 2U;
+        if (consumed == text.size() && value < count)
+        {
+            position = static_cast<std::uint32_t>(value);
+            return true;
+        }
+    }
+    catch (...) {}
+    return false;
+}
+
 std::string lineError(std::size_t lineNumber, const std::string& message)
 {
     return "Line " + std::to_string(lineNumber) + ": " + message;
@@ -753,6 +791,99 @@ bool parseCircuitFileText(const std::string& text,
                 nodeFor(parsed.definition, tokens[5]),
                 nodeFor(parsed.definition, tokens[6]),
                 model);
+        }
+        else if (command == "SWITCH")
+        {
+            if (tokens.size() < 6)
+            {
+                error = lineError(lineNumber,
+                    "SWITCH syntax is SWITCH <name> <SPST|SPDT|ONOFFON> ...");
+                return false;
+            }
+
+            const std::string modeToken = upper(tokens[2]);
+            CircuitSwitchMode mode = CircuitSwitchMode::Spst;
+            std::uint32_t position = 0;
+            CircuitNode common = circuitGround;
+            CircuitNode throwA = circuitGround;
+            CircuitNode throwB = circuitGround;
+            std::vector<std::string> labels;
+
+            if (modeToken == "SPST")
+            {
+                if (tokens.size() != 6 && tokens.size() != 8)
+                {
+                    error = lineError(lineNumber,
+                        "SPST syntax: SWITCH <name> SPST <a> <b> <initial> [<off-label> <on-label>].");
+                    return false;
+                }
+                mode = CircuitSwitchMode::Spst;
+                common = nodeFor(parsed.definition, tokens[3]);
+                throwA = nodeFor(parsed.definition, tokens[4]);
+                if (!parseSwitchPosition(mode, tokens[5], position))
+                {
+                    error = lineError(lineNumber, "Invalid SPST initial position.");
+                    return false;
+                }
+                labels = tokens.size() == 8
+                    ? std::vector<std::string>{tokens[6], tokens[7]}
+                    : std::vector<std::string>{"Off", "On"};
+            }
+            else if (modeToken == "SPDT" || modeToken == "ONOFFON")
+            {
+                const bool centerOff = modeToken == "ONOFFON";
+                const std::size_t basicSize = 7;
+                const std::size_t labelledSize = centerOff ? 10 : 9;
+                if (tokens.size() != basicSize && tokens.size() != labelledSize)
+                {
+                    error = lineError(lineNumber,
+                        centerOff
+                            ? "ONOFFON syntax: SWITCH <name> ONOFFON <common> <a> <b> <initial> [<a-label> <off-label> <b-label>]."
+                            : "SPDT syntax: SWITCH <name> SPDT <common> <a> <b> <initial> [<a-label> <b-label>].");
+                    return false;
+                }
+                mode = centerOff ? CircuitSwitchMode::OnOffOn : CircuitSwitchMode::Spdt;
+                common = nodeFor(parsed.definition, tokens[3]);
+                throwA = nodeFor(parsed.definition, tokens[4]);
+                throwB = nodeFor(parsed.definition, tokens[5]);
+                if (!parseSwitchPosition(mode, tokens[6], position))
+                {
+                    error = lineError(lineNumber, "Invalid switch initial position.");
+                    return false;
+                }
+                if (tokens.size() == labelledSize)
+                {
+                    if (centerOff)
+                        labels = {tokens[7], tokens[8], tokens[9]};
+                    else
+                        labels = {tokens[7], tokens[8]};
+                }
+                else
+                {
+                    labels = centerOff
+                        ? std::vector<std::string>{"A", "Off", "B"}
+                        : std::vector<std::string>{"A", "B"};
+                }
+            }
+            else
+            {
+                error = lineError(lineNumber,
+                    "Unknown switch mode '" + tokens[2] + "'.");
+                return false;
+            }
+
+            const auto switchIndex =
+                parsed.definition.addSwitch(mode, common, throwA, throwB, position);
+
+            CircuitFileControl control;
+            control.name = tokens[1];
+            control.kind = CircuitFileControlKind::Switch;
+            control.switchIndex = switchIndex;
+            control.switchPositionCount =
+                mode == CircuitSwitchMode::OnOffOn ? 3U : 2U;
+            control.initialSwitchPosition = position;
+            control.switchPositionNames = std::move(labels);
+            parsed.controls.push_back(std::move(control));
         }
         else if (command == "POT")
         {
