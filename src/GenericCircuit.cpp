@@ -321,8 +321,8 @@ void GenericCircuit::reset() noexcept
     if (!compiled_)
         return;
 
-    solution_ = dcSolution_;
-    lastGoodSolution_ = dcSolution_;
+    std::copy(dcSolution_.begin(), dcSolution_.end(), solution_.begin());
+    std::copy(dcSolution_.begin(), dcSolution_.end(), lastGoodSolution_.begin());
     for (auto& capacitor : capacitors_)
     {
         capacitor.previousVoltage =
@@ -339,11 +339,11 @@ float GenericCircuit::processSample(float input) noexcept
     lastSolveConverged_ = solveTransient(static_cast<double>(input));
     if (!lastSolveConverged_)
     {
-        solution_ = lastGoodSolution_;
+        std::copy(lastGoodSolution_.begin(), lastGoodSolution_.end(), solution_.begin());
         return 0.0f;
     }
 
-    lastGoodSolution_ = solution_;
+    std::copy(solution_.begin(), solution_.end(), lastGoodSolution_.begin());
     const double output = voltage(outputNode_) * outputFullScalePerVolt_;
     if (!std::isfinite(output))
         return 0.0f;
@@ -669,7 +669,7 @@ void GenericCircuit::stampJacobianCurrent(CircuitNode rowNode,
 
 bool GenericCircuit::solveLinearSystem() noexcept
 {
-    workMatrix_ = jacobian_;
+    std::copy(jacobian_.begin(), jacobian_.end(), workMatrix_.begin());
     for (std::size_t i = 0; i < unknownCount_; ++i)
         workRhs_[i] = -residual_[i];
 
