@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CircuitFile.h"
 #include "DistortionPlusModel.h"
 
 #include <cstdint>
@@ -54,6 +55,16 @@ public:
     bool start(const AudioStartConfiguration& configuration, std::string& error);
     void stop() noexcept;
     bool isRunning() const noexcept;
+
+    // Model selection/loading belongs on the non-real-time thread and is only
+    // allowed while audio is stopped.
+    bool loadCircuitFile(const std::string& path, std::string& error);
+    bool useBuiltInDistortionPlus() noexcept;
+    bool usingCircuitFile() const noexcept;
+    std::string activeModelName() const;
+    std::vector<CircuitFileControl> circuitControls() const;
+    bool setCircuitControl(std::size_t index, float normalized) noexcept;
+    float circuitControl(std::size_t index) const noexcept;
 
     void setDistortion(float normalized) noexcept;
     void setOutput(float normalized) noexcept;
