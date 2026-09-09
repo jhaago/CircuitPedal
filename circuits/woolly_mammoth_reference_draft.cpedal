@@ -1,0 +1,43 @@
+CPEDAL 1
+NAME "Woolly Mammoth Reference Draft"
+
+# CircuitPedal V0.7 reference reconstruction of the common two-2N3904
+# Woolly Mammoth schematic. The topology/component values are intended for
+# engineering comparison and live testing. The compact 2N3904 model is not yet
+# a manufacturer-specific Gummel-Poon/SPICE model, so this file must not be
+# treated as a component-accurate clone until measured/SPICE validation is done.
+
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.20
+R R_INPUT_PULLDOWN INPUT 0 1M
+
+# Q1 input stage
+C C1 INPUT B1 220n
+C C2 B1 0 10n
+Q Q1 C1_NODE B1 0 2N3904
+
+# Q1 collector directly drives Q2 base.
+R R3 VCC C1_NODE 51k
+Q Q2 C2_NODE C1_NODE E2 2N3904
+R R4 VCC C2_NODE 20k
+R R1 E2 0 2k2
+
+# PINCH: 100k fixed feedback plus a 0..500k rheostat from Q2 emitter
+# back to Q1 base.
+R R2 B1 PINCH_FIXED 100k
+POT PINCH PINCH_FIXED E2 E2 500k LIN 0.35
+
+# WOOL: variable AC bypass of the Q2 emitter resistor.
+C C6 E2 WOOL_TOP 100u
+POT WOOL WOOL_TOP 0 0 2k LIN 0.75
+
+# Passive tilt EQ and level network.
+C C5 C2_NODE TONE_SRC 100u
+C C3 TONE_SRC HIGH_PRE 10n
+R R5 HIGH_PRE EQ_HIGH 10k
+R R6 TONE_SRC EQ_LOW 4k99
+C C4 EQ_LOW 0 220n
+POT EQ EQ_LOW TONE_OUT EQ_HIGH 10k LIN 0.50
+POT OUTPUT 0 OUT TONE_OUT 10k LIN 0.70
+
+OUTPUT OUT 1
