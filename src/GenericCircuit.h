@@ -54,6 +54,15 @@ struct GenericOpAmpModel {
     double inputOffsetVolts = 0.0;
 };
 
+struct GenericNmosModel {
+    // Compact square-law enhancement MOSFET model for pedal-scale currents.
+    double thresholdVoltageVolts = 2.0;
+    double betaAmpsPerVoltSquared = 0.01;
+    double bodyDiodeSaturationCurrentAmps = 1.0e-12;
+    double bodyDiodeIdealityFactor = 1.8;
+    double thermalVoltageVolts = 0.02585;
+};
+
 struct CircuitResistor {
     CircuitNode a = circuitGround;
     CircuitNode b = circuitGround;
@@ -111,6 +120,13 @@ struct CircuitOpAmp {
     GenericOpAmpModel model;
 };
 
+struct CircuitNmos {
+    CircuitNode drain = circuitGround;
+    CircuitNode gate = circuitGround;
+    CircuitNode source = circuitGround;
+    GenericNmosModel model;
+};
+
 struct CircuitPotentiometer {
     CircuitNode terminal1 = circuitGround;
     CircuitNode wiper = circuitGround;
@@ -156,6 +172,10 @@ public:
                   CircuitNode positiveRail,
                   CircuitNode negativeRail,
                   const GenericOpAmpModel& model = {});
+    void addNmos(CircuitNode drain,
+                 CircuitNode gate,
+                 CircuitNode source,
+                 const GenericNmosModel& model = {});
     std::size_t addPotentiometer(CircuitNode terminal1,
                                  CircuitNode wiper,
                                  CircuitNode terminal3,
@@ -185,6 +205,7 @@ private:
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitOpAmp> opAmps_;
+    std::vector<CircuitNmos> nmosFets_;
     std::vector<CircuitPotentiometer> potentiometers_;
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
@@ -242,6 +263,7 @@ private:
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitOpAmp> opAmps_;
+    std::vector<CircuitNmos> nmosFets_;
     std::vector<CircuitPotentiometer> potentiometers_;
     std::array<std::atomic<float>, maximumLivePotentiometers> potentiometerTargets_ {};
     std::size_t potentiometerTargetCount_ = 0;
