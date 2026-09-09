@@ -203,6 +203,23 @@ void CircuitDefinition::addNjfet(CircuitNode drain,
     njfets_.push_back({ drain, gate, source, model });
 }
 
+void CircuitDefinition::addOpAmp(CircuitNode nonInverting,
+                                 CircuitNode inverting,
+                                 CircuitNode output,
+                                 CircuitNode positiveRail,
+                                 CircuitNode negativeRail,
+                                 const GenericOpAmpModel& model)
+{
+    opAmps_.push_back({
+        nonInverting,
+        inverting,
+        output,
+        positiveRail,
+        negativeRail,
+        model
+    });
+}
+
 std::size_t CircuitDefinition::addPotentiometer(CircuitNode terminal1,
                                                 CircuitNode wiper,
                                                 CircuitNode terminal3,
@@ -352,6 +369,24 @@ bool CircuitDefinition::validate(std::string& error) const
             return false;
         }
     }
+    for (const auto& opAmp : opAmps_)
+    {
+        if (!nodeValid(opAmp.nonInverting)
+            || !nodeValid(opAmp.inverting)
+            || !nodeValid(opAmp.output)
+            || !nodeValid(opAmp.positiveRail)
+            || !nodeValid(opAmp.negativeRail)
+            || opAmp.output == opAmp.positiveRail
+            || opAmp.output == opAmp.negativeRail
+            || !finitePositive(opAmp.model.openLoopGain)
+            || !std::isfinite(opAmp.model.outputHeadroomVolts)
+            || opAmp.model.outputHeadroomVolts < 0.0
+            || !std::isfinite(opAmp.model.inputOffsetVolts))
+        {
+            error = "Circuit contains an invalid op-amp model.";
+            return false;
+        }
+    }
     for (const auto& pot : potentiometers_)
     {
         if (!nodeValid(pot.terminal1)
@@ -379,7 +414,7 @@ bool CircuitDefinition::validate(std::string& error) const
     }
 
     const std::size_t unknowns =
-        (nodeNames_.size() - 1) + voltageSources_.size();
+        (nodeNames_.size() - 1) + voltageSources_.size() + opAmps_.size();
     if (unknowns == 0 || unknowns > maximumUnknowns)
     {
         error = "Circuit MNA system size is unsupported.";
@@ -415,6 +450,7 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     npnBjts_ = definition.npnBjts_;
     pnpBjts_ = definition.pnpBjts_;
     njfets_ = definition.njfets_;
+    opAmps_ = definition.opAmps_;
     potentiometers_ = definition.potentiometers_;
     if (potentiometers_.size() > maximumLivePotentiometers)
     {
@@ -434,7 +470,8 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     sampleRate_ = sampleRate;
     timestep_ = 1.0 / sampleRate_;
     nodeUnknownCount_ = nodeNames_.size() - 1;
-    unknownCount_ = nodeUnknownCount_ + voltageSources_.size();
+    unknownCount_ =
+        nodeUnknownCount_ + voltageSources_.size() + opAmps_.size();
 
     solution_.assign(unknownCount_, 0.0);
     dcSolution_.assign(unknownCount_, 0.0);
