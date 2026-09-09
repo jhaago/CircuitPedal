@@ -47,6 +47,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     NSPopUpButton* _devicePopup;
     NSPopUpButton* _channelPopup;
     NSPopUpButton* _bufferPopup;
+    NSPopUpButton* _diodePopup;
     NSButton* _startButton;
     NSButton* _stopButton;
     NSSlider* _distortionSlider;
@@ -69,107 +70,119 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     (void)notification;
     _engine = std::make_unique<circuitpedal::MacAudioEngine>();
 
-    const NSRect windowRect = NSMakeRect(0.0, 0.0, 640.0, 590.0);
+    const NSRect windowRect = NSMakeRect(0.0, 0.0, 640.0, 640.0);
     const NSWindowStyleMask style = NSWindowStyleMaskTitled
         | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
     _window = [[NSWindow alloc] initWithContentRect:windowRect
                                           styleMask:style
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
-    _window.title = @"CircuitPedal V0.3";
+    _window.title = @"CircuitPedal V0.4";
     _window.releasedWhenClosed = NO;
     NSView* content = _window.contentView;
 
-    NSTextField* title = makeLabel(@"CircuitPedal V0.3 — macOS Test GUI",
-                                   NSMakeRect(24.0, 542.0, 590.0, 28.0));
+    NSTextField* title = makeLabel(@"CircuitPedal V0.4 — Circuit Lab",
+                                   NSMakeRect(24.0, 592.0, 590.0, 28.0));
     title.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
     [content addSubview:title];
 
     NSTextField* warning = makeLabel(@"Start with your interface, headphones or amplifier volume low.",
-                                     NSMakeRect(24.0, 516.0, 590.0, 20.0));
+                                     NSMakeRect(24.0, 566.0, 590.0, 20.0));
     warning.textColor = [NSColor systemRedColor];
     [content addSubview:warning];
 
-    [content addSubview:makeLabel(@"Audio Device", NSMakeRect(24.0, 476.0, 110.0, 22.0))];
-    _devicePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140.0, 472.0, 472.0, 28.0)
+    [content addSubview:makeLabel(@"Audio Device", NSMakeRect(24.0, 526.0, 110.0, 22.0))];
+    _devicePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140.0, 522.0, 472.0, 28.0)
                                               pullsDown:NO];
     _devicePopup.target = self;
     _devicePopup.action = @selector(deviceChanged:);
     [content addSubview:_devicePopup];
 
-    [content addSubview:makeLabel(@"Input Channel", NSMakeRect(24.0, 434.0, 110.0, 22.0))];
-    _channelPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140.0, 430.0, 170.0, 28.0)
+    [content addSubview:makeLabel(@"Input Channel", NSMakeRect(24.0, 484.0, 110.0, 22.0))];
+    _channelPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140.0, 480.0, 170.0, 28.0)
                                                pullsDown:NO];
     [content addSubview:_channelPopup];
 
-    [content addSubview:makeLabel(@"Buffer Size", NSMakeRect(336.0, 434.0, 90.0, 22.0))];
-    _bufferPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(430.0, 430.0, 182.0, 28.0)
+    [content addSubview:makeLabel(@"Buffer Size", NSMakeRect(336.0, 484.0, 90.0, 22.0))];
+    _bufferPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(430.0, 480.0, 182.0, 28.0)
                                               pullsDown:NO];
     [_bufferPopup addItemsWithTitles:@[ @"64", @"128", @"256" ]];
     [_bufferPopup selectItemWithTitle:@"64"];
     [content addSubview:_bufferPopup];
 
-    _startButton = makeButton(@"Start Audio", NSMakeRect(140.0, 380.0, 150.0, 32.0),
+    [content addSubview:makeLabel(@"Clipping Diodes", NSMakeRect(24.0, 442.0, 110.0, 22.0))];
+    _diodePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(140.0, 438.0, 472.0, 28.0)
+                                             pullsDown:NO];
+    [_diodePopup addItemsWithTitles:@[
+        @"Reference germanium (V0.2)",
+        @"Silicon-like (experimental)",
+        @"LED-like (experimental)",
+        @"No clipping diodes"
+    ]];
+    [_diodePopup selectItemAtIndex:0];
+    [content addSubview:_diodePopup];
+
+    _startButton = makeButton(@"Start Audio", NSMakeRect(140.0, 392.0, 150.0, 32.0),
                               self, @selector(startAudio:));
-    _stopButton = makeButton(@"Stop Audio", NSMakeRect(320.0, 380.0, 150.0, 32.0),
+    _stopButton = makeButton(@"Stop Audio", NSMakeRect(320.0, 392.0, 150.0, 32.0),
                              self, @selector(stopAudio:));
     [content addSubview:_startButton];
     [content addSubview:_stopButton];
 
-    [content addSubview:makeLabel(@"Distortion", NSMakeRect(24.0, 329.0, 100.0, 22.0))];
+    [content addSubview:makeLabel(@"Distortion", NSMakeRect(24.0, 341.0, 100.0, 22.0))];
     _distortionSlider = [NSSlider sliderWithValue:65.0
                                             minValue:0.0
                                             maxValue:100.0
                                                target:self
                                                action:@selector(distortionSliderChanged:)];
-    _distortionSlider.frame = NSMakeRect(140.0, 325.0, 390.0, 28.0);
+    _distortionSlider.frame = NSMakeRect(140.0, 337.0, 390.0, 28.0);
     _distortionSlider.continuous = YES;
     [content addSubview:_distortionSlider];
-    _distortionValue = makeLabel(@"65%", NSMakeRect(548.0, 329.0, 64.0, 22.0));
+    _distortionValue = makeLabel(@"65%", NSMakeRect(548.0, 341.0, 64.0, 22.0));
     _distortionValue.alignment = NSTextAlignmentRight;
     [content addSubview:_distortionValue];
 
-    [content addSubview:makeLabel(@"Output", NSMakeRect(24.0, 287.0, 100.0, 22.0))];
+    [content addSubview:makeLabel(@"Output", NSMakeRect(24.0, 299.0, 100.0, 22.0))];
     _outputSlider = [NSSlider sliderWithValue:70.0
                                     minValue:0.0
                                     maxValue:100.0
                                        target:self
                                        action:@selector(outputSliderChanged:)];
-    _outputSlider.frame = NSMakeRect(140.0, 283.0, 390.0, 28.0);
+    _outputSlider.frame = NSMakeRect(140.0, 295.0, 390.0, 28.0);
     _outputSlider.continuous = YES;
     [content addSubview:_outputSlider];
-    _outputValue = makeLabel(@"70%", NSMakeRect(548.0, 287.0, 64.0, 22.0));
+    _outputValue = makeLabel(@"70%", NSMakeRect(548.0, 299.0, 64.0, 22.0));
     _outputValue.alignment = NSTextAlignmentRight;
     [content addSubview:_outputValue];
 
     _bypassButton = [NSButton checkboxWithTitle:@"Bypass"
                                          target:self
                                          action:@selector(bypassChanged:)];
-    _bypassButton.frame = NSMakeRect(140.0, 242.0, 150.0, 28.0);
+    _bypassButton.frame = NSMakeRect(140.0, 254.0, 150.0, 28.0);
     [content addSubview:_bypassButton];
 
-    [content addSubview:makeLabel(@"Input Level", NSMakeRect(24.0, 200.0, 100.0, 22.0))];
-    _inputMeter = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(140.0, 202.0, 472.0, 16.0)];
+    [content addSubview:makeLabel(@"Input Level", NSMakeRect(24.0, 212.0, 100.0, 22.0))];
+    _inputMeter = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(140.0, 214.0, 472.0, 16.0)];
     _inputMeter.indeterminate = NO;
     _inputMeter.style = NSProgressIndicatorStyleBar;
     _inputMeter.minValue = 0.0;
     _inputMeter.maxValue = 1.0;
     [content addSubview:_inputMeter];
 
-    [content addSubview:makeLabel(@"Output Level", NSMakeRect(24.0, 166.0, 100.0, 22.0))];
-    _outputMeter = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(140.0, 168.0, 472.0, 16.0)];
+    [content addSubview:makeLabel(@"Output Level", NSMakeRect(24.0, 178.0, 100.0, 22.0))];
+    _outputMeter = [[NSProgressIndicator alloc] initWithFrame:NSMakeRect(140.0, 180.0, 472.0, 16.0)];
     _outputMeter.indeterminate = NO;
     _outputMeter.style = NSProgressIndicatorStyleBar;
     _outputMeter.minValue = 0.0;
     _outputMeter.maxValue = 1.0;
     [content addSubview:_outputMeter];
 
-    _statusLabel = makeLabel(@"Audio Stopped", NSMakeRect(24.0, 60.0, 588.0, 92.0));
+    _statusLabel = makeLabel(@"Audio Stopped", NSMakeRect(24.0, 72.0, 588.0, 92.0));
     _statusLabel.font = [NSFont monospacedSystemFontOfSize:12.0 weight:NSFontWeightRegular];
     _statusLabel.usesSingleLineMode = NO;
     [content addSubview:_statusLabel];
 
-    _errorLabel = makeLabel(@"", NSMakeRect(24.0, 16.0, 588.0, 42.0));
+    _errorLabel = makeLabel(@"", NSMakeRect(24.0, 22.0, 588.0, 42.0));
     _errorLabel.textColor = [NSColor systemRedColor];
     _errorLabel.usesSingleLineMode = NO;
     [content addSubview:_errorLabel];
@@ -275,6 +288,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _devicePopup.enabled = !running && !_devices.empty();
     _channelPopup.enabled = !running && _channelPopup.numberOfItems > 0;
     _bufferPopup.enabled = !running;
+    _diodePopup.enabled = !running;
     _startButton.enabled = !running && !_devices.empty() && _channelPopup.numberOfItems > 0;
     _stopButton.enabled = running;
 }
@@ -300,6 +314,10 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _engine->setDistortion(static_cast<float>(_distortionSlider.doubleValue / 100.0));
     _engine->setOutput(static_cast<float>(_outputSlider.doubleValue / 100.0));
     _engine->setBypass(_bypassButton.state == NSControlStateValueOn);
+    const NSInteger diodeRow = _diodePopup.indexOfSelectedItem;
+    const auto diodePreset = static_cast<circuitpedal::ClippingDiodePreset>(
+        diodeRow >= 0 ? static_cast<std::uint32_t>(diodeRow) : 0U);
+    _engine->setClippingDiodePreset(diodePreset);
 
     std::string error;
     if (!_engine->start(configuration, error))
@@ -362,8 +380,9 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 {
     const circuitpedal::AudioRuntimeInfo info = _engine->runtimeInfo();
     _statusLabel.stringValue = [NSString stringWithFormat:
-        @"Audio Running @ %.1f kHz\nRequested buffer: %u | Actual: %u (%.2f ms)\nInput latency: %u + %u safety frames | Output: %u + %u safety frames\nDSP FIR delay: %u frames | Reported component sum: %.2f ms",
+        @"Audio Running @ %.1f kHz\nDiodes: %s\nRequested buffer: %u | Actual: %u (%.2f ms)\nInput latency: %u + %u safety frames | Output: %u + %u safety frames\nDSP FIR delay: %u frames | Reported component sum: %.2f ms",
         info.sampleRate / 1000.0,
+        circuitpedal::clippingDiodePresetName(_engine->clippingDiodePreset()),
         info.requestedBufferFrames,
         info.actualBufferFrames,
         info.bufferDurationMilliseconds(),
