@@ -302,8 +302,10 @@ void testNagaViperRepositoryModel()
            "Naga Viper did not expose Range/Boost/Heat controls");
 
     circuitpedal::OversampledGenericCircuit circuit;
-    expect(circuit.compile(document.definition, 48000.0, error),
-           "Naga Viper did not compile at 4x: " + error);
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Naga Viper did not compile at 4x: " + error);
+    if (!compiled)
+        return;
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
