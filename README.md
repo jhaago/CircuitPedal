@@ -1,14 +1,14 @@
-# CircuitPedal V0.8
+# CircuitPedal V0.10
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.8 is the first dedicated fidelity/refinement pass on the generic circuit path. Loadable `.cpedal` circuits now run their nonlinear MNA solve at **4x the host sample rate** through the same FIR interpolation/decimation architecture already proven by the built-in Distortion+ model. Bypass is latency-aligned to the oversampled wet path, and a loaded circuit's DC operating point is solved at the actual control positions selected before audio starts.
+V0.10 turns the Circuit File Lab into a small **pedal library** rather than a one-file-at-a-time prototype. The macOS app now bundles its `.cpedal` models, lets them be selected directly from a menu, displays up to sixteen live controls in a scrollable panel, and supports linked/multi-gang potentiometers.
 
-The built-in Distortion+ remains available as the regression/reference model. V0.8 retains the generic two-transistor fuzz demo and the **Woolly Mammoth Reference Draft**, corrects the Wool control direction to match the physical pedal, and adds an automated physical-bias sanity comparison against published working-board voltages.
+The generic engine still runs supported circuits at **4x the host sample rate** and now covers the main device families needed by the supplied analogue drive/fuzz layouts: diodes, NPN and PNP BJTs, N-channel JFETs, N-channel MOSFETs and an early generic op-amp model. V0.10 also adds a five-control **Fuzz Factory Reference** model alongside the Woolly Mammoth, Naga Viper and four Big Muff variants.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.8 Circuit Lab Test
+## V0.10 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -24,17 +24,33 @@ open build/CircuitPedalGUI.app
 In the GUI:
 
 1. Turn the physical interface/headphone/amplifier output down before starting.
-2. Leave **Built-in Distortion+** selected for the established reference path, or click **Load .cpedal…** and choose a circuit from the `circuits/` folder.
+2. Leave **Built-in Distortion+** selected for the established reference path, or choose a bundled model from the **Choose Circuit…** menu. **Load External…** still accepts any compatible `.cpedal` file.
 3. Select a duplex audio interface and the physical input channel carrying the guitar.
 4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio and try 128 or 256.
-5. For a loaded circuit, its first four named POT controls appear automatically and can be moved live while audio is running.
+5. For a loaded circuit, up to sixteen named controls appear in a scrollable panel and can be moved live while audio is running. Linked pot sections move together behind one control.
 6. Click **Start Audio**. A loaded circuit is compiled for the device sample rate and its DC operating point is solved before Core Audio starts.
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-For a quick generic-path check, try `circuits/two_transistor_fuzz_demo.cpedal`. The main V0.8 listening target is `circuits/woolly_mammoth_reference_draft.cpedal`, which exposes **WOOL, PINCH, EQ and OUTPUT**. Generic circuits now report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants and the five-control Fuzz Factory Reference. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Compatibility-library changes introduced in V0.10
+
+- Bundles all repository `.cpedal` files into the macOS app and provides an in-app circuit selector.
+- Expands the macOS circuit control panel from four fixed sliders to a scrollable sixteen-control view.
+- Adds `POT_LINK` so one physical/GUI control can drive multiple electrical potentiometer sections such as a dual-gang control.
+- Adds a five-control Fuzz Factory reference model using separate lower/higher-gain AC128 compact models.
+- Keeps external `.cpedal` loading available for development and user-created models.
+
+## Generic device expansion introduced in V0.9
+
+- Adds compact PNP BJT, N-channel JFET and N-channel MOSFET devices to the generic MNA solver.
+- Adds an early supply-limited generic op-amp controlled-source model.
+- Adds named aliases for common pedal parts including 2N2222A, 2N5088, 2N5133, BC239C, BC550C, AC128, J113, J201, 2N5457, MPF4393, 2N5952, BS170, 4558 and CA3130.
+- Adds source stepping to improve DC operating-point convergence for harder nonlinear circuits.
+- Adds Naga Viper and four Big Muff variant circuit files with end-to-end automated validation.
 
 ## Generic fidelity changes introduced in V0.8
 
@@ -95,7 +111,7 @@ Startup errors remain visible in the window so settings can be changed and Start
 
 The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-The legacy Distortion+ implementation remains a dedicated reference model. V0.8 uses the same 4x FIR oversampling concept for the generic circuit path, while the `.cpedal` layer continues to let supported pedal topologies load without recompiling C++.
+The legacy Distortion+ implementation remains a dedicated reference model. The generic path uses the same 4x FIR oversampling concept, while the `.cpedal` layer lets supported pedal topologies load without recompiling C++.
 
 ## Build and test
 
@@ -189,6 +205,11 @@ The automated suite currently checks:
 - one second of stable two-transistor fuzz-like transient audio;
 - 4x oversampled generic nonlinear processing;
 - end-to-end Woolly Mammoth circuit-file loading;
-- broad Woolly working-board DC-bias sanity checks at all controls maxed.
+- broad Woolly working-board DC-bias sanity checks at all controls maxed;
+- PNP BJT, N-JFET, N-MOSFET and generic op-amp smoke/bias tests;
+- four Big Muff circuit files end-to-end;
+- Naga Viper end-to-end;
+- five-control Fuzz Factory reference end-to-end;
+- linked/multi-gang potentiometer parsing.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
