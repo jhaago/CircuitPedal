@@ -146,6 +146,50 @@ void testParserFailures()
            "file without OUTPUT was accepted");
 }
 
+void testRepositoryWoollyReference()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for file validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/woolly_mammoth_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Woolly reference .cpedal did not load: " + error);
+    expect(document.controls.size() == 4,
+           "Woolly reference did not expose four controls");
+    if (document.controls.size() == 4)
+    {
+        expect(document.controls[0].name == "PINCH", "Woolly PINCH control missing");
+        expect(document.controls[1].name == "WOOL", "Woolly WOOL control missing");
+        expect(document.controls[2].name == "EQ", "Woolly EQ control missing");
+        expect(document.controls[3].name == "OUTPUT", "Woolly OUTPUT control missing");
+    }
+
+    circuitpedal::GenericCircuit circuit;
+    expect(circuit.compile(document.definition, 48000.0, error),
+           "Woolly reference circuit did not compile: " + error);
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        const float input = static_cast<float>(
+            0.5 * std::sin(2.0 * pi * 82.0 * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Woolly reference produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "Woolly reference transient solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-6,
+           "Woolly reference produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -165,6 +209,7 @@ int main()
     testEngineeringValues();
     testParseAndCompile();
     testParserFailures();
+    testRepositoryWoollyReference();
     testBuiltInModels();
 
     if (failures != 0)
