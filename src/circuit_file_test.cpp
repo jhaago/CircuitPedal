@@ -329,6 +329,60 @@ void testNagaViperRepositoryModel()
 #endif
 }
 
+void testFuzzFactoryRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Fuzz Factory validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/fuzz_factory_reference.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Fuzz Factory model did not load: " + error);
+    expect(document.controls.size() == 5,
+           "Fuzz Factory did not expose five controls");
+    if (document.controls.size() == 5)
+    {
+        expect(document.controls[0].name == "STAB",
+               "Fuzz Factory STAB control missing");
+        expect(document.controls[1].name == "GATE",
+               "Fuzz Factory GATE control missing");
+        expect(document.controls[2].name == "COMP",
+               "Fuzz Factory COMP control missing");
+        expect(document.controls[3].name == "DRIVE",
+               "Fuzz Factory DRIVE control missing");
+        expect(document.controls[4].name == "VOLUME",
+               "Fuzz Factory VOLUME control missing");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Fuzz Factory did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 12000; ++n)
+    {
+        const float input = static_cast<float>(
+            0.35 * std::sin(2.0 * pi * 110.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output),
+               "Fuzz Factory produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "Fuzz Factory nonlinear solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-6,
+           "Fuzz Factory produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -351,6 +405,7 @@ int main()
     testRepositoryWoollyReference();
     testBigMuffRepositoryModels();
     testNagaViperRepositoryModel();
+    testFuzzFactoryRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)
@@ -359,6 +414,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.9 circuit-file validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.10 circuit-file validation suite\n";
     return 0;
 }
