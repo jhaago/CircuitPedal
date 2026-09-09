@@ -10,6 +10,8 @@ The `circuits/` folder contains human-readable `.cpedal` models used by the gene
   from the supplied Big Muff project schematic and its per-version BOM.
 - `naga_viper.cpedal` follows the published Naga Viper / Aion Hydra signal-path
   schematic and exposes Range, Boost and Heat.
+- `fuzz_factory_reference.cpedal` is the first five-control germanium/PNP
+  reference and exposes Stab, Gate, Comp, Drive and Volume.
 - `two_transistor_fuzz_demo.cpedal` remains a generic solver demonstration.
 
 The Woolly file is deliberately labelled **Reference Draft**. CircuitPedal's
@@ -43,5 +45,6 @@ V0.9 also supports PNP BJTs, N-channel JFETs, N-channel MOSFETs and early
 generic op-amps in circuit files. See `docs/circuit_file_format.md` for the
 full syntax and `docs/model_coverage.md` for the current conversion backlog.
 
-Potentiometers become named live controls in the macOS GUI. The current GUI
-shows the first four controls; the engine supports up to sixteen.
+Potentiometers become named live controls in the macOS GUI. The V0.10 GUI
+shows up to sixteen controls in a scrollable panel. `POT_LINK` allows one
+control to move multiple electrical pot sections together.
