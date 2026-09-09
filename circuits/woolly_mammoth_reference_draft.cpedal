@@ -22,14 +22,14 @@ Q Q2 C2_NODE C1_NODE E2 2N3904
 R R4 VCC C2_NODE 20k
 R R1 E2 0 2k2
 
+# WOOL: variable AC bypass of the Q2 emitter resistor.
+C C6 E2 WOOL_TOP 100u
+POT WOOL WOOL_TOP 0 0 2k LIN 0.75
+
 # PINCH: 100k fixed feedback plus a 0..500k rheostat from Q2 emitter
 # back to Q1 base.
 R R2 B1 PINCH_FIXED 100k
 POT PINCH PINCH_FIXED E2 E2 500k LIN 0.35
-
-# WOOL: variable AC bypass of the Q2 emitter resistor.
-C C6 E2 WOOL_TOP 100u
-POT WOOL WOOL_TOP 0 0 2k LIN 0.75
 
 # Passive tilt EQ and level network.
 C C5 C2_NODE TONE_SRC 100u
