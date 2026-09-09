@@ -1,0 +1,27 @@
+CPEDAL 1
+NAME "Two Transistor Fuzz Demo"
+
+# V0.7 demonstration circuit. This is intentionally generic and is not intended
+# to reproduce a named commercial pedal.
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.20
+
+C C_IN INPUT B1 220n
+R R_B1 VCC B1 100k
+R R_B1_G B1 0 22k
+R R_C1 VCC C1 10k
+R R_E1 E1 0 1k
+Q Q1 C1 B1 E1 2N3904
+
+C C_INTER C1 B2 10n
+R R_B2 VCC B2 100k
+R R_B2_G B2 0 22k
+R R_C2 VCC C2 4k7
+R R_E2 E2 0 1k
+Q Q2 C2 B2 E2 2N3904
+
+C C_OUT C2 TONE_IN 220n
+POT TONE 0 TONE_W TONE_IN 10k LIN 0.50
+POT VOLUME 0 OUT TONE_W 10k LOG 0.70
+
+OUTPUT OUT 1
