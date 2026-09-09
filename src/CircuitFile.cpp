@@ -785,6 +785,49 @@ bool parseCircuitFileText(const std::string& text,
                 exponent);
             parsed.controls.push_back({ tokens[1], index, initial });
         }
+        else if (command == "POT_LINK")
+        {
+            if (tokens.size() != 7)
+            {
+                error = lineError(lineNumber,
+                    "POT_LINK syntax: POT_LINK <existing-control-name> "
+                    "<terminal1> <wiper> <terminal3> <resistance> "
+                    "<LIN|LOG|EXP:x>.");
+                return false;
+            }
+
+            const auto control = std::find_if(
+                parsed.controls.begin(),
+                parsed.controls.end(),
+                [&tokens](const CircuitFileControl& candidate) {
+                    return candidate.name == tokens[1];
+                });
+            if (control == parsed.controls.end())
+            {
+                error = lineError(lineNumber,
+                    "POT_LINK references unknown control '" + tokens[1] + "'.");
+                return false;
+            }
+
+            double resistance = 0.0;
+            bool taperOk = false;
+            const double exponent = taperExponent(tokens[6], taperOk);
+            if (!parseFinite(tokens[5], resistance) || !taperOk)
+            {
+                error = lineError(lineNumber,
+                    "Invalid linked potentiometer parameters.");
+                return false;
+            }
+
+            const auto index = parsed.definition.addPotentiometer(
+                nodeFor(parsed.definition, tokens[2]),
+                nodeFor(parsed.definition, tokens[3]),
+                nodeFor(parsed.definition, tokens[4]),
+                resistance,
+                control->initialPosition,
+                exponent);
+            control->linkedPotentiometerIndices.push_back(index);
+        }
         else if (command == "OUTPUT")
         {
             if (tokens.size() != 2 && tokens.size() != 3)
