@@ -935,6 +935,70 @@ void GenericCircuit::stampNonlinear() noexcept
                          transistor.drain,
                          gateDrain.conductance);
     }
+
+    for (std::size_t opAmpIndex = 0; opAmpIndex < opAmps_.size(); ++opAmpIndex)
+    {
+        const auto& opAmp = opAmps_[opAmpIndex];
+        const std::size_t branchIndex =
+            nodeUnknownCount_ + voltageSources_.size() + opAmpIndex;
+        const int outputIndex = nodeIndex(opAmp.output);
+        const double branchCurrent = solution_[branchIndex];
+
+        // Treat the op-amp output as a controlled ideal voltage source. The
+        // branch current is an MNA unknown; input terminals draw no current in
+        // this first generic model.
+        if (outputIndex >= 0)
+        {
+            residual_[static_cast<std::size_t>(outputIndex)] += branchCurrent;
+            jacobian_[static_cast<std::size_t>(outputIndex) * unknownCount_
+                      + branchIndex] += 1.0;
+        }
+
+        const double positiveRail = voltage(opAmp.positiveRail);
+        const double negativeRail = voltage(opAmp.negativeRail);
+        const double midpoint = 0.5 * (positiveRail + negativeRail);
+        const double rawHalfSpan =
+            0.5 * (positiveRail - negativeRail) - opAmp.model.outputHeadroomVolts;
+        const double halfSpan = std::max(0.05, rawHalfSpan);
+
+        const double differential =
+            voltage(opAmp.nonInverting)
+            - voltage(opAmp.inverting)
+            + opAmp.model.inputOffsetVolts;
+        const double x = opAmp.model.openLoopGain * differential / halfSpan;
+        const double tanhX = std::tanh(x);
+        const double sechSquared = std::max(0.0, 1.0 - tanhX * tanhX);
+        const double target = midpoint + halfSpan * tanhX;
+
+        residual_[branchIndex] += voltage(opAmp.output) - target;
+
+        const auto stampEquationNode =
+            [this, branchIndex](CircuitNode node, double derivative) noexcept {
+                const int column = nodeIndex(node);
+                if (column >= 0)
+                {
+                    jacobian_[branchIndex * unknownCount_
+                              + static_cast<std::size_t>(column)] += derivative;
+                }
+            };
+
+        stampEquationNode(opAmp.output, 1.0);
+
+        const double dTarget_dDifferential =
+            opAmp.model.openLoopGain * sechSquared;
+        stampEquationNode(opAmp.nonInverting, -dTarget_dDifferential);
+        stampEquationNode(opAmp.inverting, dTarget_dDifferential);
+
+        const bool spanIsActive = rawHalfSpan > 0.05;
+        const double dTarget_dHalf =
+            tanhX - x * sechSquared;
+        const double dTarget_dPositiveRail =
+            0.5 + (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
+        const double dTarget_dNegativeRail =
+            0.5 - (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
+        stampEquationNode(opAmp.positiveRail, -dTarget_dPositiveRail);
+        stampEquationNode(opAmp.negativeRail, -dTarget_dNegativeRail);
+    }
 }
 
 void GenericCircuit::stampConductance(CircuitNode a,
