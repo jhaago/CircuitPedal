@@ -178,34 +178,39 @@ void testNpnOperatingPoint()
 
 void testPnpOperatingPoint()
 {
+    // Mirror the established NPN common-emitter test around ground. This keeps
+    // the topology numerically well-conditioned while directly checking the
+    // polarity-reversed Ebers-Moll equations.
     circuitpedal::CircuitDefinition definition;
-    const auto vcc = definition.addNode("VCC");
+    const auto vee = definition.addNode("VEE");
     const auto base = definition.addNode("B");
     const auto collector = definition.addNode("C");
 
-    definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
-    definition.addResistor(vcc, base, 10000.0);
-    definition.addResistor(base, circuitpedal::circuitGround, 100000.0);
-    definition.addResistor(collector, circuitpedal::circuitGround, 10000.0);
+    definition.addVoltageSource(vee, circuitpedal::circuitGround, -9.0);
+    definition.addResistor(circuitpedal::circuitGround, base, 10000.0);
+    definition.addResistor(base, vee, 100000.0);
+    definition.addResistor(collector, vee, 10000.0);
 
     circuitpedal::GenericPnpBjtModel pnp;
     pnp.saturationCurrentAmps = 2.0e-14;
     pnp.forwardBeta = 150.0;
-    definition.addPnpBjt(collector, base, vcc, pnp);
+    definition.addPnpBjt(collector, base, circuitpedal::circuitGround, pnp);
     definition.setOutputNode(collector);
 
     circuitpedal::GenericCircuit circuit;
     std::string error;
-    expect(circuit.compile(definition, 48000.0, error),
-           "PNP bias circuit failed to compile: " + error);
+    const bool compiled = circuit.compile(definition, 48000.0, error);
+    expect(compiled, "PNP bias circuit failed to compile: " + error);
+    if (!compiled)
+        return;
 
     const double vb = circuit.nodeVoltage(base);
     const double vc = circuit.nodeVoltage(collector);
-    expect(vb > 7.5 && vb < 8.8,
+    expect(vb < -0.45 && vb > -1.0,
            "PNP base DC voltage was implausible");
-    expect(vc > 0.1 && vc < 9.0,
+    expect(vc < -0.1 && vc > -9.0,
            "PNP collector DC voltage was implausible");
-    expect((9.0 - vb) > 0.45 && (9.0 - vb) < 1.0,
+    expect((-vb) > 0.45 && (-vb) < 1.0,
            "PNP emitter-base voltage was implausible");
 }
 
