@@ -250,6 +250,7 @@ private:
     double outputFullScalePerVolt_ = 1.0;
     double sampleRate_ = 48000.0;
     double timestep_ = 1.0 / 48000.0;
+    double dcSourceScale_ = 1.0;
 
     std::size_t nodeUnknownCount_ = 0;
     std::size_t unknownCount_ = 0;
