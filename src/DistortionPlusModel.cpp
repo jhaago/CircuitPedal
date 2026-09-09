@@ -104,7 +104,41 @@ double parallelResistance(double a, double b) noexcept
     return 1.0 / (1.0 / a + 1.0 / b);
 }
 
+bool finiteAtLeast(double value, double minimum) noexcept
+{
+    return std::isfinite(value) && value >= minimum;
+}
+
+bool finiteGreaterThan(double value, double minimum) noexcept
+{
+    return std::isfinite(value) && value > minimum;
+}
+
 } // namespace
+
+bool distortionPlusCircuitParametersValid(
+    const DistortionPlusCircuitParameters& p) noexcept
+{
+    return finiteAtLeast(p.inputBiasResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.opAmpInputResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.inputCouplingCapacitanceFarads, minimumCapacitance)
+        && finiteAtLeast(p.inputRfCapacitanceFarads, minimumCapacitance)
+        && finiteAtLeast(p.feedbackResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.gainMinimumResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.gainPotentiometerResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.gainCapacitanceFarads, minimumCapacitance)
+        && finiteGreaterThan(p.gainPotCurveExponent, 0.0)
+        && finiteAtLeast(p.clipSeriesResistanceOhms, minimumResistance)
+        && finiteAtLeast(p.postOpAmpCouplingCapacitanceFarads, minimumCapacitance)
+        && finiteAtLeast(p.clipShuntCapacitanceFarads, minimumCapacitance)
+        && finiteAtLeast(p.outputPotentiometerResistanceOhms, minimumResistance)
+        && finiteGreaterThan(p.outputTaperExponent, 0.0)
+        && finiteGreaterThan(p.opAmpGainBandwidthHz, 0.0)
+        && finiteGreaterThan(p.opAmpSlewRateVoltsPerSecond, 0.0)
+        && finiteGreaterThan(p.opAmpSwingVolts, 0.0)
+        && finiteAtLeast(p.opAmpSoftKneeVolts, 0.0)
+        && p.opAmpSoftKneeVolts <= p.opAmpSwingVolts;
+}
 
 const char* clippingDiodePresetName(ClippingDiodePreset preset) noexcept
 {
@@ -400,6 +434,15 @@ void DistortionPlusModel::setClippingDiodePreset(ClippingDiodePreset preset) noe
     clippingDiodePresetTarget_.store(raw <= maximum ? raw : 0U, std::memory_order_relaxed);
 }
 
+bool DistortionPlusModel::setCircuitParameters(
+    const DistortionPlusCircuitParameters& parameters) noexcept
+{
+    if (!distortionPlusCircuitParametersValid(parameters))
+        return false;
+    circuitParameters_ = parameters;
+    return true;
+}
+
 void DistortionPlusModel::setCalibration(const CircuitCalibration& calibration) noexcept
 {
     if (std::isfinite(calibration.inputVoltsPerFullScale)
@@ -446,6 +489,11 @@ ClippingDiodePreset DistortionPlusModel::getClippingDiodePreset() const noexcept
     return static_cast<ClippingDiodePreset>(raw <= maximum ? raw : 0U);
 }
 
+DistortionPlusCircuitParameters DistortionPlusModel::getCircuitParameters() const noexcept
+{
+    return circuitParameters_;
+}
+
 CircuitCalibration DistortionPlusModel::getCalibration() const noexcept
 {
     return calibration_;
@@ -458,11 +506,10 @@ double DistortionPlusModel::smoothToward(double current,
     return current + coefficient * (target - current);
 }
 
-double DistortionPlusModel::outputWiperFraction(double normalized) noexcept
+double DistortionPlusModel::outputWiperFraction(double normalized) const noexcept
 {
-    // Nominal 10%-at-midpoint audio taper.
-    constexpr double audioTaperExponent = 3.321928094887362;
-    return std::pow(std::clamp(normalized, 0.0, 1.0), audioTaperExponent);
+    return std::pow(std::clamp(normalized, 0.0, 1.0),
+                    circuitParameters_.outputTaperExponent);
 }
 
 float DistortionPlusModel::processSample(float input) noexcept
@@ -521,9 +568,10 @@ double DistortionPlusModel::processInputNetwork(double sourceVolts,
                                                 double sourceResistance) noexcept
 {
     const double sourceG = 1.0 / std::max(sourceResistance, minimumResistance);
-    const double rfCapG = C_inputRf / timestep_;
-    const double couplingCapG = C_inputCoupling / timestep_;
-    const double inputResistance = parallelResistance(R_inputBias, R_opAmpInput);
+    const double rfCapG = circuitParameters_.inputRfCapacitanceFarads / timestep_;
+    const double couplingCapG = circuitParameters_.inputCouplingCapacitanceFarads / timestep_;
+    const double inputResistance = parallelResistance(circuitParameters_.inputBiasResistanceOhms,
+                                                       circuitParameters_.opAmpInputResistanceOhms);
     const double inputG = 1.0 / inputResistance;
 
     const double a11 = sourceG + rfCapG + couplingCapG;
@@ -549,20 +597,22 @@ double DistortionPlusModel::processOpAmp(double inputVolts,
                                          double feedbackCurrentAmps,
                                          double noiseGain) noexcept
 {
-    const double idealTarget = inputVolts + R_feedback * feedbackCurrentAmps;
-    const double closedLoopBandwidth = std::clamp(opAmpGainBandwidthHz / std::max(noiseGain, 1.0),
+    const double idealTarget = inputVolts
+        + circuitParameters_.feedbackResistanceOhms * feedbackCurrentAmps;
+    const double closedLoopBandwidth = std::clamp(
+        circuitParameters_.opAmpGainBandwidthHz / std::max(noiseGain, 1.0),
                                                   10.0,
                                                   substepRate_ * 0.45);
     const double alpha = 1.0 - std::exp(-2.0 * pi * closedLoopBandwidth * timestep_);
     const double bandwidthLimitedTarget =
         opAmpOutputVoltage_ + alpha * (idealTarget - opAmpOutputVoltage_);
-    const double maximumDelta = opAmpSlewRateVoltsPerSecond * timestep_;
+    const double maximumDelta = circuitParameters_.opAmpSlewRateVoltsPerSecond * timestep_;
     const double delta = std::clamp(bandwidthLimitedTarget - opAmpOutputVoltage_,
                                     -maximumDelta,
                                     maximumDelta);
     opAmpOutputVoltage_ = softRailLimit(opAmpOutputVoltage_ + delta,
-                                        opAmpSwingVolts,
-                                        opAmpSoftKneeVolts);
+                                        circuitParameters_.opAmpSwingVolts,
+                                        circuitParameters_.opAmpSoftKneeVolts);
     return opAmpOutputVoltage_;
 }
 
@@ -574,10 +624,13 @@ double DistortionPlusModel::processCircuitSubstep(double inputVolts,
 {
     const double opAmpInput = processInputNetwork(inputVolts, sourceResistance);
 
-    const double potFraction = std::pow(1.0 - std::clamp(gainControl, 0.0, 1.0), 2.2);
+    const double potFraction = std::pow(
+        1.0 - std::clamp(gainControl, 0.0, 1.0),
+        circuitParameters_.gainPotCurveExponent);
     const double gainResistance =
-        R_gainMinimum + R_gainPotentiometer * potFraction;
-    const double gainCapG = C_gain / timestep_;
+        circuitParameters_.gainMinimumResistanceOhms
+        + circuitParameters_.gainPotentiometerResistanceOhms * potFraction;
+    const double gainCapG = circuitParameters_.gainCapacitanceFarads / timestep_;
     const double gainResistorG = 1.0 / gainResistance;
     const double newGainCapVoltage =
         (gainCapG * gainCapVoltage_ + gainResistorG * opAmpInput)
@@ -586,14 +639,17 @@ double DistortionPlusModel::processCircuitSubstep(double inputVolts,
         (opAmpInput - newGainCapVoltage) / gainResistance;
     gainCapVoltage_ = newGainCapVoltage;
 
-    const double noiseGain = 1.0 + R_feedback / gainResistance;
+    const double noiseGain = 1.0
+        + circuitParameters_.feedbackResistanceOhms / gainResistance;
     const double opAmpOutput = processOpAmp(opAmpInput,
                                            feedbackCurrent,
                                            noiseGain);
 
     const double wiper = outputWiperFraction(outputControl);
-    const double resistanceBelowWiper = R_outputPotentiometer * wiper;
-    const double resistanceAboveWiper = R_outputPotentiometer - resistanceBelowWiper;
+    const double resistanceBelowWiper =
+        circuitParameters_.outputPotentiometerResistanceOhms * wiper;
+    const double resistanceAboveWiper =
+        circuitParameters_.outputPotentiometerResistanceOhms - resistanceBelowWiper;
     const double loadedLowerResistance = resistanceBelowWiper <= minimumResistance
         ? 0.0
         : parallelResistance(resistanceBelowWiper, outputLoad);
@@ -604,9 +660,11 @@ double DistortionPlusModel::processCircuitSubstep(double inputVolts,
         : loadedLowerResistance / clippingNodeLoad;
 
     ClipNetworkParameters clipParameters;
-    clipParameters.seriesResistanceOhms = R_clip;
-    clipParameters.couplingCapacitanceFarads = C_postOpAmpCoupling;
-    clipParameters.shuntCapacitanceFarads = C_clip;
+    clipParameters.seriesResistanceOhms = circuitParameters_.clipSeriesResistanceOhms;
+    clipParameters.couplingCapacitanceFarads =
+        circuitParameters_.postOpAmpCouplingCapacitanceFarads;
+    clipParameters.shuntCapacitanceFarads =
+        circuitParameters_.clipShuntCapacitanceFarads;
     clipParameters.loadResistanceOhms = clippingNodeLoad;
     const auto diode = diodeModelParameters(getClippingDiodePreset());
     clipParameters.diodeSaturationCurrentAmps = diode.saturationCurrentAmps;
