@@ -12,6 +12,9 @@ struct CircuitFileControl {
     std::string name;
     std::size_t potentiometerIndex = 0;
     double initialPosition = 0.5;
+    // Additional pot sections mechanically/electrically linked to this one
+    // GUI control (for example a dual-gang tone or mids control).
+    std::vector<std::size_t> linkedPotentiometerIndices;
 };
 
 struct CircuitFileDocument {
