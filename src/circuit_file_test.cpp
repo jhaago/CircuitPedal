@@ -169,9 +169,23 @@ void testRepositoryWoollyReference()
         expect(document.controls[3].name == "OUTPUT", "Woolly OUTPUT control missing");
     }
 
+    for (std::size_t i = 0; i < document.definition.potentiometerCount(); ++i)
+        expect(document.definition.setPotentiometerPosition(i, 1.0),
+               "Could not set Woolly reference pot to maximum");
+
     circuitpedal::GenericCircuit circuit;
     expect(circuit.compile(document.definition, 48000.0, error),
            "Woolly reference circuit did not compile: " + error);
+
+    const auto b1 = document.definition.findNode("B1");
+    const auto c1 = document.definition.findNode("C1_NODE");
+    const auto e2 = document.definition.findNode("E2");
+    const auto c2 = document.definition.findNode("C2_NODE");
+    std::cerr << "Woolly max-pot bias: "
+              << "Q1B=" << circuit.nodeVoltage(b1)
+              << " Q1C/Q2B=" << circuit.nodeVoltage(c1)
+              << " Q2E=" << circuit.nodeVoltage(e2)
+              << " Q2C=" << circuit.nodeVoltage(c2) << '\n';
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
