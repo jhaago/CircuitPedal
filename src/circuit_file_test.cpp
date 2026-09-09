@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <sstream>
 #include <string>
 
 namespace {
@@ -15,6 +16,19 @@ void expect(bool condition, const std::string& message)
         std::cerr << "FAIL: " << message << '\n';
         ++failures;
     }
+}
+
+void expectRelative(double actual,
+                    double expected,
+                    double relativeTolerance,
+                    const char* label)
+{
+    const double tolerance = std::abs(expected) * relativeTolerance;
+    std::ostringstream message;
+    message << label << " bias mismatch: actual=" << actual
+            << " V expected=" << expected
+            << " V tolerance=±" << tolerance << " V";
+    expect(std::abs(actual - expected) <= tolerance, message.str());
 }
 
 void testEngineeringValues()
@@ -181,11 +195,28 @@ void testRepositoryWoollyReference()
     const auto c1 = document.definition.findNode("C1_NODE");
     const auto e2 = document.definition.findNode("E2");
     const auto c2 = document.definition.findNode("C2_NODE");
-    std::cerr << "Woolly max-pot bias: "
-              << "Q1B=" << circuit.nodeVoltage(b1)
-              << " Q1C/Q2B=" << circuit.nodeVoltage(c1)
-              << " Q2E=" << circuit.nodeVoltage(e2)
-              << " Q2C=" << circuit.nodeVoltage(c2) << '\n';
+    // A verified physical build reports, with all pots maxed and a 9.33 V
+    // supply: Q1 B=0.58 V, C=1.2 V; Q2 E=0.88 V, B=1.2 V, C=2.3 V.
+    // Scale the reference to this file's 9.0 V supply and allow 15% while the
+    // compact V0.8 BJT model is still short of a full Gummel-Poon model.
+    constexpr double supplyScale = 9.0 / 9.33;
+    constexpr double biasTolerance = 0.15;
+    expectRelative(circuit.nodeVoltage(b1),
+                   0.58 * supplyScale,
+                   biasTolerance,
+                   "Woolly Q1 base");
+    expectRelative(circuit.nodeVoltage(c1),
+                   1.20 * supplyScale,
+                   biasTolerance,
+                   "Woolly Q1 collector/Q2 base");
+    expectRelative(circuit.nodeVoltage(e2),
+                   0.88 * supplyScale,
+                   biasTolerance,
+                   "Woolly Q2 emitter");
+    expectRelative(circuit.nodeVoltage(c2),
+                   2.30 * supplyScale,
+                   biasTolerance,
+                   "Woolly Q2 collector");
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
@@ -232,6 +263,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.7 circuit-file validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.8 circuit-file validation suite\n";
     return 0;
 }
