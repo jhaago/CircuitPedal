@@ -83,8 +83,16 @@ if(APPLE)
     target_link_libraries(circuitpedal PRIVATE circuit_mac_audio)
     circuitpedal_target_defaults(circuitpedal)
 
+    file(GLOB CIRCUITPEDAL_CIRCUIT_FILES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/circuits/*.cpedal"
+    )
+
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        ${CIRCUITPEDAL_CIRCUIT_FILES}
+    )
+    set_source_files_properties(${CIRCUITPEDAL_CIRCUIT_FILES} PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources/circuits"
     )
     target_link_libraries(CircuitPedalGUI PRIVATE
         circuit_mac_audio
