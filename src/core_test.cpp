@@ -361,6 +361,58 @@ void testHarmonicBehaviour()
            "distortion control did not materially increase harmonic content");
 }
 
+void testDiodePresets()
+{
+    using circuitpedal::ClippingDiodePreset;
+
+    const auto germanium =
+        circuitpedal::diodeModelParameters(ClippingDiodePreset::ReferenceGermanium);
+    const auto silicon =
+        circuitpedal::diodeModelParameters(ClippingDiodePreset::SiliconLike);
+    const auto led =
+        circuitpedal::diodeModelParameters(ClippingDiodePreset::LedLike);
+    const auto none =
+        circuitpedal::diodeModelParameters(ClippingDiodePreset::NoDiodes);
+
+    expect(germanium.saturationCurrentAmps > silicon.saturationCurrentAmps,
+           "germanium and silicon presets did not have distinct diode curves");
+    expect(led.idealityFactor > silicon.idealityFactor,
+           "LED-like preset did not have a higher-threshold curve");
+    expect(none.saturationCurrentAmps == 0.0,
+           "no-diodes preset still enabled diode current");
+
+    std::vector<double> rmsValues;
+    for (const auto preset : {
+             ClippingDiodePreset::ReferenceGermanium,
+             ClippingDiodePreset::SiliconLike,
+             ClippingDiodePreset::LedLike,
+             ClippingDiodePreset::NoDiodes })
+    {
+        circuitpedal::DistortionPlusModel model;
+        model.setClippingDiodePreset(preset);
+        model.setDistortion(1.0f);
+        model.setOutput(1.0f);
+        model.prepare(48000.0);
+        expect(model.getClippingDiodePreset() == preset,
+               "diode preset was not retained");
+
+        const auto output = renderSine(model, 48000.0, 997.0, 0.35, 48000);
+        for (float sample : output)
+            expect(std::isfinite(sample), "diode preset produced non-finite output");
+        rmsValues.push_back(rmsAfterWarmup(output, 4096));
+    }
+
+    expect(std::abs(rmsValues[0] - rmsValues[1]) > 1.0e-4,
+           "germanium and silicon presets were audibly/numerically indistinguishable");
+    expect(std::abs(rmsValues[0] - rmsValues[3]) > 1.0e-4,
+           "reference and no-diode presets were numerically indistinguishable");
+
+    circuitpedal::DistortionPlusModel invalid;
+    invalid.setClippingDiodePreset(static_cast<ClippingDiodePreset>(999U));
+    expect(invalid.getClippingDiodePreset() == ClippingDiodePreset::ReferenceGermanium,
+           "invalid diode preset did not fall back safely");
+}
+
 void testLongRunStability()
 {
     circuitpedal::DistortionPlusModel model;
@@ -388,6 +440,7 @@ int main()
     testDeterminismAndSymmetry();
     testControlSweepsAndBypass();
     testHarmonicBehaviour();
+    testDiodePresets();
     testLongRunStability();
 
     if (failures != 0)
@@ -396,6 +449,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.2 validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.4 validation suite\n";
     return 0;
 }
