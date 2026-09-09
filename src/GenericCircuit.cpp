@@ -563,8 +563,25 @@ double GenericCircuit::potentiometerPosition(std::size_t index) const noexcept
 bool GenericCircuit::solveOperatingPoint() noexcept
 {
     std::fill(solution_.begin(), solution_.end(), 0.0);
-    const bool converged = newtonSolve(true, 0.0);
-    return converged;
+
+    // Source stepping dramatically improves convergence for circuits whose
+    // nonlinear devices are already strongly forward-biased at the final rail
+    // voltage (notably PNP/germanium fuzz stages). Each Newton solve starts
+    // from the preceding lower-supply operating point.
+    constexpr int sourceSteps = 12;
+    for (int step = 1; step <= sourceSteps; ++step)
+    {
+        dcSourceScale_ =
+            static_cast<double>(step) / static_cast<double>(sourceSteps);
+        if (!newtonSolve(true, 0.0))
+        {
+            dcSourceScale_ = 1.0;
+            return false;
+        }
+    }
+
+    dcSourceScale_ = 1.0;
+    return true;
 }
 
 bool GenericCircuit::solveTransient(double input) noexcept
@@ -717,7 +734,8 @@ void GenericCircuit::stampLinear(bool dcMode, double input) noexcept
         const int positive = nodeIndex(source.positive);
         const int negative = nodeIndex(source.negative);
         const double sourceValue =
-            source.dcVolts + (dcMode ? 0.0 : input * source.audioScaleVoltsPerFullScale);
+            source.dcVolts * (dcMode ? dcSourceScale_ : 1.0)
+            + (dcMode ? 0.0 : input * source.audioScaleVoltsPerFullScale);
         const double branchCurrent = solution_[branchIndex];
 
         if (positive >= 0)
