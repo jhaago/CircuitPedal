@@ -1,4 +1,5 @@
 #include "GenericCircuit.h"
+#include "GenericCircuitProcessor.h"
 
 #include <algorithm>
 #include <cmath>
@@ -175,6 +176,57 @@ void testNpnOperatingPoint()
            "NPN base-emitter voltage was implausible");
 }
 
+void testOversampledGenericCircuit()
+{
+    circuitpedal::CircuitDefinition definition;
+    const auto input = definition.addNode("INPUT");
+    const auto clip = definition.addNode("CLIP");
+    const auto out = definition.addNode("OUT");
+
+    definition.addVoltageSource(input,
+                                circuitpedal::circuitGround,
+                                0.0,
+                                0.8);
+    definition.addResistor(input, clip, 1000.0);
+
+    circuitpedal::GenericDiodeModel diode;
+    diode.saturationCurrentAmps = 2.5e-9;
+    diode.idealityFactor = 1.75;
+    definition.addDiode(clip, circuitpedal::circuitGround, diode);
+
+    definition.addCapacitor(clip, out, 100.0e-9);
+    definition.addResistor(out, circuitpedal::circuitGround, 10000.0);
+    definition.setOutputNode(out);
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    std::string error;
+    expect(circuit.compile(definition, 48000.0, error),
+           "oversampled generic circuit failed to compile: " + error);
+    expect(std::abs(circuit.circuitSampleRate() - 192000.0) < 1.0e-6,
+           "oversampled circuit did not run at 4x host sample rate");
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        const float inputSample = static_cast<float>(
+            0.8 * std::sin(2.0 * pi * 997.0 * static_cast<double>(n) / 48000.0));
+        const float outputSample = circuit.processSample(inputSample);
+        expect(std::isfinite(outputSample),
+               "oversampled generic circuit produced non-finite output");
+        expect(circuit.lastSolveConverged(),
+               "oversampled generic circuit failed a nonlinear substep");
+        peak = std::max(peak, std::abs(static_cast<double>(outputSample)));
+    }
+    expect(peak > 1.0e-5,
+           "oversampled generic circuit produced no meaningful audio");
+
+    circuit.reset();
+    const float resetOutput = circuit.processSample(0.0f);
+    expect(std::isfinite(resetOutput),
+           "oversampled generic circuit did not recover after reset");
+}
+
 void testTwoTransistorFuzzLikeNetwork()
 {
     circuitpedal::CircuitDefinition definition;
@@ -243,6 +295,7 @@ int main()
     testRcTransient();
     testDiodeClamp();
     testNpnOperatingPoint();
+    testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
 
     if (failures != 0)
@@ -251,6 +304,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.6 generic circuit validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.8 generic circuit validation suite\n";
     return 0;
 }
