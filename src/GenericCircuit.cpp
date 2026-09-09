@@ -10,7 +10,7 @@ namespace {
 constexpr double minimumResistance = 1.0e-3;
 constexpr double minimumCapacitance = 1.0e-15;
 constexpr double minimumThermalVoltage = 1.0e-6;
-constexpr double maximumExponentialArgument = 18.0;
+constexpr double maximumExponentialArgument = 30.0;
 constexpr double pivotTolerance = 1.0e-18;
 constexpr std::size_t maximumUnknowns = 128;
 
