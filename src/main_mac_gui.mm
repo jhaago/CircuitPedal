@@ -93,11 +93,11 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
                                           styleMask:style
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
-    _window.title = @"CircuitPedal V0.7";
+    _window.title = @"CircuitPedal V0.8";
     _window.releasedWhenClosed = NO;
     NSView* content = _window.contentView;
 
-    NSTextField* title = makeLabel(@"CircuitPedal V0.7 — Circuit File Lab",
+    NSTextField* title = makeLabel(@"CircuitPedal V0.8 — Circuit File Lab",
                                    NSMakeRect(24.0, 796.0, 672.0, 28.0));
     title.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
     [content addSubview:title];
@@ -401,7 +401,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     if (generic && _circuitControls.size() > 4)
     {
         _errorLabel.stringValue =
-            @"This V0.7 GUI displays the first four circuit controls. "
+            @"This V0.8 GUI displays the first four circuit controls. "
              "The circuit engine supports up to sixteen.";
     }
 }
@@ -604,8 +604,8 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
              "Requested buffer: %u | Actual: %u (%.2f ms)\n"
              "Input latency: %u + %u safety frames\n"
              "Output latency: %u + %u safety frames\n"
-             "DSP delay: %u frames | Reported component sum: %.2f ms\n"
-             "Generic circuit oversampling: not yet enabled in V0.7",
+             "DSP FIR delay: %u frames | Reported component sum: %.2f ms\n"
+             "Generic circuit oversampling: 4x nonlinear solve + FIR resampling",
             info.sampleRate / 1000.0,
             nsString(_engine->activeModelName()),
             info.requestedBufferFrames,
