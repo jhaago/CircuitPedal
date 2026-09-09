@@ -650,13 +650,25 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                 impl_->circuitDocument.definition;
             for (std::size_t control = 0; control < impl_->circuitControlCount; ++control)
             {
+                const auto& mapping = impl_->circuitDocument.controls[control];
+                const double value =
+                    static_cast<double>(impl_->circuitControlTargets[control]);
+
                 if (!configuredDefinition.setPotentiometerPosition(
-                        control,
-                        static_cast<double>(impl_->circuitControlTargets[control])))
+                        mapping.potentiometerIndex, value))
                 {
                     error = "Could not apply circuit control values before DC bias solve.";
                     stop();
                     return false;
+                }
+                for (const std::size_t linked : mapping.linkedPotentiometerIndices)
+                {
+                    if (!configuredDefinition.setPotentiometerPosition(linked, value))
+                    {
+                        error = "Could not apply linked circuit control before DC bias solve.";
+                        stop();
+                        return false;
+                    }
                 }
             }
 
@@ -818,9 +830,18 @@ bool MacAudioEngine::setCircuitControl(std::size_t index, float normalized) noex
     impl_->circuitControlTargets[index] = bounded;
     if (isRunning())
     {
-        return impl_->genericCircuit.setPotentiometerPosition(
-            index,
+        const auto& mapping = impl_->circuitDocument.controls[index];
+        bool ok = impl_->genericCircuit.setPotentiometerPosition(
+            mapping.potentiometerIndex,
             static_cast<double>(bounded));
+        for (const std::size_t linked : mapping.linkedPotentiometerIndices)
+        {
+            ok = impl_->genericCircuit.setPotentiometerPosition(
+                     linked,
+                     static_cast<double>(bounded))
+                && ok;
+        }
+        return ok;
     }
     return true;
 }
@@ -829,11 +850,6 @@ float MacAudioEngine::circuitControl(std::size_t index) const noexcept
 {
     if (!impl_->circuitFileSelected || index >= impl_->circuitControlCount)
         return 0.0f;
-    if (isRunning())
-    {
-        return static_cast<float>(
-            impl_->genericCircuit.potentiometerPosition(index));
-    }
     return impl_->circuitControlTargets[index];
 }
 
