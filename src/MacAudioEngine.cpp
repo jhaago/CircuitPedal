@@ -679,9 +679,18 @@ void MacAudioEngine::setBypass(bool bypassed) noexcept
     impl_->pedal.setBypass(bypassed);
 }
 
+void MacAudioEngine::setClippingDiodePreset(ClippingDiodePreset preset) noexcept
+{
+    impl_->pedal.setClippingDiodePreset(preset);
+}
+
 float MacAudioEngine::distortion() const noexcept { return impl_->pedal.getDistortion(); }
 float MacAudioEngine::output() const noexcept { return impl_->pedal.getOutput(); }
 bool MacAudioEngine::bypassed() const noexcept { return impl_->pedal.getBypass(); }
+ClippingDiodePreset MacAudioEngine::clippingDiodePreset() const noexcept
+{
+    return impl_->pedal.getClippingDiodePreset();
+}
 
 float MacAudioEngine::inputPeak() const noexcept
 {
