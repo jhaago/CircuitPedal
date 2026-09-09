@@ -59,11 +59,13 @@ public:
     void setOutput(float normalized) noexcept;
     void setBypass(bool bypassed) noexcept;
     void setClippingDiodePreset(ClippingDiodePreset preset) noexcept;
+    bool setCircuitParameters(const DistortionPlusCircuitParameters& parameters) noexcept;
 
     float distortion() const noexcept;
     float output() const noexcept;
     bool bypassed() const noexcept;
     ClippingDiodePreset clippingDiodePreset() const noexcept;
+    DistortionPlusCircuitParameters circuitParameters() const noexcept;
     float inputPeak() const noexcept;
     float outputPeak() const noexcept;
     AudioRuntimeInfo runtimeInfo() const noexcept;
