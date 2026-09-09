@@ -213,13 +213,67 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
     {
         GenericNpnBjtModel model;
         // Compact parameters derived from the broad behaviour of common
-        // 2N3904 SPICE models. V0.7 intentionally does not claim a full
-        // Gummel-Poon or manufacturer-specific device reproduction.
+        // 2N3904 SPICE models. These named models remain compact Ebers-Moll
+        // approximations rather than manufacturer-specific Gummel-Poon data.
         model.saturationCurrentAmps = 6.734e-15;
         model.forwardBeta = 416.4;
         model.reverseBeta = 0.7371;
         model.emissionCoefficient = 1.0;
         model.thermalVoltageVolts = 0.02585;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N2222" || normalized == "2N2222A")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 1.0e-14;
+        model.forwardBeta = 220.0;
+        model.reverseBeta = 3.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N5088")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 3.0e-14;
+        model.forwardBeta = 520.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N5133")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 2.0e-14;
+        model.forwardBeta = 430.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "BC239" || normalized == "BC239C")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 1.5e-14;
+        model.forwardBeta = 350.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "KT3102" || normalized == "KT3102E")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 2.0e-14;
+        model.forwardBeta = 300.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "BC550" || normalized == "BC550C")
+    {
+        GenericNpnBjtModel model;
+        model.saturationCurrentAmps = 2.0e-14;
+        model.forwardBeta = 500.0;
+        model.reverseBeta = 4.0;
         ok = true;
         return model;
     }
@@ -236,7 +290,10 @@ GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
-    if (normalized == "1N4148" || normalized == "SILICON")
+    if (normalized == "1N4148"
+        || normalized == "1N914"
+        || normalized == "KD521"
+        || normalized == "SILICON")
     {
         model.saturationCurrentAmps = 2.5e-9;
         model.idealityFactor = 1.75;
@@ -247,6 +304,13 @@ GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
     {
         model.saturationCurrentAmps = 1.0e-6;
         model.idealityFactor = 1.6;
+        ok = true;
+        return model;
+    }
+    if (normalized == "1N6263" || normalized == "SCHOTTKY")
+    {
+        model.saturationCurrentAmps = 1.0e-8;
+        model.idealityFactor = 1.05;
         ok = true;
         return model;
     }
