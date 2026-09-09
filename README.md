@@ -1,159 +1,113 @@
-# CircuitPedal V0.1
+# CircuitPedal V0.2
 
-First runnable proof-of-concept for a physical-circuit-emulating digital guitar pedal.
+CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-## What V0.1 is
+V0.2 concentrates on making the first Distortion+-style model numerically safe, topologically defensible and measurable before GUI work or additional pedals are added.
 
-This version deliberately concentrates on the difficult part: passing live guitar audio through a **component-driven analogue circuit model** in real time.
+## What changed from V0.1
 
-It contains:
+- The post-op-amp coupling capacitor, 10 kOhm clipping resistor, diode pair, 1 nF capacitor and complete output-pot load are now solved as one connected network.
+- The diode solve uses safeguarded Newton iteration, consistent exponential limiting, KCL residual checks and a bounded bisection fallback.
+- The input coupling and RF capacitors are solved as a connected two-node network rather than fixed cutoff filters.
+- The gain capacitor has explicit companion-model state and remains stable as the virtual pot changes.
+- A compact LM741-inspired model adds finite gain-bandwidth, slew rate and a rail knee without compressing the entire nominal output range.
+- Real FIR interpolation and decimation filters replace linear interpolation and four-sample averaging.
+- Controls are smoothed, bypass is crossfaded, and the virtual circuit continues running while bypassed.
+- Non-finite inputs and parameters fail safely instead of permanently poisoning state.
+- ADC/DAC scaling, source resistance and output load are explicit calibration values.
+- The Core Audio app can list/select duplex devices, choose the interface input channel, request a buffer size and report latency components.
+- The previous one-sine smoke test is replaced by numerical, state, sample-rate, control and long-run tests.
 
-- a macOS Core Audio live-input/live-output application;
-- a separate C++ circuit core;
-- Distortion and Output controls;
-- bypass;
-- a numerical anti-parallel germanium diode clipping stage;
-- a synthetic core test that can be built separately from the Mac audio application.
+## Reference circuit
 
-The live-audio layer uses Apple's built-in Core Audio frameworks, so V0.1 has **no third-party runtime/audio dependency**.
+The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-## What is physically modelled
+V0.2 still is not a general arbitrary-netlist solver. Its public audio boundary is intended to remain stable while the dedicated internals are migrated toward a compiled MNA circuit representation.
 
-`DistortionPlusModel` represents the major mechanisms of a classic MXR Distortion+-style circuit:
+## Build and test
 
-- 10 nF input coupling behaviour (~23.5 Hz reference corner);
-- frequency-dependent op-amp feedback branch;
-- 1 MOhm feedback resistor;
-- 4.7 kOhm minimum gain-branch resistance;
-- variable virtual gain-pot resistance;
-- 47 nF gain-branch capacitor;
-- finite op-amp output swing on a 9 V-style supply;
-- 1 uF / 10 kOhm post-op-amp coupling behaviour;
-- 10 kOhm clipping resistor;
-- anti-parallel germanium diodes solved from their exponential I-V equation;
-- 1 nF clipping-node capacitor;
-- output-pot wiper position.
+Requirements:
 
-The nonlinear clipping node is not implemented as a generic `tanh()` distortion effect. Each DSP substep solves the current balance through the **virtual resistor, capacitor and two diodes** using Newton iteration.
-
-## Important accuracy note
-
-This is V0.1, not yet a perfect digital clone of a particular physical serial-numbered Distortion+.
-
-The circuit topology and common component values drive the model, but some details are intentionally approximate for the first live test:
-
-- the germanium diode parameters are approximate 1N270-like values;
-- the op-amp uses a finite-output-swing approximation rather than a transistor-level LM741 model;
-- input and output voltage calibration currently assume 1 digital full-scale = roughly 1 V peak;
-- the input 1 nF shunt capacitor is represented by its high-frequency filtering effect rather than a complete pickup/source-impedance model;
-- 4x nonlinear substepping is present, but proper anti-alias oversampling filters are a V0.2 task.
-
-These are all replaceable without changing the Mac audio application.
-
-## Build on Mac
-
-### 1. Install Apple's command-line tools
-
-In Terminal:
+- CMake 3.16 or newer;
+- a C++17 compiler;
+- Apple command-line tools for the live macOS target.
 
 ```bash
-xcode-select --install
-```
-
-### 2. Install CMake
-
-If you already use Homebrew:
-
-```bash
-brew install cmake
-```
-
-### 3. Build
-
-```bash
-cd CircuitPedal_v0_1
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
 ```
 
-### 4. Test the circuit core
+On non-Apple platforms this builds and tests the circuit core only.
+
+To run with AddressSanitizer and UndefinedBehaviorSanitizer:
 
 ```bash
-./build/circuit_core_test
+cmake -S . -B build-sanitize \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCIRCUITPEDAL_ENABLE_SANITIZERS=ON
+cmake --build build-sanitize --parallel
+ctest --test-dir build-sanitize --output-on-failure
 ```
 
-You should see `PASS` plus input/output measurements.
+## macOS live audio
 
-### 5. Prepare the audio interface
+Start with the physical output volume low. One duplex interface is still required for both input and output.
 
-For this first version, use **one USB audio interface for both input and output**.
+List devices:
 
-1. Guitar -> interface Instrument / Hi-Z input.
-2. Headphones, powered monitors, or a suitable re-amp/output path from the same interface.
-3. In macOS Sound settings, make that interface the default **Output** device.
-4. Start with physical output volume LOW.
+```bash
+./build/circuitpedal --list-devices
+```
 
-V0.1 attaches its input side to that same Core Audio device. A device picker and independent input/output device support come later.
-
-### 6. Run the pedal
+Use the default output device, input channel 1 and request a 64-frame buffer:
 
 ```bash
 ./build/circuitpedal
 ```
 
-macOS may request microphone/audio-input permission for Terminal. Allow it.
+Select another device, channel and buffer size:
 
-## Controls
-
-Type the character and press Enter:
-
-- `g` = Distortion down
-- `G` = Distortion up
-- `o` = Output down
-- `O` = Output up
-- `b` = bypass toggle
-- `m` = show recent input/output peaks
-- `q` = quit
-
-The controls are crude on purpose. The next UI will use knobs.
-
-## Project structure
-
-```text
-CircuitPedal_v0_1/
-├── CMakeLists.txt
-├── README.md
-└── src/
-    ├── DistortionPlusModel.h
-    ├── DistortionPlusModel.cpp
-    ├── core_test.cpp
-    └── main_mac.cpp
+```bash
+./build/circuitpedal --device-id 73 --input-channel 2 --buffer-size 128
 ```
 
-The important architectural separation is:
+The program validates that the chosen device has both input and output channels. macOS may request microphone/audio-input permission for Terminal.
 
-```text
-Core Audio / future hardware ADC
-             |
-             v
-     DistortionPlusModel
-             |
-             v
-Core Audio / future hardware DAC
-```
+The terminal controls remain:
 
-That means the circuit engine can later be moved into physical pedal hardware without taking the Mac application with it.
+- `g` / `G`: distortion down/up;
+- `o` / `O`: output down/up;
+- `b`: bypass;
+- `m`: recent signal peaks;
+- `q`: quit.
 
-## What I recommend for V0.2
+## Latency
 
-1. Proper Mac GUI with two rotary knobs, bypass and meters.
-2. Audio interface/device selection.
-3. Actual measured round-trip latency display.
-4. Proper 4x or 8x anti-alias oversampling.
-5. Input-voltage calibration.
-6. Diode selector: 1N270 / 1N34A / 1N4148 / LED.
-7. Editable component values.
-8. Offline WAV/SPICE comparison harness.
-9. Start the generic circuit graph/netlist engine.
+The app reports:
 
-The major milestone after that is replacing the dedicated Distortion+ class with something that can consume a schematic-derived netlist.
+- actual hardware buffer frames;
+- milliseconds per buffer period;
+- device input/output latency;
+- input/output safety offsets;
+- the 47-sample FIR oversampling delay.
+
+These values are not a substitute for physical loopback measurement. Converter delay and driver behaviour must be included when deciding whether a configuration feels like a hardware pedal.
+
+## Validation status
+
+The automated suite currently checks:
+
+- the diode-network solution against an independent bisection reference;
+- KCL residuals over source/state/timestep grids;
+- silence and DC removal;
+- supported sample rates;
+- NaN/Inf recovery;
+- extreme transients;
+- deterministic output and clipping symmetry;
+- harmonic growth across the distortion-control range;
+- output-control monotonicity;
+- delayed-dry bypass accuracy and smoothed switching;
+- long random-input stability.
+
+The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.

@@ -1,46 +1,69 @@
 #pragma once
 
+#include <array>
 #include <atomic>
-#include <cmath>
-#include <algorithm>
+#include <cstddef>
+#include <cstdint>
 
 namespace circuitpedal {
 
-class OnePoleHP {
-public:
-    void prepare(double sampleRate, double cutoffHz);
-    void reset() noexcept;
-    double process(double x) noexcept;
-private:
-    double b0_ = 1.0, b1_ = -1.0, a1_ = 0.0;
-    double x1_ = 0.0, y1_ = 0.0;
+struct CircuitCalibration {
+    double inputVoltsPerFullScale = 1.0;
+    double outputFullScalePerVolt = 1.0;
+    double sourceResistanceOhms = 10.0e3;
+    double outputLoadOhms = 1.0e6;
 };
 
-class OnePoleLP {
-public:
-    void prepare(double sampleRate, double cutoffHz);
-    void reset() noexcept;
-    double process(double x) noexcept;
-private:
-    double alpha_ = 1.0;
-    double y_ = 0.0;
+struct ClipNetworkParameters {
+    double seriesResistanceOhms = 10.0e3;
+    double couplingCapacitanceFarads = 1.0e-6;
+    double shuntCapacitanceFarads = 1.0e-9;
+    double loadResistanceOhms = 50.0e3;
+    double diodeSaturationCurrentAmps = 1.0e-6;
+    double diodeIdealityFactor = 1.6;
+    double thermalVoltageVolts = 0.02585;
 };
 
-/**
- * Component-driven proof-of-concept model of an MXR Distortion+-style circuit.
- *
- * This V0.1 intentionally models the major analogue mechanisms explicitly:
- *  - AC input coupling / input filtering
- *  - frequency-dependent non-inverting op-amp feedback network
- *  - finite op-amp output swing
- *  - 10 kOhm series resistor feeding anti-parallel germanium diodes
- *  - 1 nF shunt capacitor at the clipping node
- *  - output potentiometer
- *
- * It is NOT yet a general arbitrary-netlist solver. The architecture is kept
- * separate from the audio I/O so we can replace this class later with a WDF/
- * modified-nodal-analysis circuit engine without rewriting the app.
- */
+struct ClipNetworkState {
+    double couplingCapVoltage = 0.0;
+    double clipNodeVoltage = 0.0;
+};
+
+struct ClipNetworkResult {
+    double clipNodeVoltage = 0.0;
+    double seriesNodeVoltage = 0.0;
+    double kclResidualAmps = 0.0;
+    std::uint32_t iterations = 0;
+    bool converged = false;
+};
+
+ClipNetworkResult processClipNetwork(double sourceVolts,
+                                     double timestepSeconds,
+                                     const ClipNetworkParameters& parameters,
+                                     ClipNetworkState& state) noexcept;
+
+class Oversampler4x {
+public:
+    static constexpr int factor = 4;
+    static constexpr std::size_t tapCount = 191;
+    static constexpr std::size_t inputHistorySize = (tapCount + factor - 1) / factor;
+    static constexpr int downsamplePhase = 2;
+    static constexpr std::size_t wetDelayHostSamples =
+        (tapCount - 1 - static_cast<std::size_t>(downsamplePhase)) / factor;
+
+    void prepare() noexcept;
+    void reset() noexcept;
+    void upsample(double input, std::array<double, factor>& output) noexcept;
+    bool pushDownsample(double input, int phase, double& output) noexcept;
+
+private:
+    std::array<double, tapCount> coefficients_ {};
+    std::array<double, inputHistorySize> inputHistory_ {};
+    std::array<double, tapCount> outputHistory_ {};
+    std::size_t inputWriteIndex_ = 0;
+    std::size_t outputWriteIndex_ = 0;
+};
+
 class DistortionPlusModel {
 public:
     void prepare(double sampleRate);
@@ -49,55 +72,76 @@ public:
     void setDistortion(float normalized) noexcept;
     void setOutput(float normalized) noexcept;
     void setBypass(bool shouldBypass) noexcept;
+    // Calibration is configuration, not a live control. Call only while audio
+    // processing is stopped, then call reset() before restarting.
+    void setCalibration(const CircuitCalibration& calibration) noexcept;
 
-    float getDistortion() const noexcept { return distortion_.load(); }
-    float getOutput() const noexcept { return output_.load(); }
-    bool getBypass() const noexcept { return bypass_.load(); }
+    float getDistortion() const noexcept;
+    float getOutput() const noexcept;
+    bool getBypass() const noexcept;
+    CircuitCalibration getCalibration() const noexcept;
 
     float processSample(float input) noexcept;
 
 private:
-    double processCircuitSubstep(double inputVolts) noexcept;
-    double solveGermaniumClipNode(double sourceVolts, double dt) noexcept;
+    double processCircuitSubstep(double inputVolts,
+                                 double gainControl,
+                                 double outputControl,
+                                 double sourceResistance,
+                                 double outputLoad) noexcept;
+    double processInputNetwork(double sourceVolts, double sourceResistance) noexcept;
+    double processOpAmp(double inputVolts, double feedbackCurrentAmps, double noiseGain) noexcept;
+    static double outputWiperFraction(double normalized) noexcept;
+    static double smoothToward(double current, double target, double coefficient) noexcept;
+    void recoverFromNonFinite() noexcept;
 
-    // Nominal analogue component values from common Distortion+ schematics.
-    static constexpr double R_feedback = 1.0e6;   // 1 MOhm
-    static constexpr double R_gain_min = 4.7e3;   // 4.7 kOhm
-    static constexpr double R_gain_pot = 1.0e6;   // 1 MOhm range in reference analysis
-    static constexpr double C_gain = 47.0e-9;     // 47 nF
-    static constexpr double R_clip = 10.0e3;      // 10 kOhm
-    static constexpr double C_clip = 1.0e-9;      // 1 nF
+    // Pinned V0.2 reference values. See docs/reference_circuit.md.
+    static constexpr double R_inputBias = 1.0e6;
+    static constexpr double R_opAmpInput = 2.0e6;
+    static constexpr double C_inputCoupling = 10.0e-9;
+    static constexpr double C_inputRf = 1.0e-9;
+    static constexpr double R_feedback = 1.0e6;
+    static constexpr double R_gainMinimum = 4.7e3;
+    static constexpr double R_gainPotentiometer = 500.0e3;
+    static constexpr double C_gain = 47.0e-9;
+    static constexpr double R_clip = 10.0e3;
+    static constexpr double C_postOpAmpCoupling = 1.0e-6;
+    static constexpr double C_clip = 1.0e-9;
+    static constexpr double R_outputPotentiometer = 50.0e3;
 
-    // Approximate 1N270 germanium diode parameters. These are intentionally
-    // exposed here as physical model constants rather than a generic waveshaper.
-    static constexpr double diodeIs = 1.0e-6;     // saturation current, A
-    static constexpr double diodeN = 1.6;         // ideality factor
-    static constexpr double thermalV = 0.02585;   // V at ~25 C
+    static constexpr double diodeIs = 1.0e-6;
+    static constexpr double diodeN = 1.6;
+    static constexpr double thermalV = 0.02585;
 
-    static constexpr int substeps = 4;
+    static constexpr double opAmpGainBandwidthHz = 1.0e6;
+    static constexpr double opAmpSlewRateVoltsPerSecond = 0.5e6;
+    static constexpr double opAmpSwingVolts = 3.2;
+    static constexpr double opAmpSoftKneeVolts = 0.2;
 
     double sampleRate_ = 48000.0;
     double substepRate_ = 192000.0;
-    double previousInputVolts_ = 0.0;
-    double clipNodeV_ = 0.0;
+    double timestep_ = 1.0 / 192000.0;
+    double smoothingCoefficient_ = 0.0;
 
-    // We treat digital full-scale as roughly 1 V peak for this first bench model.
-    // Later this becomes a calibrated parameter tied to the ADC front-end.
-    double inputVoltsPerFS_ = 1.0;
-    double outputFSPerVolt_ = 1.0;
+    double inputRfCapVoltage_ = 0.0;
+    double inputCouplingCapVoltage_ = 0.0;
+    double gainCapVoltage_ = 0.0;
+    double opAmpOutputVoltage_ = 0.0;
 
-    OnePoleHP inputCoupling_;
-    OnePoleLP inputRfFilter_;
-    OnePoleHP postOpAmpCoupling_;
+    ClipNetworkState clipState_;
+    Oversampler4x oversampler_;
 
-    // State for the frequency-dependent feedback branch (high-pass voltage
-    // across R_gain = R_gain_min + pot resistance).
-    double feedbackHpX1_ = 0.0;
-    double feedbackHpY1_ = 0.0;
+    std::array<double, 64> dryDelay_ {};
+    std::size_t dryDelayWriteIndex_ = 0;
 
-    std::atomic<float> distortion_ { 0.65f };
-    std::atomic<float> output_ { 0.70f };
-    std::atomic<bool> bypass_ { false };
+    double currentDistortion_ = 0.65;
+    double currentOutput_ = 0.70;
+    double currentWetMix_ = 1.0;
+
+    std::atomic<float> distortionTarget_ { 0.65f };
+    std::atomic<float> outputTarget_ { 0.70f };
+    std::atomic<bool> bypassTarget_ { false };
+    CircuitCalibration calibration_;
 };
 
 } // namespace circuitpedal

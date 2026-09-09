@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "========================================"
-echo " CircuitPedal V0.1 - Mac build + run"
+echo " CircuitPedal V0.2 - Mac build + run"
 echo "========================================"
 echo
 
@@ -29,12 +29,17 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 
 echo
-echo "Running circuit-core self-test..."
-./build/circuit_core_test
+echo "Running circuit-core validation suite..."
+ctest --test-dir build --output-on-failure
+
+echo
+echo "Available audio devices:"
+./build/circuitpedal --list-devices
 
 echo
 echo "IMPORTANT: turn your physical headphone/amp/interface output volume down before continuing."
-echo "Use the same audio interface for guitar input and audio output in V0.1."
+echo "The default run requests a 64-frame buffer and uses input channel 1 on the default output device."
+echo "For another device/channel, run ./build/circuitpedal --help or see README.md."
 read -r -p "Press Enter to start the live pedal..."
 
 echo
