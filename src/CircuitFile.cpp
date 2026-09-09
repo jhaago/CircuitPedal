@@ -397,6 +397,29 @@ GenericOpAmpModel builtInOpAmpModel(const std::string& name, bool& ok) noexcept
     return {};
 }
 
+GenericNmosModel builtInNmosModel(const std::string& name, bool& ok) noexcept
+{
+    const std::string normalized = upper(name);
+    GenericNmosModel model;
+
+    if (normalized == "GENERIC_NMOS" || normalized == "NMOS" || normalized == "MOSFET")
+    {
+        ok = true;
+        return model;
+    }
+    if (normalized == "BS170")
+    {
+        model.thresholdVoltageVolts = 2.1;
+        model.betaAmpsPerVoltSquared = 0.01;
+        model.bodyDiodeSaturationCurrentAmps = 1.0e-12;
+        model.bodyDiodeIdealityFactor = 1.8;
+        ok = true;
+        return model;
+    }
+    ok = false;
+    return {};
+}
+
 GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
 {
     const std::string normalized = upper(name);
@@ -661,6 +684,28 @@ bool parseCircuitFileText(const std::string& text,
                 return false;
             }
             parsed.definition.addNjfet(
+                nodeFor(parsed.definition, tokens[2]),
+                nodeFor(parsed.definition, tokens[3]),
+                nodeFor(parsed.definition, tokens[4]),
+                model);
+        }
+        else if (command == "NMOS" || command == "MOSFET")
+        {
+            if (tokens.size() != 6)
+            {
+                error = lineError(lineNumber,
+                    "NMOS syntax: NMOS <id> <drain> <gate> <source> <model>.");
+                return false;
+            }
+            bool modelOk = false;
+            const auto model = builtInNmosModel(tokens[5], modelOk);
+            if (!modelOk)
+            {
+                error = lineError(lineNumber,
+                    "Unknown N-MOSFET model '" + tokens[5] + "'.");
+                return false;
+            }
+            parsed.definition.addNmos(
                 nodeFor(parsed.definition, tokens[2]),
                 nodeFor(parsed.definition, tokens[3]),
                 nodeFor(parsed.definition, tokens[4]),
