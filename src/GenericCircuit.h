@@ -19,12 +19,30 @@ struct GenericDiodeModel {
 };
 
 struct GenericNpnBjtModel {
-    // Compact Ebers-Moll parameters. These defaults are intentionally generic;
-    // named transistor-library models will replace them as device data is added.
+    // Compact Ebers-Moll parameters. Named devices remain approximations until
+    // the later SPICE/Gummel-Poon device-library pass.
     double saturationCurrentAmps = 6.0e-15;
     double forwardBeta = 180.0;
     double reverseBeta = 4.0;
     double emissionCoefficient = 1.0;
+    double thermalVoltageVolts = 0.02585;
+};
+
+struct GenericPnpBjtModel {
+    double saturationCurrentAmps = 6.0e-15;
+    double forwardBeta = 120.0;
+    double reverseBeta = 4.0;
+    double emissionCoefficient = 1.0;
+    double thermalVoltageVolts = 0.02585;
+};
+
+struct GenericNjfetModel {
+    // Compact Shichman-Hodges/JFET channel model. pinchOffVoltageVolts is
+    // negative for an N-channel depletion device.
+    double idssAmps = 3.0e-3;
+    double pinchOffVoltageVolts = -2.0;
+    double gateSaturationCurrentAmps = 1.0e-14;
+    double gateIdealityFactor = 1.2;
     double thermalVoltageVolts = 0.02585;
 };
 
@@ -62,6 +80,20 @@ struct CircuitNpnBjt {
     GenericNpnBjtModel model;
 };
 
+struct CircuitPnpBjt {
+    CircuitNode collector = circuitGround;
+    CircuitNode base = circuitGround;
+    CircuitNode emitter = circuitGround;
+    GenericPnpBjtModel model;
+};
+
+struct CircuitNjfet {
+    CircuitNode drain = circuitGround;
+    CircuitNode gate = circuitGround;
+    CircuitNode source = circuitGround;
+    GenericNjfetModel model;
+};
+
 struct CircuitPotentiometer {
     CircuitNode terminal1 = circuitGround;
     CircuitNode wiper = circuitGround;
@@ -93,6 +125,14 @@ public:
                    CircuitNode base,
                    CircuitNode emitter,
                    const GenericNpnBjtModel& model = {});
+    void addPnpBjt(CircuitNode collector,
+                   CircuitNode base,
+                   CircuitNode emitter,
+                   const GenericPnpBjtModel& model = {});
+    void addNjfet(CircuitNode drain,
+                  CircuitNode gate,
+                  CircuitNode source,
+                  const GenericNjfetModel& model = {});
     std::size_t addPotentiometer(CircuitNode terminal1,
                                  CircuitNode wiper,
                                  CircuitNode terminal3,
@@ -119,6 +159,8 @@ private:
     std::vector<CircuitVoltageSource> voltageSources_;
     std::vector<CircuitDiode> diodes_;
     std::vector<CircuitNpnBjt> npnBjts_;
+    std::vector<CircuitPnpBjt> pnpBjts_;
+    std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitPotentiometer> potentiometers_;
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
@@ -173,6 +215,8 @@ private:
     std::vector<CircuitVoltageSource> voltageSources_;
     std::vector<CircuitDiode> diodes_;
     std::vector<CircuitNpnBjt> npnBjts_;
+    std::vector<CircuitPnpBjt> pnpBjts_;
+    std::vector<CircuitNjfet> njfets_;
     std::vector<CircuitPotentiometer> potentiometers_;
     std::array<std::atomic<float>, maximumLivePotentiometers> potentiometerTargets_ {};
     std::size_t potentiometerTargetCount_ = 0;
