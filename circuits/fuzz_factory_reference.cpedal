@@ -1,0 +1,54 @@
+CPEDAL 1
+NAME "Fuzz Factory Reference"
+
+# Classic five-knob Fuzz Factory topology, cross-checked against the supplied
+# Effects Layouts drawing and the Tayda/Implex public schematic.
+#
+# Q2/Q3 use separate compact AC128 gain bins (about 70 and 110 hFE) because
+# matched low/high germanium devices are part of the characteristic topology.
+# Power-protection and indicator-LED parts are omitted from the audio model.
+
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.20
+
+# Optional input pulldown shown in several verified DIY implementations.
+R R_IN_PD INPUT 0 1M
+C C1 INPUT Q1B 10u
+
+# Q1: 2N3904 input boost with collector-to-base feedback.
+R R1 Q1C Q1B 220k
+Q Q1 Q1C Q1B 0 2N3904
+
+# STAB is wired as a rheostat in series with the supply. Increasing the GUI
+# control corresponds to the normal clockwise/stable direction (less series R).
+POT STAB VCC VCC STAB_RAIL 5k LIN 1.0
+R R2 STAB_RAIL Q1C 10k
+
+# Q2: lower-gain PNP germanium stage.
+C C2 Q1C Q2B 100n
+R R4 STAB_RAIL Q2B 47k
+PNP Q2 Q2C Q2B STAB_RAIL AC128_LOW
+
+# GATE varies Q2 collector loading. Physical lugs 1+2 are grounded, so a
+# clockwise/high GUI setting reduces resistance after the fixed 470 ohms.
+R R3 Q2C GATE_TOP 470
+POT GATE 0 0 GATE_TOP 10k LIN 0.0
+
+# Q3 base is driven directly from Q2 collector.
+# COMP is the Q3 emitter feed from the STAB rail (physical lugs 1+2 tied).
+POT COMP Q3E Q3E STAB_RAIL 10k LIN 0.2
+
+# DRIVE is a 10k emitter-path pot with its wiper AC-bypassed back to the rail.
+# At 100% the 10u capacitor bypasses the full pot for maximum fuzz gain.
+POT DRIVE STAB_RAIL DRIVE_W Q3E 10k LIN 0.5
+C C3 DRIVE_W STAB_RAIL 10u
+
+PNP Q3 Q3C Q2C Q3E AC128_HIGH
+
+# Output collector load and volume control.
+R R5 Q3C VOL_TOP 5k1
+POT VOLUME 0 VOL_W VOL_TOP 5k LIN 0.3
+C C4 VOL_W OUT 10u
+R R6 OUT 0 220k
+
+OUTPUT OUT 1
