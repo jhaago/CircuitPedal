@@ -270,6 +270,59 @@ void testNjfetOperatingPointAndAudio()
            "N-JFET audio stage produced no meaningful output");
 }
 
+void testOpAmpFollower()
+{
+    circuitpedal::CircuitDefinition definition;
+    const auto vcc = definition.addNode("VCC");
+    const auto vref = definition.addNode("VREF");
+    const auto input = definition.addNode("INPUT");
+    const auto plus = definition.addNode("PLUS");
+    const auto out = definition.addNode("OP_OUT");
+    const auto acOut = definition.addNode("AC_OUT");
+
+    definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+    definition.addVoltageSource(input,
+                                circuitpedal::circuitGround,
+                                0.0,
+                                0.1);
+    definition.addResistor(vcc, vref, 100000.0);
+    definition.addResistor(vref, circuitpedal::circuitGround, 100000.0);
+    definition.addCapacitor(input, plus, 100.0e-9);
+    definition.addResistor(plus, vref, 1.0e6);
+
+    circuitpedal::GenericOpAmpModel opAmp;
+    opAmp.openLoopGain = 100000.0;
+    opAmp.outputHeadroomVolts = 1.0;
+    definition.addOpAmp(plus, out, out, vcc, circuitpedal::circuitGround, opAmp);
+
+    definition.addCapacitor(out, acOut, 1.0e-6);
+    definition.addResistor(acOut, circuitpedal::circuitGround, 100000.0);
+    definition.setOutputNode(acOut);
+
+    circuitpedal::GenericCircuit circuit;
+    std::string error;
+    expect(circuit.compile(definition, 48000.0, error),
+           "op-amp follower failed to compile: " + error);
+    expect(std::abs(circuit.nodeVoltage(out) - 4.5) < 0.05,
+           "op-amp follower DC output was not near virtual ground");
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 12000; ++n)
+    {
+        const float inputSample = static_cast<float>(
+            0.6 * std::sin(2.0 * pi * 440.0 * static_cast<double>(n) / 48000.0));
+        const float outputSample = circuit.processSample(inputSample);
+        expect(std::isfinite(outputSample),
+               "op-amp follower produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "op-amp follower transient solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(outputSample)));
+    }
+    expect(peak > 1.0e-3,
+           "op-amp follower produced no meaningful AC output");
+}
+
 void testOversampledGenericCircuit()
 {
     circuitpedal::CircuitDefinition definition;
@@ -391,6 +444,7 @@ int main()
     testNpnOperatingPoint();
     testPnpOperatingPoint();
     testNjfetOperatingPointAndAudio();
+    testOpAmpFollower();
     testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
 
