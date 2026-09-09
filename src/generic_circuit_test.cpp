@@ -275,6 +275,65 @@ void testNjfetOperatingPointAndAudio()
            "N-JFET audio stage produced no meaningful output");
 }
 
+void testNmosOperatingPointAndAudio()
+{
+    circuitpedal::CircuitDefinition definition;
+    const auto vcc = definition.addNode("VCC");
+    const auto input = definition.addNode("INPUT");
+    const auto gate = definition.addNode("G");
+    const auto drain = definition.addNode("D");
+    const auto out = definition.addNode("OUT");
+
+    definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+    definition.addVoltageSource(input,
+                                circuitpedal::circuitGround,
+                                0.0,
+                                0.05);
+    definition.addResistor(vcc, gate, 330000.0);
+    definition.addResistor(gate, circuitpedal::circuitGround, 120000.0);
+    definition.addCapacitor(input, gate, 100.0e-9);
+    definition.addResistor(vcc, drain, 10000.0);
+
+    circuitpedal::GenericNmosModel mos;
+    mos.thresholdVoltageVolts = 2.1;
+    mos.betaAmpsPerVoltSquared = 0.01;
+    definition.addNmos(drain, gate, circuitpedal::circuitGround, mos);
+
+    definition.addCapacitor(drain, out, 100.0e-9);
+    definition.addResistor(out, circuitpedal::circuitGround, 100000.0);
+    definition.setOutputNode(out);
+
+    circuitpedal::GenericCircuit circuit;
+    std::string error;
+    const bool compiled = circuit.compile(definition, 48000.0, error);
+    expect(compiled, "N-MOSFET bias circuit failed to compile: " + error);
+    if (!compiled)
+        return;
+
+    const double vg = circuit.nodeVoltage(gate);
+    const double vd = circuit.nodeVoltage(drain);
+    expect(vg > 2.0 && vg < 3.0,
+           "N-MOSFET gate bias was implausible");
+    expect(vd > 0.1 && vd < 8.9,
+           "N-MOSFET drain bias was implausible");
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 12000; ++n)
+    {
+        const float inputSample = static_cast<float>(
+            0.7 * std::sin(2.0 * pi * 330.0 * static_cast<double>(n) / 48000.0));
+        const float outputSample = circuit.processSample(inputSample);
+        expect(std::isfinite(outputSample),
+               "N-MOSFET audio produced non-finite output");
+        expect(circuit.lastSolveConverged(),
+               "N-MOSFET transient solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(outputSample)));
+    }
+    expect(peak > 1.0e-5,
+           "N-MOSFET audio stage produced no meaningful output");
+}
+
 void testOpAmpFollower()
 {
     circuitpedal::CircuitDefinition definition;
@@ -449,6 +508,7 @@ int main()
     testNpnOperatingPoint();
     testPnpOperatingPoint();
     testNjfetOperatingPointAndAudio();
+    testNmosOperatingPointAndAudio();
     testOpAmpFollower();
     testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
