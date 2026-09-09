@@ -165,9 +165,6 @@ void testNpnOperatingPoint()
     const double vc = circuit.nodeVoltage(collector);
     const double vb = circuit.nodeVoltage(base);
     const double ve = circuit.nodeVoltage(emitter);
-    std::cerr << "NPN bias: Vc=" << vc << " Vb=" << vb << " Ve=" << ve
-              << " Vbe=" << (vb - ve) << '\n';
-
     expect(vb > 0.5 && vb < 3.0,
            "NPN base DC voltage was implausible");
     expect(ve >= 0.0 && ve < vb,
@@ -233,13 +230,6 @@ void testTwoTransistorFuzzLikeNetwork()
                "two-transistor network failed a transient solve");
         peak = std::max(peak, std::abs(static_cast<double>(outputSample)));
     }
-    std::cerr << "Two-transistor peak=" << peak
-              << " B1=" << circuit.nodeVoltage(b1)
-              << " C1=" << circuit.nodeVoltage(c1)
-              << " E1=" << circuit.nodeVoltage(e1)
-              << " B2=" << circuit.nodeVoltage(b2)
-              << " C2=" << circuit.nodeVoltage(c2)
-              << " E2=" << circuit.nodeVoltage(e2) << '\n';
     expect(peak > 1.0e-4,
            "two-transistor network produced no meaningful output");
 }
