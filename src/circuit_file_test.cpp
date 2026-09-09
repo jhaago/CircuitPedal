@@ -1,4 +1,5 @@
 #include "CircuitFile.h"
+#include "GenericCircuitProcessor.h"
 
 #include <cmath>
 #include <iostream>
@@ -238,6 +239,53 @@ void testRepositoryWoollyReference()
 #endif
 }
 
+void testBigMuffRepositoryModels()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Big Muff validation");
+#else
+    for (const char* filename : {
+             "big_muff_triangle.cpedal",
+             "big_muff_rams_head.cpedal",
+             "big_muff_green_russian.cpedal",
+             "big_muff_nyc.cpedal" })
+    {
+        const std::string path =
+            std::string(CIRCUITPEDAL_SOURCE_DIR) + "/circuits/" + filename;
+
+        circuitpedal::CircuitFileDocument document;
+        std::string error;
+        expect(circuitpedal::loadCircuitFile(path, document, error),
+               std::string("Big Muff model did not load: ") + filename + ": " + error);
+        expect(document.controls.size() == 3,
+               std::string("Big Muff model did not expose Sustain/Tone/Volume: ")
+                   + filename);
+
+        circuitpedal::OversampledGenericCircuit circuit;
+        expect(circuit.compile(document.definition, 48000.0, error),
+               std::string("Big Muff model did not compile at 4x: ")
+                   + filename + ": " + error);
+
+        constexpr double pi = 3.14159265358979323846;
+        double peak = 0.0;
+        for (int n = 0; n < 4800; ++n)
+        {
+            const float input = static_cast<float>(
+                0.45 * std::sin(2.0 * pi * 110.0
+                    * static_cast<double>(n) / 48000.0));
+            const float output = circuit.processSample(input);
+            expect(std::isfinite(output),
+                   std::string("Big Muff produced non-finite audio: ") + filename);
+            expect(circuit.lastSolveConverged(),
+                   std::string("Big Muff nonlinear solve failed: ") + filename);
+            peak = std::max(peak, std::abs(static_cast<double>(output)));
+        }
+        expect(peak > 1.0e-6,
+               std::string("Big Muff produced no meaningful audio: ") + filename);
+    }
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -258,6 +306,7 @@ int main()
     testParseAndCompile();
     testParserFailures();
     testRepositoryWoollyReference();
+    testBigMuffRepositoryModels();
     testBuiltInModels();
 
     if (failures != 0)
@@ -266,6 +315,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.8 circuit-file validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.9 circuit-file validation suite\n";
     return 0;
 }
