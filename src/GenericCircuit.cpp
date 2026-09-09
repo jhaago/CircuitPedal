@@ -775,6 +775,129 @@ void GenericCircuit::stampNonlinear() noexcept
         stampJacobianCurrent(transistor.emitter, transistor.collector, dIe_dC);
         stampJacobianCurrent(transistor.emitter, transistor.emitter, dIe_dE);
     }
+
+    for (const auto& transistor : pnpBjts_)
+    {
+        const auto& model = transistor.model;
+        const double alphaForward = model.forwardBeta / (model.forwardBeta + 1.0);
+        const double alphaReverse = model.reverseBeta / (model.reverseBeta + 1.0);
+        const double junctionScale =
+            model.emissionCoefficient * model.thermalVoltageVolts;
+
+        // PNP is the polarity-reversed Ebers-Moll system. Evaluate junctions
+        // with all terminal voltages inverted, then reverse the terminal currents.
+        const double veb = voltage(transistor.emitter) - voltage(transistor.base);
+        const double vcb = voltage(transistor.collector) - voltage(transistor.base);
+        const auto be = exponentialJunction(veb,
+                                            model.saturationCurrentAmps,
+                                            junctionScale);
+        const auto bc = exponentialJunction(vcb,
+                                            model.saturationCurrentAmps,
+                                            junctionScale);
+
+        const double collectorCurrent = -alphaForward * be.current + bc.current;
+        const double baseCurrent =
+            -(1.0 - alphaForward) * be.current
+            - (1.0 - alphaReverse) * bc.current;
+        const double emitterCurrent = be.current - alphaReverse * bc.current;
+
+        const int cIndex = nodeIndex(transistor.collector);
+        const int bIndex = nodeIndex(transistor.base);
+        const int eIndex = nodeIndex(transistor.emitter);
+
+        if (cIndex >= 0)
+            residual_[static_cast<std::size_t>(cIndex)] += collectorCurrent;
+        if (bIndex >= 0)
+            residual_[static_cast<std::size_t>(bIndex)] += baseCurrent;
+        if (eIndex >= 0)
+            residual_[static_cast<std::size_t>(eIndex)] += emitterCurrent;
+
+        // dI_pnp/dV has the same matrix form as NPN after the polarity transform.
+        const double dIc_dB = alphaForward * be.conductance - bc.conductance;
+        const double dIc_dC = bc.conductance;
+        const double dIc_dE = -alphaForward * be.conductance;
+
+        const double dIb_dB =
+            (1.0 - alphaForward) * be.conductance
+            + (1.0 - alphaReverse) * bc.conductance;
+        const double dIb_dC = -(1.0 - alphaReverse) * bc.conductance;
+        const double dIb_dE = -(1.0 - alphaForward) * be.conductance;
+
+        const double dIe_dB = -be.conductance + alphaReverse * bc.conductance;
+        const double dIe_dC = -alphaReverse * bc.conductance;
+        const double dIe_dE = be.conductance;
+
+        stampJacobianCurrent(transistor.collector, transistor.base, dIc_dB);
+        stampJacobianCurrent(transistor.collector, transistor.collector, dIc_dC);
+        stampJacobianCurrent(transistor.collector, transistor.emitter, dIc_dE);
+
+        stampJacobianCurrent(transistor.base, transistor.base, dIb_dB);
+        stampJacobianCurrent(transistor.base, transistor.collector, dIb_dC);
+        stampJacobianCurrent(transistor.base, transistor.emitter, dIb_dE);
+
+        stampJacobianCurrent(transistor.emitter, transistor.base, dIe_dB);
+        stampJacobianCurrent(transistor.emitter, transistor.collector, dIe_dC);
+        stampJacobianCurrent(transistor.emitter, transistor.emitter, dIe_dE);
+    }
+
+    for (const auto& transistor : njfets_)
+    {
+        const auto channel = evaluateNjfetChannel(
+            voltage(transistor.drain),
+            voltage(transistor.gate),
+            voltage(transistor.source),
+            transistor.model);
+
+        const int drainIndex = nodeIndex(transistor.drain);
+        const int sourceIndex = nodeIndex(transistor.source);
+        if (drainIndex >= 0)
+            residual_[static_cast<std::size_t>(drainIndex)] += channel.current;
+        if (sourceIndex >= 0)
+            residual_[static_cast<std::size_t>(sourceIndex)] -= channel.current;
+
+        stampJacobianCurrent(transistor.drain,
+                             transistor.drain,
+                             channel.dCurrent_dDrain);
+        stampJacobianCurrent(transistor.drain,
+                             transistor.gate,
+                             channel.dCurrent_dGate);
+        stampJacobianCurrent(transistor.drain,
+                             transistor.source,
+                             channel.dCurrent_dSource);
+        stampJacobianCurrent(transistor.source,
+                             transistor.drain,
+                             -channel.dCurrent_dDrain);
+        stampJacobianCurrent(transistor.source,
+                             transistor.gate,
+                             -channel.dCurrent_dGate);
+        stampJacobianCurrent(transistor.source,
+                             transistor.source,
+                             -channel.dCurrent_dSource);
+
+        // The JFET gate is a reverse-biased PN junction in normal operation.
+        // Include both gate-channel junctions so unusual fuzz/bias conditions
+        // fail gracefully instead of presenting a mathematically perfect open gate.
+        const double junctionScale =
+            transistor.model.gateIdealityFactor
+            * transistor.model.thermalVoltageVolts;
+        const auto gateSource = exponentialJunction(
+            voltage(transistor.gate) - voltage(transistor.source),
+            transistor.model.gateSaturationCurrentAmps,
+            junctionScale);
+        const auto gateDrain = exponentialJunction(
+            voltage(transistor.gate) - voltage(transistor.drain),
+            transistor.model.gateSaturationCurrentAmps,
+            junctionScale);
+
+        stampCurrent(transistor.gate, transistor.source, gateSource.current);
+        stampConductance(transistor.gate,
+                         transistor.source,
+                         gateSource.conductance);
+        stampCurrent(transistor.gate, transistor.drain, gateDrain.current);
+        stampConductance(transistor.gate,
+                         transistor.drain,
+                         gateDrain.conductance);
+    }
 }
 
 void GenericCircuit::stampConductance(CircuitNode a,
