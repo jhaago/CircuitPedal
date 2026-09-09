@@ -189,7 +189,7 @@ void testPnpOperatingPoint()
     definition.addVoltageSource(vee, circuitpedal::circuitGround, -9.0);
     definition.addResistor(circuitpedal::circuitGround, base, 10000.0);
     definition.addResistor(base, vee, 100000.0);
-    definition.addResistor(collector, vee, 10000.0);
+    definition.addResistor(collector, vee, 2200.0);
 
     circuitpedal::GenericPnpBjtModel pnp;
     pnp.saturationCurrentAmps = 2.0e-14;
