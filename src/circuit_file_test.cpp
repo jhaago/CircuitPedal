@@ -1,0 +1,178 @@
+#include "CircuitFile.h"
+
+#include <cmath>
+#include <iostream>
+#include <string>
+
+namespace {
+
+int failures = 0;
+
+void expect(bool condition, const std::string& message)
+{
+    if (!condition)
+    {
+        std::cerr << "FAIL: " << message << '\n';
+        ++failures;
+    }
+}
+
+void testEngineeringValues()
+{
+    struct Case {
+        const char* text;
+        double expected;
+    };
+
+    for (const auto& item : {
+             Case { "4k99", 4990.0 },
+             Case { "2k2", 2200.0 },
+             Case { "500k", 500000.0 },
+             Case { "1M", 1000000.0 },
+             Case { "220n", 220.0e-9 },
+             Case { "10n", 10.0e-9 },
+             Case { "100u", 100.0e-6 },
+             Case { "6.734p", 6.734e-12 },
+             Case { "0.15", 0.15 } })
+    {
+        bool ok = false;
+        const double actual = circuitpedal::parseEngineeringValue(item.text, ok);
+        expect(ok, std::string("engineering value did not parse: ") + item.text);
+        const double scale = std::max(1.0, std::abs(item.expected));
+        expect(std::abs(actual - item.expected) <= scale * 1.0e-12,
+               std::string("engineering value mismatch: ") + item.text);
+    }
+
+    bool ok = true;
+    (void)circuitpedal::parseEngineeringValue("10x", ok);
+    expect(!ok, "unknown engineering suffix was accepted");
+}
+
+const char* demoCircuit = R"CPEDAL(
+CPEDAL 1
+NAME "Two Transistor Fuzz File Test"
+
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.15
+
+C C_IN INPUT B1 220n
+R R_BIAS1 VCC B1 100k
+R R_BIAS1G B1 0 22k
+R R_C1 VCC C1 10k
+R R_E1 E1 0 1k
+Q Q1 C1 B1 E1 2N3904
+
+C C_INTER C1 B2 10n
+R R_BIAS2 VCC B2 100k
+R R_BIAS2G B2 0 22k
+R R_C2 VCC C2 4k7
+R R_E2 E2 0 1k
+Q Q2 C2 B2 E2 2N3904
+
+C C_OUT C2 TONE_IN 220n
+POT TONE 0 TONE_W TONE_IN 10k LIN 0.50
+POT VOLUME 0 OUT TONE_W 10k LOG 0.70
+
+OUTPUT OUT 1
+)CPEDAL";
+
+void testParseAndCompile()
+{
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::parseCircuitFileText(demoCircuit, document, error),
+           "valid .cpedal text did not parse: " + error);
+    expect(document.name == "Two Transistor Fuzz File Test",
+           "quoted circuit NAME was not retained");
+    expect(document.controls.size() == 2,
+           "POT directives did not create named controls");
+    if (document.controls.size() == 2)
+    {
+        expect(document.controls[0].name == "TONE",
+               "first control name mismatch");
+        expect(document.controls[1].name == "VOLUME",
+               "second control name mismatch");
+    }
+
+    circuitpedal::GenericCircuit circuit;
+    expect(circuit.compile(document.definition, 48000.0, error),
+           "parsed circuit did not compile: " + error);
+    expect(circuit.potentiometerCount() == 2,
+           "compiled circuit potentiometer count mismatch");
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        if (n == 8000)
+            expect(circuit.setPotentiometerPosition(0, 0.9),
+                   "live TONE control update failed");
+        if (n == 16000)
+            expect(circuit.setPotentiometerPosition(1, 0.3),
+                   "live VOLUME control update failed");
+
+        const float input = static_cast<float>(
+            0.5 * std::sin(2.0 * pi * 110.0 * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output),
+               "parsed circuit produced non-finite output");
+        expect(circuit.lastSolveConverged(),
+               "parsed circuit transient solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-5,
+           "parsed circuit produced no meaningful output");
+}
+
+void testParserFailures()
+{
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "NAME MissingHeader\nOUTPUT OUT\n", document, error),
+           "file without CPEDAL header was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nR R1 A 0 10x\nOUTPUT A\n", document, error),
+           "invalid engineering value was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nQ Q1 C B E MADEUP\nOUTPUT C\n", document, error),
+           "unknown transistor model was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nR R1 A 0 10k\n", document, error),
+           "file without OUTPUT was accepted");
+}
+
+void testBuiltInModels()
+{
+    bool ok = false;
+    const auto transistor = circuitpedal::builtInNpnModel("2N3904", ok);
+    expect(ok && transistor.forwardBeta > 100.0,
+           "2N3904 built-in model was unavailable");
+
+    const auto germanium = circuitpedal::builtInDiodeModel("1N34A", ok);
+    expect(ok && germanium.saturationCurrentAmps > 0.0,
+           "1N34A built-in diode model was unavailable");
+}
+
+} // namespace
+
+int main()
+{
+    testEngineeringValues();
+    testParseAndCompile();
+    testParserFailures();
+    testBuiltInModels();
+
+    if (failures != 0)
+    {
+        std::cerr << failures << " circuit-file assertion(s) failed\n";
+        return 1;
+    }
+
+    std::cout << "PASS: CircuitPedal V0.7 circuit-file validation suite\n";
+    return 0;
+}
