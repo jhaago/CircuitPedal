@@ -1,14 +1,14 @@
-# CircuitPedal V0.6
+# CircuitPedal V0.7
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.6 adds the first topology-independent Modified Nodal Analysis circuit engine alongside the proven Distortion+ live path. The generic engine now supports arbitrary node connections for resistors, capacitors, voltage sources, potentiometers, diodes and NPN BJTs, including DC operating-point and nonlinear transient solving.
+V0.7 adds human-readable `.cpedal` circuit files and connects the generic Modified Nodal Analysis engine to the proven macOS live-audio path. A supported circuit can now be parsed, validated, DC-biased and run in real time without writing a circuit-specific C++ effect algorithm.
 
-The macOS GUI still uses the validated Distortion+ path while the generic engine is developed and tested in parallel. The original V0.2 germanium model remains the reference Distortion+ setting; experimental silicon-like and LED-like substitutions remain available for comparison.
+The built-in Distortion+ remains available as the regression/reference model. V0.7 also includes a generic two-transistor fuzz demo and a **Woolly Mammoth Reference Draft** circuit file reconstructed from the commonly published two-2N3904 topology. The Woolly file is an engineering/listening target, not yet a component-accurate clone claim.
 
-See [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the V0.6 architecture and the path toward loadable `.cpedal` files.
+See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the V0.7 file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.6 Circuit Lab Test
+## V0.7 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -24,15 +24,28 @@ open build/CircuitPedalGUI.app
 In the GUI:
 
 1. Turn the physical interface/headphone/amplifier output down before starting.
-2. Select a duplex audio interface. Only devices with both input and output capability are listed.
-3. Select the physical input channel carrying the guitar; do not assume this is always input 1.
+2. Leave **Built-in Distortion+** selected for the established reference path, or click **Load .cpedal…** and choose a circuit from the `circuits/` folder.
+3. Select a duplex audio interface and the physical input channel carrying the guitar.
 4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio and try 128 or 256.
-5. Choose a **Clipping Diodes** preset. Start with **Reference germanium (V0.2)** when checking that V0.3 behaviour has not regressed. The experimental silicon-like and LED-like models, plus a no-diodes option, are provided for comparative listening rather than component-accuracy claims.
-6. Click **Start Audio**. Device, channel, buffer and diode controls are locked until **Stop Audio** is clicked.
-7. Adjust **Distortion** and **Output**, or enable **Bypass**. These controls drive the circuit-model parameters and bypass crossfade directly.
-8. Read the input/output peak meters and the status area. The status shows sample rate, requested and actual buffer sizes, buffer duration, Core Audio input/output latency and safety offsets, DSP FIR delay, and their reported component sum.
+5. For a loaded circuit, its first four named POT controls appear automatically and can be moved live while audio is running.
+6. Click **Start Audio**. A loaded circuit is compiled for the device sample rate and its DC operating point is solved before Core Audio starts.
+7. **Bypass** works for both the built-in and generic circuit paths.
+8. Read the meters/status area for the active model, buffer and latency information.
+
+For the first V0.7 file-loading test, try `circuits/two_transistor_fuzz_demo.cpedal`. The next meaningful listening test is `circuits/woolly_mammoth_reference_draft.cpedal`, which exposes **PINCH, WOOL, EQ and OUTPUT**.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Circuit-file loading introduced in V0.7
+
+- Adds the versioned, human-readable `.cpedal` parser.
+- Supports engineering notation such as `4k99`, `2k2`, `220n` and `100u`.
+- Maps named POT directives to real-time-safe GUI controls.
+- Adds built-in compact `2N3904`, silicon-diode and germanium-diode model names.
+- Connects generic circuits to the native macOS Core Audio path.
+- Compiles and solves a circuit's DC operating point before live audio starts.
+- Adds a loadable two-transistor fuzz demo and Woolly Mammoth reference draft.
+- Adds end-to-end parser/circuit-file validation in CI.
 
 ## Generic circuit engine introduced in V0.6
 
@@ -72,7 +85,7 @@ Startup errors remain visible in the window so settings can be changed and Start
 
 The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-The legacy V0.2 Distortion+ implementation remains a dedicated model, but V0.6 now includes a separate compiled MNA engine for arbitrary supported component topology. V0.7 will add the human-readable circuit-file layer needed to load new pedal definitions without recompiling C++.
+The legacy Distortion+ implementation remains a dedicated reference model. V0.7 now provides the human-readable circuit-file layer needed to load supported new pedal topologies without recompiling C++.
 
 ## Build and test
 
