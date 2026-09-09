@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.2.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.3.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -42,17 +42,43 @@ if(BUILD_TESTING)
 endif()
 
 if(APPLE)
-    add_executable(circuitpedal
-        src/main_mac.cpp
+    enable_language(OBJCXX)
+
+    add_library(circuit_mac_audio
+        src/MacAudioEngine.cpp
     )
-    target_link_libraries(circuitpedal PRIVATE
+    target_include_directories(circuit_mac_audio PUBLIC src)
+    target_link_libraries(circuit_mac_audio PUBLIC
         circuit_core
         "-framework AudioUnit"
         "-framework AudioToolbox"
         "-framework CoreAudio"
         "-framework CoreFoundation"
     )
+    circuitpedal_target_defaults(circuit_mac_audio)
+
+    add_executable(circuitpedal
+        src/main_mac.cpp
+    )
+    target_link_libraries(circuitpedal PRIVATE circuit_mac_audio)
     circuitpedal_target_defaults(circuitpedal)
+
+    add_executable(CircuitPedalGUI MACOSX_BUNDLE
+        src/main_mac_gui.mm
+    )
+    target_link_libraries(CircuitPedalGUI PRIVATE
+        circuit_mac_audio
+        "-framework AppKit"
+    )
+    target_compile_options(CircuitPedalGUI PRIVATE -fobjc-arc)
+    set_target_properties(CircuitPedalGUI PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "CircuitPedal"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.jhaago.CircuitPedalGUI"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
+    )
+    circuitpedal_target_defaults(CircuitPedalGUI)
 else()
     message(STATUS "Live audio target is macOS-only. Building circuit_core_test only.")
 endif()

@@ -19,3 +19,6 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Confirm macOS GUI bundle
+        if: runner.os == 'macOS'
+        run: test -x build/CircuitPedalGUI.app/Contents/MacOS/CircuitPedalGUI

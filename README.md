@@ -1,10 +1,35 @@
-# CircuitPedal V0.2
+# CircuitPedal V0.3
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.2 concentrates on making the first Distortion+-style model numerically safe, topologically defensible and measurable before GUI work or additional pedals are added.
+V0.3 adds a minimal native macOS test GUI around the V0.2 circuit and live-audio implementation. The circuit model, parameter smoothing and bypass crossfade remain the same.
 
-## What changed from V0.1
+## V0.3 GUI Test
+
+This is a functional test interface, not the final CircuitPedal visual design.
+
+On a Mac, double-click `build_and_run_gui.command`. It checks for CMake and Apple Command Line Tools, builds the project, runs the complete automated validation suite, and only launches `CircuitPedalGUI.app` if validation passes. The equivalent manual commands are:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+ctest --test-dir build --output-on-failure
+open build/CircuitPedalGUI.app
+```
+
+In the GUI:
+
+1. Turn the physical interface/headphone/amplifier output down before starting.
+2. Select a duplex audio interface. Only devices with both input and output capability are listed.
+3. Select the physical input channel carrying the guitar; do not assume this is always input 1.
+4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio and try 128 or 256.
+5. Click **Start Audio**. Device, channel and buffer controls are locked until **Stop Audio** is clicked.
+6. Adjust **Distortion** and **Output**, or enable **Bypass**. These controls drive the existing circuit-model parameters and bypass crossfade directly.
+7. Read the input/output peak meters and the status area. The status shows sample rate, requested and actual buffer sizes, buffer duration, Core Audio input/output latency and safety offsets, DSP FIR delay, and their reported component sum.
+
+Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Circuit-engine changes introduced in V0.2
 
 - The post-op-amp coupling capacitor, 10 kOhm clipping resistor, diode pair, 1 nF capacitor and complete output-pot load are now solved as one connected network.
 - The diode solve uses safeguarded Newton iteration, consistent exponential limiting, KCL residual checks and a bounded bisection fallback.

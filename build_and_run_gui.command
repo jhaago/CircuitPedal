@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "========================================"
-echo " CircuitPedal V0.3 - Mac terminal build + run"
+echo " CircuitPedal V0.3 - Mac GUI build + run"
 echo "========================================"
 echo
 
@@ -24,23 +24,15 @@ if ! xcode-select -p >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Building..."
+echo "Building CircuitPedal and the macOS test GUI..."
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
+cmake --build build --parallel
 
 echo
 echo "Running circuit-core validation suite..."
 ctest --test-dir build --output-on-failure
 
 echo
-echo "Available audio devices:"
-./build/circuitpedal --list-devices
-
-echo
-echo "IMPORTANT: turn your physical headphone/amp/interface output volume down before continuing."
-echo "The default run requests a 64-frame buffer and uses input channel 1 on the default output device."
-echo "For another device/channel, run ./build/circuitpedal --help or see README.md."
-read -r -p "Press Enter to start the live pedal..."
-
-echo
-./build/circuitpedal
+echo "Validation passed. Launching CircuitPedalGUI."
+echo "IMPORTANT: start with your interface/headphone/amp volume LOW."
+open -n "build/CircuitPedalGUI.app"
