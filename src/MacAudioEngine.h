@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DistortionPlusModel.h"
+
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -56,10 +58,12 @@ public:
     void setDistortion(float normalized) noexcept;
     void setOutput(float normalized) noexcept;
     void setBypass(bool bypassed) noexcept;
+    void setClippingDiodePreset(ClippingDiodePreset preset) noexcept;
 
     float distortion() const noexcept;
     float output() const noexcept;
     bool bypassed() const noexcept;
+    ClippingDiodePreset clippingDiodePreset() const noexcept;
     float inputPeak() const noexcept;
     float outputPeak() const noexcept;
     AudioRuntimeInfo runtimeInfo() const noexcept;
