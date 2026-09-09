@@ -324,14 +324,14 @@ bool parseCircuitFileText(const std::string& text,
         }
         else if (command == "V")
         {
-            if (tokens.size() != 6)
+            if (tokens.size() != 5)
             {
                 error = lineError(lineNumber,
                     "V syntax: V <id> <positive> <negative> <dc-volts>.");
                 return false;
             }
             double dc = 0.0;
-            if (!parseFinite(tokens[5], dc))
+            if (!parseFinite(tokens[4], dc))
             {
                 error = lineError(lineNumber, "Invalid voltage-source value.");
                 return false;
@@ -343,14 +343,14 @@ bool parseCircuitFileText(const std::string& text,
         }
         else if (command == "AUDIO")
         {
-            if (tokens.size() != 6)
+            if (tokens.size() != 5)
             {
                 error = lineError(lineNumber,
                     "AUDIO syntax: AUDIO <id> <positive> <negative> <volts-per-full-scale>.");
                 return false;
             }
             double scale = 0.0;
-            if (!parseFinite(tokens[5], scale))
+            if (!parseFinite(tokens[4], scale))
             {
                 error = lineError(lineNumber, "Invalid AUDIO scale.");
                 return false;
@@ -401,18 +401,18 @@ bool parseCircuitFileText(const std::string& text,
         }
         else if (command == "D")
         {
-            if (tokens.size() != 6)
+            if (tokens.size() != 5)
             {
                 error = lineError(lineNumber,
                     "D syntax: D <id> <anode> <cathode> <model>.");
                 return false;
             }
             bool modelOk = false;
-            const auto model = builtInDiodeModel(tokens[5], modelOk);
+            const auto model = builtInDiodeModel(tokens[4], modelOk);
             if (!modelOk)
             {
                 error = lineError(lineNumber,
-                    "Unknown diode model '" + tokens[5] + "'.");
+                    "Unknown diode model '" + tokens[4] + "'.");
                 return false;
             }
             parsed.definition.addDiode(
@@ -422,18 +422,18 @@ bool parseCircuitFileText(const std::string& text,
         }
         else if (command == "Q" || command == "NPN")
         {
-            if (tokens.size() != 7)
+            if (tokens.size() != 6)
             {
                 error = lineError(lineNumber,
                     "Q syntax: Q <id> <collector> <base> <emitter> <model>.");
                 return false;
             }
             bool modelOk = false;
-            const auto model = builtInNpnModel(tokens[6], modelOk);
+            const auto model = builtInNpnModel(tokens[5], modelOk);
             if (!modelOk)
             {
                 error = lineError(lineNumber,
-                    "Unknown NPN model '" + tokens[6] + "'.");
+                    "Unknown NPN model '" + tokens[5] + "'.");
                 return false;
             }
             parsed.definition.addNpnBjt(
@@ -444,7 +444,7 @@ bool parseCircuitFileText(const std::string& text,
         }
         else if (command == "POT")
         {
-            if (tokens.size() != 9)
+            if (tokens.size() != 8)
             {
                 error = lineError(lineNumber,
                     "POT syntax: POT <name> <terminal1> <wiper> <terminal3> "
@@ -454,9 +454,9 @@ bool parseCircuitFileText(const std::string& text,
             double resistance = 0.0;
             double initial = 0.0;
             bool taperOk = false;
-            const double exponent = taperExponent(tokens[7], taperOk);
-            if (!parseFinite(tokens[6], resistance)
-                || !parseFinite(tokens[8], initial)
+            const double exponent = taperExponent(tokens[6], taperOk);
+            if (!parseFinite(tokens[5], resistance)
+                || !parseFinite(tokens[7], initial)
                 || !taperOk
                 || initial < 0.0
                 || initial > 1.0)
