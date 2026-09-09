@@ -39,6 +39,16 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 
 } // namespace
 
+@interface CircuitPedalFlippedView : NSView
+@end
+
+@implementation CircuitPedalFlippedView
+- (BOOL)isFlipped
+{
+    return YES;
+}
+@end
+
 @interface CircuitPedalAppDelegate : NSObject <NSApplicationDelegate> {
 @private
     std::unique_ptr<circuitpedal::MacAudioEngine> _engine;
@@ -63,9 +73,11 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     NSSlider* _outputSlider;
     NSTextField* _outputValue;
 
-    NSTextField* _circuitLabels[4];
-    NSSlider* _circuitSliders[4];
-    NSTextField* _circuitValues[4];
+    NSScrollView* _circuitScrollView;
+    CircuitPedalFlippedView* _circuitDocumentView;
+    NSTextField* _circuitLabels[16];
+    NSSlider* _circuitSliders[16];
+    NSTextField* _circuitValues[16];
 
     NSButton* _startButton;
     NSButton* _stopButton;
@@ -201,28 +213,39 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _outputValue.alignment = NSTextAlignmentRight;
     [content addSubview:_outputValue];
 
-    const double circuitY[4] = { 538.0, 496.0, 454.0, 412.0 };
-    for (NSInteger i = 0; i < 4; ++i)
+    _circuitScrollView = [[NSScrollView alloc]
+        initWithFrame:NSMakeRect(24.0, 404.0, 672.0, 166.0)];
+    _circuitScrollView.hasVerticalScroller = YES;
+    _circuitScrollView.hasHorizontalScroller = NO;
+    _circuitScrollView.autohidesScrollers = YES;
+    _circuitScrollView.borderType = NSBezelBorder;
+
+    _circuitDocumentView = [[CircuitPedalFlippedView alloc]
+        initWithFrame:NSMakeRect(0.0, 0.0, 650.0, 166.0)];
+    _circuitScrollView.documentView = _circuitDocumentView;
+    [content addSubview:_circuitScrollView];
+
+    for (NSInteger i = 0; i < 16; ++i)
     {
+        const double y = 8.0 + static_cast<double>(i) * 38.0;
         _circuitLabels[i] = makeLabel(@"Control",
-                                      NSMakeRect(24.0, circuitY[i], 110.0, 22.0));
-        [content addSubview:_circuitLabels[i]];
+                                      NSMakeRect(8.0, y + 4.0, 105.0, 22.0));
+        [_circuitDocumentView addSubview:_circuitLabels[i]];
 
         _circuitSliders[i] = [NSSlider sliderWithValue:50.0
                                               minValue:0.0
                                               maxValue:100.0
                                                  target:self
                                                  action:@selector(circuitSliderChanged:)];
-        _circuitSliders[i].frame =
-            NSMakeRect(140.0, circuitY[i] - 4.0, 470.0, 28.0);
+        _circuitSliders[i].frame = NSMakeRect(114.0, y, 455.0, 28.0);
         _circuitSliders[i].continuous = YES;
         _circuitSliders[i].tag = i;
-        [content addSubview:_circuitSliders[i]];
+        [_circuitDocumentView addSubview:_circuitSliders[i]];
 
         _circuitValues[i] = makeLabel(@"50%",
-                                      NSMakeRect(626.0, circuitY[i], 70.0, 22.0));
+                                      NSMakeRect(574.0, y + 4.0, 58.0, 22.0));
         _circuitValues[i].alignment = NSTextAlignmentRight;
-        [content addSubview:_circuitValues[i]];
+        [_circuitDocumentView addSubview:_circuitValues[i]];
     }
 
     _bypassButton = [NSButton checkboxWithTitle:@"Bypass"
@@ -382,9 +405,18 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _outputValue.hidden = generic;
 
     _circuitControls = _engine->circuitControls();
-    for (std::size_t i = 0; i < 4; ++i)
+    _circuitScrollView.hidden = !generic;
+
+    const std::size_t visibleControlCount =
+        std::min<std::size_t>(_circuitControls.size(), 16);
+    const double documentHeight =
+        std::max(166.0, 16.0 + 38.0 * static_cast<double>(visibleControlCount));
+    _circuitDocumentView.frame =
+        NSMakeRect(0.0, 0.0, 650.0, documentHeight);
+
+    for (std::size_t i = 0; i < 16; ++i)
     {
-        const BOOL visible = generic && i < _circuitControls.size();
+        const BOOL visible = generic && i < visibleControlCount;
         _circuitLabels[i].hidden = !visible;
         _circuitSliders[i].hidden = !visible;
         _circuitValues[i].hidden = !visible;
@@ -398,12 +430,8 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         }
     }
 
-    if (generic && _circuitControls.size() > 4)
-    {
-        _errorLabel.stringValue =
-            @"This V0.8 GUI displays the first four circuit controls. "
-             "The circuit engine supports up to sixteen.";
-    }
+    if (generic)
+        [_circuitDocumentView scrollPoint:NSMakePoint(0.0, 0.0)];
 }
 
 - (void)setRunningControls:(BOOL)running
@@ -418,7 +446,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _distortionSlider.enabled = !_engine->usingCircuitFile();
     _outputSlider.enabled = !_engine->usingCircuitFile();
 
-    for (NSInteger i = 0; i < 4; ++i)
+    for (NSInteger i = 0; i < 16; ++i)
         _circuitSliders[i].enabled = _engine->usingCircuitFile();
 
     _startButton.enabled =
@@ -564,7 +592,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 {
     NSSlider* slider = (NSSlider*)sender;
     const NSInteger index = slider.tag;
-    if (index < 0 || index >= 4)
+    if (index < 0 || index >= 16)
         return;
 
     const double value = slider.doubleValue;
