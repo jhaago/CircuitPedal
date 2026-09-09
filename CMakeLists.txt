@@ -49,6 +49,9 @@ add_executable(circuit_file_test
     src/circuit_file_test.cpp
 )
 target_link_libraries(circuit_file_test PRIVATE circuit_core)
+target_compile_definitions(circuit_file_test PRIVATE
+    CIRCUITPEDAL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
 circuitpedal_target_defaults(circuit_file_test)
 
 if(BUILD_TESTING)
