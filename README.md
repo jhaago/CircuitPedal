@@ -1,14 +1,14 @@
-# CircuitPedal V0.7
+# CircuitPedal V0.8
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.7 adds human-readable `.cpedal` circuit files and connects the generic Modified Nodal Analysis engine to the proven macOS live-audio path. A supported circuit can now be parsed, validated, DC-biased and run in real time without writing a circuit-specific C++ effect algorithm.
+V0.8 is the first dedicated fidelity/refinement pass on the generic circuit path. Loadable `.cpedal` circuits now run their nonlinear MNA solve at **4x the host sample rate** through the same FIR interpolation/decimation architecture already proven by the built-in Distortion+ model. Bypass is latency-aligned to the oversampled wet path, and a loaded circuit's DC operating point is solved at the actual control positions selected before audio starts.
 
-The built-in Distortion+ remains available as the regression/reference model. V0.7 also includes a generic two-transistor fuzz demo and a **Woolly Mammoth Reference Draft** circuit file reconstructed from the commonly published two-2N3904 topology. The Woolly file is an engineering/listening target, not yet a component-accurate clone claim.
+The built-in Distortion+ remains available as the regression/reference model. V0.8 retains the generic two-transistor fuzz demo and the **Woolly Mammoth Reference Draft**, corrects the Wool control direction to match the physical pedal, and adds an automated physical-bias sanity comparison against published working-board voltages.
 
-See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the V0.7 file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
+See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.7 Circuit Lab Test
+## V0.8 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,19 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-For the first V0.7 file-loading test, try `circuits/two_transistor_fuzz_demo.cpedal`. The next meaningful listening test is `circuits/woolly_mammoth_reference_draft.cpedal`, which exposes **PINCH, WOOL, EQ and OUTPUT**.
+For a quick generic-path check, try `circuits/two_transistor_fuzz_demo.cpedal`. The main V0.8 listening target is `circuits/woolly_mammoth_reference_draft.cpedal`, which exposes **WOOL, PINCH, EQ and OUTPUT**. Generic circuits now report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Generic fidelity changes introduced in V0.8
+
+- Runs supported generic circuits at 4x the host sample rate before FIR decimation.
+- Uses the oversampled timestep inside the capacitor and nonlinear-device equations rather than oversampling only after the effect.
+- Latency-aligns the dry path for click-free generic-circuit bypass.
+- Solves the DC operating point at the exact pre-start potentiometer positions selected in the GUI.
+- Corrects the Woolly Mammoth **WOOL** control direction so increasing the GUI control corresponds to increasing the physical emitter-bypass effect.
+- Adds a broad automated Woolly Mammoth DC-bias sanity guard based on published voltages from a verified working build.
+- Keeps the tighter physical/SPICE agreement target in the validation plan rather than overfitting the compact BJT model to one build.
 
 ## Circuit-file loading introduced in V0.7
 
@@ -85,7 +95,7 @@ Startup errors remain visible in the window so settings can be changed and Start
 
 The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-The legacy Distortion+ implementation remains a dedicated reference model. V0.7 now provides the human-readable circuit-file layer needed to load supported new pedal topologies without recompiling C++.
+The legacy Distortion+ implementation remains a dedicated reference model. V0.8 uses the same 4x FIR oversampling concept for the generic circuit path, while the `.cpedal` layer continues to let supported pedal topologies load without recompiling C++.
 
 ## Build and test
 
@@ -176,6 +186,9 @@ The automated suite currently checks:
 - RC transient behaviour;
 - generic nonlinear diode operation;
 - NPN BJT DC bias;
-- one second of stable two-transistor fuzz-like transient audio.
+- one second of stable two-transistor fuzz-like transient audio;
+- 4x oversampled generic nonlinear processing;
+- end-to-end Woolly Mammoth circuit-file loading;
+- broad Woolly working-board DC-bias sanity checks at all controls maxed.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
