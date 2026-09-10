@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace circuitpedal {
@@ -36,6 +37,19 @@ public:
     std::size_t potentiometerCount() const noexcept
     {
         return circuit_.potentiometerCount();
+    }
+
+    bool setSwitchPosition(std::size_t index, std::uint32_t position) noexcept
+    {
+        return circuit_.setSwitchPosition(index, position);
+    }
+    std::uint32_t switchPosition(std::size_t index) const noexcept
+    {
+        return circuit_.switchPosition(index);
+    }
+    std::size_t switchCount() const noexcept
+    {
+        return circuit_.switchCount();
     }
 
     double nodeVoltage(CircuitNode node) const noexcept
