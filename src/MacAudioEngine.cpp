@@ -654,6 +654,23 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                 const double value =
                     static_cast<double>(impl_->circuitControlTargets[control]);
 
+                if (mapping.kind == CircuitFileControlKind::Switch)
+                {
+                    const std::uint32_t positions =
+                        std::max<std::uint32_t>(2U, mapping.switchPositionCount);
+                    const auto position = static_cast<std::uint32_t>(
+                        std::llround(value * static_cast<double>(positions - 1U)));
+                    if (!configuredDefinition.setSwitchPosition(
+                            mapping.switchIndex,
+                            std::min(position, positions - 1U)))
+                    {
+                        error = "Could not apply switch control before DC bias solve.";
+                        stop();
+                        return false;
+                    }
+                    continue;
+                }
+
                 if (!configuredDefinition.setPotentiometerPosition(
                         mapping.potentiometerIndex, value))
                 {
@@ -782,8 +799,20 @@ bool MacAudioEngine::loadCircuitFile(const std::string& path, std::string& error
     impl_->circuitControlCount = impl_->circuitDocument.controls.size();
     for (std::size_t i = 0; i < impl_->circuitControlCount; ++i)
     {
-        impl_->circuitControlTargets[i] = static_cast<float>(
-            impl_->circuitDocument.controls[i].initialPosition);
+        const auto& control = impl_->circuitDocument.controls[i];
+        if (control.kind == CircuitFileControlKind::Switch)
+        {
+            const std::uint32_t positions =
+                std::max<std::uint32_t>(2U, control.switchPositionCount);
+            impl_->circuitControlTargets[i] =
+                static_cast<float>(control.initialSwitchPosition)
+                / static_cast<float>(positions - 1U);
+        }
+        else
+        {
+            impl_->circuitControlTargets[i] =
+                static_cast<float>(control.initialPosition);
+        }
     }
     impl_->circuitFileSelected = true;
     impl_->genericBypass.store(false, std::memory_order_relaxed);
@@ -827,18 +856,43 @@ bool MacAudioEngine::setCircuitControl(std::size_t index, float normalized) noex
     }
 
     const float bounded = std::clamp(normalized, 0.0f, 1.0f);
-    impl_->circuitControlTargets[index] = bounded;
+    const auto& mapping = impl_->circuitDocument.controls[index];
+
+    float stored = bounded;
+    if (mapping.kind == CircuitFileControlKind::Switch)
+    {
+        const std::uint32_t positions =
+            std::max<std::uint32_t>(2U, mapping.switchPositionCount);
+        const auto position = static_cast<std::uint32_t>(
+            std::llround(static_cast<double>(bounded)
+                         * static_cast<double>(positions - 1U)));
+        stored = static_cast<float>(std::min(position, positions - 1U))
+               / static_cast<float>(positions - 1U);
+    }
+    impl_->circuitControlTargets[index] = stored;
+
     if (isRunning())
     {
-        const auto& mapping = impl_->circuitDocument.controls[index];
+        if (mapping.kind == CircuitFileControlKind::Switch)
+        {
+            const std::uint32_t positions =
+                std::max<std::uint32_t>(2U, mapping.switchPositionCount);
+            const auto position = static_cast<std::uint32_t>(
+                std::llround(static_cast<double>(stored)
+                             * static_cast<double>(positions - 1U)));
+            return impl_->genericCircuit.setSwitchPosition(
+                mapping.switchIndex,
+                std::min(position, positions - 1U));
+        }
+
         bool ok = impl_->genericCircuit.setPotentiometerPosition(
             mapping.potentiometerIndex,
-            static_cast<double>(bounded));
+            static_cast<double>(stored));
         for (const std::size_t linked : mapping.linkedPotentiometerIndices)
         {
             ok = impl_->genericCircuit.setPotentiometerPosition(
                      linked,
-                     static_cast<double>(bounded))
+                     static_cast<double>(stored))
                 && ok;
         }
         return ok;
