@@ -1,14 +1,14 @@
-# CircuitPedal V0.10
+# CircuitPedal V0.11
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.10 turns the Circuit File Lab into a small **pedal library** rather than a one-file-at-a-time prototype. The macOS app now bundles its `.cpedal` models, lets them be selected directly from a menu, displays up to sixteen live controls in a scrollable panel, and supports linked/multi-gang potentiometers.
+V0.11 adds **live circuit switches** to the generic engine and `.cpedal` format. SPST, SPDT and three-position on-off-on switches are represented electrically inside the MNA solver and can be changed from the macOS control panel while audio is running.
 
-The generic engine still runs supported circuits at **4x the host sample rate** and now covers the main device families needed by the supplied analogue drive/fuzz layouts: diodes, NPN and PNP BJTs, N-channel JFETs, N-channel MOSFETs and an early generic op-amp model. V0.10 also adds a five-control **Fuzz Factory Reference** model alongside the Woolly Mammoth, Naga Viper and four Big Muff variants.
+That unlocks the first switch-dependent model: **Fat Fuzz Factory Reference**, which keeps the stock Fuzz Factory path and uses a three-position Fat switch to select the normal coupling network or add larger parallel capacitors for progressively lower-frequency behaviour. The existing built-in pedal library, sixteen-control GUI, linked/multi-gang potentiometers and 4x generic oversampling remain in place.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.10 Circuit Lab Test
+## V0.11 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,18 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants and the five-control Fuzz Factory Reference. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference and Fat Fuzz Factory Reference. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Live-switch changes introduced in V0.11
+
+- Adds generic electrical SPST, SPDT and on-off-on switch devices without recompiling a circuit-specific effect.
+- Uses low on-resistance and finite off-resistance so the MNA topology remains numerically well-conditioned across switch positions.
+- Adds labelled discrete switch controls to the macOS circuit-control panel.
+- Adds `SWITCH` syntax to `.cpedal` files, including custom labels for each switch position.
+- Adds a switchable **Fat Fuzz Factory Reference** circuit with Fat / Normal / Super Fat positions.
+- Extends automated validation to live switch changes, parser metadata and all three Fat Fuzz Factory positions.
 
 ## Compatibility-library changes introduced in V0.10
 
