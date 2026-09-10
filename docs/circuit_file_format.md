@@ -1,4 +1,4 @@
-# CircuitPedal .cpedal format — V0.15
+# CircuitPedal .cpedal format — V0.17
 
 The circuit file is intentionally small and human-readable. It is designed
 so a reviewed schematic can be translated into a circuit definition without
@@ -112,26 +112,36 @@ The current format includes compact named aliases for common pedal parts.
 - PNP: `NTE102` (germanium), `AC128`, `2N1308`, `GENERIC_PNP`
 - N-JFET: `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
 - N-MOSFET: `BS170`
-- op-amp: `JRC4558` / `4558`, `CA3130`
-- diode: `1N4148`, `1N914`, `KD521`, `1N34A`, `1N6263`
+- op-amp: `4558`, `4558D`, `JRC4558`, `JRC4558D`, `CA3130`, `CA3130E`, `CA3130EZ`
+- diode: `1N4148`, `1N914`, `1S1588`, `KD521`, `1N4001`, `1N4007`,
+  `LED_RED`, `1N34A`, `1N6263`
+
+Common descriptive aliases such as `SILICON`, `RECTIFIER`, `LED` / `RED_LED`,
+`GERMANIUM` and `SCHOTTKY` are also accepted by the compact diode-model lookup.
 
 These are compact real-time solver models. They are deliberately not described
-as complete manufacturer SPICE models. The op-amp aliases now include finite
+as complete manufacturer SPICE models. The op-amp aliases include finite
 gain-bandwidth and slew-rate behaviour; output-current, detailed input-stage
 behaviour and manufacturer macromodel fitting remain fidelity work.
+
+The generic op-amp primitive currently exposes only the signal pins and supply
+rails. Device-specific auxiliary pins such as the CA3130 external compensation
+pins are not yet represented explicitly. Circuits such as the V0.17 Blueberry
+reference draft therefore absorb that behaviour into the compact device model
+until a higher-fidelity primitive is introduced.
 
 ## macOS loading workflow
 
 1. Stop audio.
-2. Click **Load .cpedal…**.
-3. Choose a circuit file.
+2. Click **Load External…** or choose a bundled circuit from **Choose Circuit…**.
+3. Choose a circuit file if loading externally.
 4. CircuitPedal parses and validates it.
 5. Up to sixteen named controls appear in the scrollable macOS GUI.
 6. Click **Start Audio**.
 7. CircuitPedal calculates the DC operating point and starts the real-time MNA
    transient solver.
-8. Pot controls can then be moved live.
+8. Pot and switch controls can then be moved live.
 
 Loading, topology compilation and DC setup are deliberately outside the audio
-callback. Live pot targets are atomic and the transient solver uses preallocated
-working storage.
+callback. Live control targets are atomic and the transient solver uses
+preallocated working storage.
