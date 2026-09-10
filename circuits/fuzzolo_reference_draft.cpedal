@@ -1,0 +1,65 @@
+CPEDAL 1
+NAME "Fuzzolo Reference Draft"
+
+# Reconstructed from the supplied colour-coded Effects Layouts drawing and
+# Ciaran Haslett's published traced/breadboard-verified schematic.
+#
+# The production pedal's pickup-mode jumper is exposed as a live Passive/Active
+# switch for convenient testing. The 9.1 V BS170 protection zener is omitted
+# because the current generic diode model does not yet include reverse
+# breakdown; it should not conduct during normal signal operation.
+#
+# Several later verified builds report that the SHO drain resistor printed as
+# 51k in the early trace/layout should be 5k1. This model uses 5k1, matching the
+# standard SHO stage and those correction reports.
+
+V RAW9 RAW9 0 9
+R R_SUPPLY RAW9 VCC 100
+C C_SUPPLY VCC 0 100u
+AUDIO GUITAR INPUT 0 0.20
+
+# Pickup-level selector. Both branches feed the same 220n coupling capacitor.
+R R_PASSIVE PASSIVE_IN PRE_C1 750
+R R_ACTIVE ACTIVE_IN PRE_C1 39k
+C C1 PRE_C1 Q1B 220n
+
+# Q1 silicon stage.
+C C2 Q1B 0 10n
+R R5 VCC Q1C 51k
+Q Q1 Q1C Q1B 0 2N3904
+
+# Q2 base is directly driven by Q1 collector.
+R R8 VCC Q2C 20k
+Q Q2 Q2C Q1C Q2E 2N3904
+
+# Pulse Width network. The supplied colour routing shows all three pot lugs in
+# use: lug 3 returns to Q1 base through 100k, wiper reaches ground through 2k2,
+# and lug 1 is Q2 emitter. Q2 emitter is AC-bypassed by 100u.
+R R3 Q1B PW3 100k
+POT PULSE_WIDTH Q2E PW2 PW3 500k LIN 0.50
+R R7 PW2 0 2k2
+C C3 Q2E 0 100u
+
+# AC-load the Q2 stage before the SHO-derived output booster.
+C C5 Q2C INTERSTAGE 100u
+R R9 INTERSTAGE 0 20k
+C C6 INTERSTAGE Q3G 100n
+
+# Fixed-gain SHO-derived BS170 stage. The two 1M resistors provide drain-gate
+# feedback and gate-to-ground bias; the source uses the traced 3k9 resistor.
+R R_Q3_D VCC Q3D 5k1
+R R_Q3_FB Q3D Q3G 1M
+R R_Q3_G Q3G 0 1M
+R R_Q3_S Q3S 0 3k9
+NMOS Q3 Q3D Q3G Q3S BS170
+
+# Post-gain output volume.
+C C_OUT Q3D VOL3 10u
+POT VOLUME 0 OUT VOL3 50k LOG 0.55
+R R_OUT_LOAD OUT 0 1M
+
+# Production units use an internal movable jumper. Making it a live SPDT here
+# lets the two documented 750-ohm / 39k input paths be compared directly.
+SWITCH PICKUPS SPDT INPUT PASSIVE_IN ACTIVE_IN A "Passive" "Active"
+
+OUTPUT OUT 1
