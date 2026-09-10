@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.10
+## Component support in V0.11
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ real pedal circuits have reached each validation stage.
 | N-channel JFET | Working | Compact depletion square-law + gate junctions |
 | N-channel MOSFET | Working | Compact enhancement square-law + body diode |
 | Op-amp | Working, early | Static high-gain nonlinear controlled source with rail limiting |
-| SPST/SPDT switch | Not yet | Planned |
+| SPST/SPDT/on-off-on switch | Working | Live discrete conductance switching in the generic solver |
 | Linked / dual-gang pot | Working | `POT_LINK` maps multiple electrical gangs to one live control |
 | P-channel JFET/MOSFET | Not yet | Add when a reference circuit needs it |
 | Inductor / transformer | Not yet | Later |
@@ -27,7 +27,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.10
+## Named model aliases in V0.11
 
 NPN BJTs currently include compact aliases for:
 
@@ -84,6 +84,7 @@ Diodes include:
 - Big Muff — NYC
 - Naga Viper / Hydra Treble Booster
 - Fuzz Factory Reference
+- Fat Fuzz Factory Reference
 - Woolly Mammoth Reference Draft
 - generic two-transistor fuzz demo
 
@@ -104,7 +105,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Honey Bee — CA3130 + JFET stages + LEDs; engine devices now exist.
 - Pink Purple Fuzz — JFET + NPN + germanium PNP; engine devices now exist.
 - Fuzz Factory — converted and CI-validated; five-control GUI support is now available.
-- Fat Fuzz Factory — same plus switchable capacitor network; needs switch support.
+- Fat Fuzz Factory — converted and CI-validated with a three-position Fat switch.
 - Fuzzolo — NPN + BS170; engine devices now exist, plus input-mode switch if both modes are exposed.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
