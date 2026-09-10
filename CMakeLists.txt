@@ -158,6 +158,7 @@ if(APPLE)
 
     add_library(circuit_mac_audio
         src/MacAudioEngine.cpp
+        src/LiveGeneric1x.cpp
     )
     target_include_directories(circuit_mac_audio PUBLIC src)
     target_link_libraries(circuit_mac_audio PUBLIC
@@ -178,6 +179,15 @@ if(APPLE)
     file(GLOB CIRCUITPEDAL_CIRCUIT_FILES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/circuits/*.cpedal"
     )
+
+    # Keep models that have not yet passed physical listening checks in source
+    # for continued engineering work, but do not present them in the stable app.
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/animato_reference_draft\\.cpedal$")
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/blueberry_bass_overdrive_reference_draft\\.cpedal$")
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/eqd_tentacle_reference_draft\\.cpedal$")
 
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
