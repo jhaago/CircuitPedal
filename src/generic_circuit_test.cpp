@@ -387,6 +387,102 @@ void testOpAmpFollower()
            "op-amp follower produced no meaningful AC output");
 }
 
+void testLiveSwitches()
+{
+    {
+        circuitpedal::CircuitDefinition definition;
+        const auto vcc = definition.addNode("VCC");
+        const auto pre = definition.addNode("PRE");
+        const auto out = definition.addNode("OUT");
+
+        definition.addVoltageSource(vcc, circuitpedal::circuitGround, 1.0);
+        definition.addResistor(vcc, pre, 1000.0);
+        definition.addResistor(out, circuitpedal::circuitGround, 1000.0);
+        const auto sw = definition.addSwitch(
+            circuitpedal::CircuitSwitchMode::Spst,
+            pre,
+            out,
+            circuitpedal::circuitGround,
+            0);
+        definition.setOutputNode(out);
+
+        circuitpedal::GenericCircuit circuit;
+        std::string error;
+        expect(circuit.compile(definition, 48000.0, error),
+               "SPST switch circuit failed to compile: " + error);
+        const float open = circuit.processSample(0.0f);
+        expect(std::abs(open) < 1.0e-4,
+               "open SPST did not isolate the output");
+        expect(circuit.setSwitchPosition(sw, 1),
+               "SPST live position update failed");
+        const float closed = circuit.processSample(0.0f);
+        expect(closed > 0.45f && closed < 0.55f,
+               "closed SPST did not connect the divider");
+    }
+
+    {
+        circuitpedal::CircuitDefinition definition;
+        const auto va = definition.addNode("VA");
+        const auto vb = definition.addNode("VB");
+        const auto out = definition.addNode("OUT");
+        definition.addVoltageSource(va, circuitpedal::circuitGround, 1.0);
+        definition.addVoltageSource(vb, circuitpedal::circuitGround, 0.25);
+        definition.addResistor(out, circuitpedal::circuitGround, 100000.0);
+        const auto sw = definition.addSwitch(
+            circuitpedal::CircuitSwitchMode::Spdt,
+            out,
+            va,
+            vb,
+            0);
+        definition.setOutputNode(out);
+
+        circuitpedal::GenericCircuit circuit;
+        std::string error;
+        expect(circuit.compile(definition, 48000.0, error),
+               "SPDT switch circuit failed to compile: " + error);
+        expect(circuit.processSample(0.0f) > 0.95f,
+               "SPDT position A did not select throw A");
+        expect(circuit.setSwitchPosition(sw, 1),
+               "SPDT live position update failed");
+        const float b = circuit.processSample(0.0f);
+        expect(b > 0.20f && b < 0.30f,
+               "SPDT position B did not select throw B");
+    }
+
+    {
+        circuitpedal::CircuitDefinition definition;
+        const auto va = definition.addNode("VA");
+        const auto vb = definition.addNode("VB");
+        const auto out = definition.addNode("OUT");
+        definition.addVoltageSource(va, circuitpedal::circuitGround, 0.75);
+        definition.addVoltageSource(vb, circuitpedal::circuitGround, 0.25);
+        definition.addResistor(out, circuitpedal::circuitGround, 10000.0);
+        const auto sw = definition.addSwitch(
+            circuitpedal::CircuitSwitchMode::OnOffOn,
+            out,
+            va,
+            vb,
+            1);
+        definition.setOutputNode(out);
+
+        circuitpedal::GenericCircuit circuit;
+        std::string error;
+        expect(circuit.compile(definition, 48000.0, error),
+               "on-off-on switch circuit failed to compile: " + error);
+        expect(std::abs(circuit.processSample(0.0f)) < 1.0e-4,
+               "on-off-on center position was not open");
+        expect(circuit.setSwitchPosition(sw, 0),
+               "on-off-on throw A update failed");
+        expect(circuit.processSample(0.0f) > 0.70f,
+               "on-off-on throw A did not connect");
+        expect(circuit.setSwitchPosition(sw, 2),
+               "on-off-on throw B update failed");
+        const float b = circuit.processSample(0.0f);
+        expect(b > 0.20f && b < 0.30f,
+               "on-off-on throw B did not connect");
+    }
+}
+
 void testOversampledGenericCircuit()
 {
     circuitpedal::CircuitDefinition definition;
@@ -510,6 +606,7 @@ int main()
     testNjfetOperatingPointAndAudio();
     testNmosOperatingPointAndAudio();
     testOpAmpFollower();
+    testLiveSwitches();
     testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
 
@@ -519,6 +616,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.9 generic circuit validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.11 generic circuit validation suite\n";
     return 0;
 }
