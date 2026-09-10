@@ -22,6 +22,9 @@ bool OversampledGenericCircuit::compile(const CircuitDefinition& definition,
     }
 
     hostSampleRate_ = hostSampleRate;
+    outputNode_ = definition.outputNode();
+    outputFullScalePerVolt_ = definition.outputFullScalePerVolt();
+
     const double oversampledRate =
         hostSampleRate_ * static_cast<double>(factor);
     if (!circuit_.compile(definition, oversampledRate, error))
@@ -51,26 +54,36 @@ float OversampledGenericCircuit::processSample(float input) noexcept
     std::array<double, factor> oversampledInput {};
     oversampler_.upsample(static_cast<double>(input), oversampledInput);
 
-    double wet = 0.0;
+    double wetVolts = 0.0;
     bool allConverged = true;
     for (int phase = 0; phase < factor; ++phase)
     {
-        const float circuitOutput =
-            circuit_.processSample(
-                static_cast<float>(
-                    oversampledInput[static_cast<std::size_t>(phase)]));
+        // Advance the circuit state at the oversampled rate, but do not feed
+        // GenericCircuit::processSample()'s already scaled/clamped digital
+        // return value into the decimation filter. The anti-alias filter must
+        // operate on the raw circuit-domain output, just as the dedicated
+        // Distortion+ oversampled path does.
+        (void)circuit_.processSample(
+            static_cast<float>(
+                oversampledInput[static_cast<std::size_t>(phase)]));
         allConverged = allConverged && circuit_.lastSolveConverged();
+
+        const double circuitOutputVolts = circuit_.nodeVoltage(outputNode_);
         (void)oversampler_.pushDownsample(
-            static_cast<double>(circuitOutput),
+            circuitOutputVolts,
             phase,
-            wet);
+            wetVolts);
     }
 
     lastSolveConverged_ = allConverged;
-    if (!allConverged || !std::isfinite(wet))
+    if (!allConverged || !std::isfinite(wetVolts))
         return 0.0f;
 
-    return static_cast<float>(std::clamp(wet, -1.0, 1.0));
+    const double wetDigital = wetVolts * outputFullScalePerVolt_;
+    if (!std::isfinite(wetDigital))
+        return 0.0f;
+
+    return static_cast<float>(std::clamp(wetDigital, -1.0, 1.0));
 }
 
 } // namespace circuitpedal
