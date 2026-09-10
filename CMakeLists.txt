@@ -188,6 +188,7 @@ if(APPLE)
 
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        src/DiagnosticOverlay.mm
         ${CIRCUITPEDAL_CIRCUIT_FILES}
     )
     set_source_files_properties(${CIRCUITPEDAL_CIRCUIT_FILES} PROPERTIES
