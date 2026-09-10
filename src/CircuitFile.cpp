@@ -914,7 +914,11 @@ bool parseCircuitFileText(const std::string& text,
                 resistance,
                 initial,
                 exponent);
-            parsed.controls.push_back({ tokens[1], index, initial });
+            CircuitFileControl control;
+            control.name = tokens[1];
+            control.potentiometerIndex = index;
+            control.initialPosition = initial;
+            parsed.controls.push_back(std::move(control));
         }
         else if (command == "POT_LINK")
         {
