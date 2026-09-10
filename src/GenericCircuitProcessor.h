@@ -10,9 +10,34 @@
 
 namespace circuitpedal {
 
-// Four-times oversampled wrapper for arbitrary nonlinear circuits. The circuit
-// itself is solved at 4x the host rate so capacitor companions and nonlinear
-// junctions see the oversampled timestep rather than a post-effect resampler.
+enum class GenericProcessingMode : std::uint8_t {
+    OneX = 1,
+    FourX = 4
+};
+
+struct GenericProcessorDiagnostics {
+    GenericProcessingMode requestedMode = GenericProcessingMode::OneX;
+    GenericProcessingMode activeMode = GenericProcessingMode::OneX;
+    std::uint64_t hostSamplesProcessed = 0;
+    std::uint64_t hostSolveFailures = 0;
+    std::uint64_t subSolveFailures = 0;
+    std::uint64_t timedSamples = 0;
+    std::uint64_t sampleBudgetMisses = 0;
+    double maximumProcessMicroseconds = 0.0;
+    double sampleBudgetMicroseconds = 0.0;
+};
+
+// Diagnostic mode is intentionally selected before audio starts. Changing the
+// requested mode while audio is running takes effect on the next compile/start.
+void setGenericProcessingModeForDiagnostics(GenericProcessingMode mode) noexcept;
+GenericProcessingMode genericProcessingModeForDiagnostics() noexcept;
+void resetGenericProcessorDiagnostics() noexcept;
+GenericProcessorDiagnostics genericProcessorDiagnostics() noexcept;
+
+// Generic nonlinear circuit wrapper. In normal 4x mode, the circuit itself is
+// solved at 4x the host rate so capacitor companions and nonlinear junctions see
+// the oversampled timestep. The temporary 1x diagnostic mode reproduces the
+// pre-V0.8 live GenericCircuit processing path for physical A/B testing.
 class OversampledGenericCircuit {
 public:
     static constexpr int factor = Oversampler4x::factor;
@@ -63,6 +88,7 @@ public:
 
     double hostSampleRate() const noexcept { return hostSampleRate_; }
     double circuitSampleRate() const noexcept { return circuit_.sampleRate(); }
+    GenericProcessingMode activeProcessingMode() const noexcept { return activeMode_; }
 
 private:
     GenericCircuit circuit_;
@@ -70,6 +96,7 @@ private:
     CircuitNode outputNode_ = circuitGround;
     double outputFullScalePerVolt_ = 1.0;
     double hostSampleRate_ = 48000.0;
+    GenericProcessingMode activeMode_ = GenericProcessingMode::OneX;
     bool compiled_ = false;
     bool lastSolveConverged_ = false;
 };
