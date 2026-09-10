@@ -234,7 +234,7 @@ private:
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
-    std::vector<RuntimeOpAmp> opAmps_;
+    std::vector<CircuitOpAmp> opAmps_;
     std::vector<CircuitNmos> nmosFets_;
     std::vector<CircuitSwitch> switches_;
     std::vector<CircuitPotentiometer> potentiometers_;
@@ -303,7 +303,7 @@ private:
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
-    std::vector<CircuitOpAmp> opAmps_;
+    std::vector<RuntimeOpAmp> opAmps_;
     std::vector<CircuitNmos> nmosFets_;
     std::vector<CircuitSwitch> switches_;
     std::vector<CircuitPotentiometer> potentiometers_;

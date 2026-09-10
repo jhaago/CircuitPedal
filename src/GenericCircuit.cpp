@@ -1326,7 +1326,7 @@ void GenericCircuit::stampNonlinear(bool dcMode) noexcept
                           -transientScale * dTarget_dPositiveRail);
         stampEquationNode(opAmp.negativeRail,
                           -transientScale * dTarget_dNegativeRail);
-    }}
+    }
 }
 
 void GenericCircuit::stampConductance(CircuitNode a,
