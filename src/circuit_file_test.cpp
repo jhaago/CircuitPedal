@@ -478,6 +478,77 @@ void testFuzzFactoryRepositoryModel()
 #endif
 }
 
+void testFatFuzzFactoryRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Fat Fuzz Factory validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/fat_fuzz_factory_reference.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Fat Fuzz Factory model did not load: " + error);
+    expect(document.controls.size() == 6,
+           "Fat Fuzz Factory did not expose five pots plus Fat switch");
+
+    std::size_t fatControlIndex = document.controls.size();
+    for (std::size_t i = 0; i < document.controls.size(); ++i)
+    {
+        if (document.controls[i].name == "FAT")
+        {
+            fatControlIndex = i;
+            break;
+        }
+    }
+    expect(fatControlIndex < document.controls.size(),
+           "Fat Fuzz Factory FAT switch control missing");
+    if (fatControlIndex < document.controls.size())
+    {
+        const auto& fat = document.controls[fatControlIndex];
+        expect(fat.kind == circuitpedal::CircuitFileControlKind::Switch,
+               "FAT control was not parsed as a switch");
+        expect(fat.switchPositionCount == 3,
+               "FAT switch did not expose three positions");
+        expect(fat.switchPositionNames.size() == 3,
+               "FAT switch labels missing");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Fat Fuzz Factory did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    const auto& fat = document.controls[fatControlIndex];
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 18000; ++n)
+    {
+        if (n == 6000)
+            expect(circuit.setSwitchPosition(fat.switchIndex, 0),
+                   "FAT switch could not select Fat");
+        if (n == 12000)
+            expect(circuit.setSwitchPosition(fat.switchIndex, 2),
+                   "FAT switch could not select Super Fat");
+
+        const float input = static_cast<float>(
+            0.35 * std::sin(2.0 * pi * 82.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output),
+               "Fat Fuzz Factory produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "Fat Fuzz Factory nonlinear solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-6,
+           "Fat Fuzz Factory produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -503,6 +574,7 @@ int main()
     testBigMuffRepositoryModels();
     testNagaViperRepositoryModel();
     testFuzzFactoryRepositoryModel();
+    testFatFuzzFactoryRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)
