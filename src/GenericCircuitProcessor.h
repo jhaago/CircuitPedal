@@ -67,6 +67,8 @@ public:
 private:
     GenericCircuit circuit_;
     Oversampler4x oversampler_;
+    CircuitNode outputNode_ = circuitGround;
+    double outputFullScalePerVolt_ = 1.0;
     double hostSampleRate_ = 48000.0;
     bool compiled_ = false;
     bool lastSolveConverged_ = false;
