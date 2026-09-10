@@ -1,14 +1,14 @@
-# CircuitPedal V0.12
+# CircuitPedal V0.13
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.12 expands the built-in compatibility library with a **Fuzzolo Reference Draft**. It combines the two-transistor fuzz core with a BS170 output stage, exposes Pulse Width and Volume, and turns the production internal Passive/Active pickup jumper into a live two-position circuit switch for testing.
+V0.13 adds the first **dual-op-amp overdrive acceptance circuit**: a TS10 Tube Screamer Reference Draft. The engaged audio path includes the TS10 input-buffer bias arrangement, 20n input coupling, extra 220-ohm pre-op-amp resistance, 4558 clipping amplifier, diode feedback pair, active tone network, Level control and 2SC1815 output buffer.
 
-The V0.11 live-switch architecture, linked pots, sixteen-control GUI, bundled circuit library and 4x generic oversampling remain in place. Fuzzolo is deliberately labelled a reference draft because the current BS170 and BJT models are compact real-time approximations and the early published trace contains component-value ambiguity that should ultimately be settled against measured hardware.
+This is an important compatibility step because the same generic MNA engine that already runs transistor fuzzes, Big Muff variants, JFET/MOSFET stages and switchable circuits is now running a complete two-op-amp overdrive topology. The 4558 and 2SC1815 models are still compact real-time approximations, so the TS10 remains explicitly labelled a reference draft until SPICE and hardware comparison are added.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.12 Circuit Lab Test
+## V0.13 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,18 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference and Fuzzolo Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft and TS10 Tube Screamer Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## TS10 op-amp acceptance circuit introduced in V0.13
+
+- Adds an engaged-path TS10 Tube Screamer reference draft using two generic 4558 sections.
+- Adds compact 2SC1815 / 2SC1815BL aliases for the input and output emitter followers.
+- Adds 1S1588 as a silicon clipping-diode alias.
+- Represents the TS10-specific higher input-buffer bias and extra 220-ohm series resistance before the clipping op-amp.
+- Exercises Drive, Tone and Level controls through the 4x generic nonlinear solver in CI.
+- Deliberately omits the electronic bypass JFET network from the effect-on reference model.
 
 ## Fuzzolo library expansion introduced in V0.12
 
@@ -230,6 +239,7 @@ The automated suite currently checks:
 - linked/multi-gang potentiometer parsing;
 - live SPST/SPDT/on-off-on circuit switching;
 - Fat Fuzz Factory across all Fat-switch positions;
-- Fuzzolo across Passive/Active pickup selection and live Pulse Width changes.
+- Fuzzolo across Passive/Active pickup selection and live Pulse Width changes;
+- TS10 Tube Screamer engaged path with two op-amp sections and live Drive/Tone changes.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.

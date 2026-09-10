@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.12
+## Component support in V0.13
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -27,11 +27,12 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.12
+## Named model aliases in V0.13
 
 NPN BJTs currently include compact aliases for:
 
 - 2N3904
+- 2SC1815 / 2SC1815BL
 - 2N2222 / 2N2222A
 - 2N5088
 - 2N5133
@@ -65,7 +66,7 @@ Op-amps include early compact aliases for:
 
 Diodes include:
 
-- 1N4148 / 1N914 / KD521
+- 1N4148 / 1N914 / 1S1588 / KD521
 - 1N34A / germanium
 - 1N6263 / Schottky
 
@@ -86,6 +87,7 @@ Diodes include:
 - Fuzz Factory Reference
 - Fat Fuzz Factory Reference
 - Fuzzolo Reference Draft
+- TS10 Tube Screamer Reference Draft
 - Woolly Mammoth Reference Draft
 - generic two-transistor fuzz demo
 
@@ -99,7 +101,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 
 - Blueberry Bass Overdrive — CA3130 + 2N5457; engine devices now exist.
 - Lovepedal Kalamazoo — 4558 + diodes; engine devices now exist.
-- TS10 Tube Screamer — 4558 + NPN buffers + diodes; engine devices now exist.
+- TS10 Tube Screamer — converted and CI-validated as an engaged-path reference draft using 4558 + 2SC1815 buffers + silicon clipping diodes.
 - ST9 Super Tube Screamer — 4558 + NPN + diodes; linked/dual-gang Mids infrastructure now exists, circuit conversion still queued.
 - Arctic White Fuzz — BC550C + J113; engine devices now exist.
 - Baby Blue OD — multiple N-JFET stages; engine devices now exist.

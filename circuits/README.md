@@ -16,6 +16,8 @@ The `circuits/` folder contains human-readable `.cpedal` models used by the gene
   three-position Fat switch and switchable parallel interstage capacitors.
 - `fuzzolo_reference_draft.cpedal` models the two-2N3904 fuzz core, BS170
   output booster, Pulse Width/Volume controls and a live Passive/Active pickup selector.
+- `ts10_reference_draft.cpedal` is the first dual-op-amp library target and
+  models the engaged TS10 clipping, tone, level and transistor-buffer signal path.
 - `two_transistor_fuzz_demo.cpedal` remains a generic solver demonstration.
 
 The Woolly file is deliberately labelled **Reference Draft**. CircuitPedal's
@@ -49,6 +51,6 @@ V0.9 also supports PNP BJTs, N-channel JFETs, N-channel MOSFETs and early
 generic op-amps in circuit files. See `docs/circuit_file_format.md` for the
 full syntax and `docs/model_coverage.md` for the current conversion backlog.
 
-Potentiometers become named live controls in the macOS GUI. The V0.12 GUI shows up to sixteen controls in a scrollable panel. `POT_LINK`
+Potentiometers become named live controls in the macOS GUI. The V0.13 GUI shows up to sixteen controls in a scrollable panel. `POT_LINK`
 allows one control to move multiple electrical pot sections together, and
 `SWITCH` exposes labelled SPST/SPDT/on-off-on controls.
