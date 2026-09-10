@@ -69,6 +69,44 @@ jobs:
             --control TONE=0.5 --control VOLUME=0.55 \
             --node Q1B --node PAIR_E --node PAIR_C \
             --node Q3C --node Q4C --node Q5C --node Q6C --node Q7E --node OUT
+      - name: Remaining-model 1x signal diagnostics
+        run: |
+          mkdir -p build/model-diagnostics
+
+          ./build/circuitpedal_validate render \
+            circuits/eqd_tentacle_reference_draft.cpedal \
+            build/model-diagnostics/tentacle.csv \
+            --signal sine --sample-rate 48000 --seconds 0.20 --warmup 0.10 \
+            --frequency 110 --amplitude 0.25 \
+            --node Q1_BASE --node Q1_COLLECTOR \
+            --node Q2_EMITTER --node Q2_COLLECTOR \
+            --node RECT_UPPER --node RECT_LOWER --node RECT_BIAS \
+            --node Q3_BASE --node Q3_EMITTER
+          python3 validation/model_signal_summary.py \
+            build/model-diagnostics/tentacle.csv --label Tentacle --fundamental 110
+
+          ./build/circuitpedal_validate render \
+            circuits/blueberry_bass_overdrive_reference_draft.cpedal \
+            build/model-diagnostics/blueberry.csv \
+            --signal sine --sample-rate 48000 --seconds 0.20 --warmup 0.10 \
+            --frequency 110 --amplitude 0.25 \
+            --control DRIVE=0.55 --control TONE=0.5 --control VOLUME=0.55 \
+            --node OP_PLUS --node OP_MINUS --node OP_OUT \
+            --node CLAMP_A --node CLAMP_B --node Q1G --node Q1D --node Q1S
+          python3 validation/model_signal_summary.py \
+            build/model-diagnostics/blueberry.csv --label Blueberry --fundamental 110
+
+          ./build/circuitpedal_validate render \
+            circuits/animato_reference_draft.cpedal \
+            build/model-diagnostics/animato.csv \
+            --signal sine --sample-rate 48000 --seconds 0.20 --warmup 0.10 \
+            --frequency 110 --amplitude 0.25 \
+            --control BOOST=0.65 --control DISTORTION=0.65 \
+            --control TONE=0.5 --control VOLUME=0.55 \
+            --node Q1B --node PAIR_E --node PAIR_C \
+            --node Q3C --node Q4C --node Q5C --node Q6C --node Q7E
+          python3 validation/model_signal_summary.py \
+            build/model-diagnostics/animato.csv --label Animato --fundamental 110
       - name: Confirm macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
