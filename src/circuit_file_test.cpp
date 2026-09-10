@@ -549,6 +549,88 @@ void testFatFuzzFactoryRepositoryModel()
 #endif
 }
 
+void testFuzzoloRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Fuzzolo validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/fuzzolo_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Fuzzolo model did not load: " + error);
+    expect(document.controls.size() == 3,
+           "Fuzzolo did not expose Pulse Width, Volume and Pickups");
+
+    std::size_t pulseControl = document.controls.size();
+    std::size_t volumeControl = document.controls.size();
+    std::size_t pickupControl = document.controls.size();
+    for (std::size_t i = 0; i < document.controls.size(); ++i)
+    {
+        if (document.controls[i].name == "PULSE_WIDTH")
+            pulseControl = i;
+        else if (document.controls[i].name == "VOLUME")
+            volumeControl = i;
+        else if (document.controls[i].name == "PICKUPS")
+            pickupControl = i;
+    }
+
+    expect(pulseControl < document.controls.size(),
+           "Fuzzolo Pulse Width control missing");
+    expect(volumeControl < document.controls.size(),
+           "Fuzzolo Volume control missing");
+    expect(pickupControl < document.controls.size(),
+           "Fuzzolo pickup selector missing");
+    if (pickupControl < document.controls.size())
+    {
+        const auto& pickup = document.controls[pickupControl];
+        expect(pickup.kind == circuitpedal::CircuitFileControlKind::Switch,
+               "Fuzzolo pickup selector was not parsed as a switch");
+        expect(pickup.switchPositionCount == 2,
+               "Fuzzolo pickup selector did not expose two positions");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Fuzzolo did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 18000; ++n)
+    {
+        if (n == 6000 && pickupControl < document.controls.size())
+        {
+            expect(circuit.setSwitchPosition(
+                       document.controls[pickupControl].switchIndex, 1),
+                   "Fuzzolo pickup selector could not select Active");
+        }
+        if (n == 12000 && pulseControl < document.controls.size())
+        {
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[pulseControl].potentiometerIndex, 0.9),
+                   "Fuzzolo Pulse Width could not move live");
+        }
+
+        const float input = static_cast<float>(
+            0.25 * std::sin(2.0 * pi * 110.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output),
+               "Fuzzolo produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "Fuzzolo nonlinear solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-6,
+           "Fuzzolo produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -575,6 +657,7 @@ int main()
     testNagaViperRepositoryModel();
     testFuzzFactoryRepositoryModel();
     testFatFuzzFactoryRepositoryModel();
+    testFuzzoloRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)
@@ -583,6 +666,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.11 circuit-file validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.12 circuit-file validation suite\n";
     return 0;
 }
