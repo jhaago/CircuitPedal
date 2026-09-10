@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -31,6 +32,7 @@ struct CircuitStateOptions {
     double sampleRate = 192000.0;
     std::vector<std::pair<std::string, double>> potOverrides;
     std::vector<std::pair<std::string, std::size_t>> switchOverrides;
+    std::vector<std::pair<std::string, double>> sourceOverrides;
 };
 
 struct NodeProbe {
@@ -103,10 +105,11 @@ std::string probeColumnName(const std::string& nodeName)
 {
     std::string result = "node_";
     result.reserve(nodeName.size() + 7U);
-    for (unsigned char c : nodeName)
+    for (char raw : nodeName)
     {
-        if (std::isalnum(c) != 0 || c == '_')
-            result.push_back(static_cast<char>(c));
+        const auto c = static_cast<unsigned char>(raw);
+        if (std::isalnum(c) != 0 || raw == '_')
+            result.push_back(raw);
         else
             result.push_back('_');
     }
@@ -130,14 +133,15 @@ void printUsage()
         << "  --sweep-end <Hz>         logsweep end, default 12000\n"
         << "  --control NAME=0..1      set a pot before the DC solve; repeatable\n"
         << "  --switch NAME=POSITION   set a switch before the DC solve; repeatable\n"
+        << "  --source NAME=VOLTS      override a named fixed V source for validation\n"
         << "  --node NAME              export an internal node-voltage column; repeatable\n\n"
         << "Print a circuit DC operating point:\n"
         << "  circuitpedal_validate dc <circuit.cpedal> [options]\n"
-        << "  Uses --sample-rate/--control/--switch and optional repeatable --node NAME.\n"
+        << "  Uses --sample-rate/--control/--switch/--source and optional --node NAME.\n"
         << "  With no --node arguments, every circuit node is printed.\n\n"
         << "Check a DC operating point against a reference table:\n"
         << "  circuitpedal_validate dc-check <circuit.cpedal> <reference.csv> [options]\n"
-        << "  Uses --sample-rate/--control/--switch.\n\n"
+        << "  Uses --sample-rate/--control/--switch/--source.\n\n"
         << "Compare two uniformly sampled waveform CSV files:\n"
         << "  circuitpedal_validate compare <reference.csv> <actual.csv> [options]\n\n"
         << "Compare options:\n"
@@ -288,6 +292,21 @@ bool parseStateOption(const std::string& option,
         state.switchOverrides.emplace_back(name, position);
         return true;
     }
+    if (option == "--source")
+    {
+        std::string name;
+        std::string voltsText;
+        double volts = 0.0;
+        if (!splitAssignment(value, name, voltsText)
+            || !parseDouble(voltsText, volts)
+            || std::abs(volts) > 1000.0)
+        {
+            error = "Expected --source NAME=VOLTS with magnitude no greater than 1000 V";
+            return false;
+        }
+        state.sourceOverrides.emplace_back(name, volts);
+        return true;
+    }
     error = "Unknown circuit-state option: " + option;
     return false;
 }
@@ -296,7 +315,82 @@ bool isStateOption(const std::string& option) noexcept
 {
     return option == "--sample-rate"
         || option == "--control"
-        || option == "--switch";
+        || option == "--switch"
+        || option == "--source";
+}
+
+bool loadCircuitWithSourceOverrides(const std::string& circuitPath,
+                                    const CircuitStateOptions& state,
+                                    CircuitFileDocument& document,
+                                    std::string& error)
+{
+    if (state.sourceOverrides.empty())
+        return circuitpedal::loadCircuitFile(circuitPath, document, error);
+
+    std::ifstream input(circuitPath);
+    if (!input)
+    {
+        error = "Could not open circuit file: " + circuitPath;
+        return false;
+    }
+
+    std::vector<std::size_t> matchCounts(state.sourceOverrides.size(), 0U);
+    std::ostringstream rebuilt;
+    std::string rawLine;
+    while (std::getline(input, rawLine))
+    {
+        std::string code = rawLine;
+        const auto comment = code.find('#');
+        if (comment != std::string::npos)
+            code.erase(comment);
+
+        std::istringstream lineStream(code);
+        std::string command;
+        std::string id;
+        std::string positive;
+        std::string negative;
+        std::string value;
+        if (lineStream >> command >> id >> positive >> negative >> value
+            && upper(command) == "V")
+        {
+            bool replaced = false;
+            for (std::size_t i = 0; i < state.sourceOverrides.size(); ++i)
+            {
+                if (upper(id) != upper(state.sourceOverrides[i].first))
+                    continue;
+                ++matchCounts[i];
+                rebuilt << "V " << id << ' ' << positive << ' ' << negative << ' '
+                        << std::setprecision(17) << state.sourceOverrides[i].second << '\n';
+                replaced = true;
+                break;
+            }
+            if (replaced)
+                continue;
+        }
+        rebuilt << rawLine << '\n';
+    }
+
+    for (std::size_t i = 0; i < state.sourceOverrides.size(); ++i)
+    {
+        if (matchCounts[i] == 0U)
+        {
+            error = "Unknown fixed voltage source: " + state.sourceOverrides[i].first;
+            return false;
+        }
+        if (matchCounts[i] > 1U)
+        {
+            error = "Duplicate fixed voltage-source id in circuit: "
+                + state.sourceOverrides[i].first;
+            return false;
+        }
+    }
+
+    if (!circuitpedal::parseCircuitFileText(rebuilt.str(), document, error))
+    {
+        error = "Could not parse circuit after validation source override: " + error;
+        return false;
+    }
+    return true;
 }
 
 bool prepareDocument(const std::string& circuitPath,
@@ -304,9 +398,13 @@ bool prepareDocument(const std::string& circuitPath,
                      CircuitFileDocument& document,
                      std::string& error)
 {
-    if (!circuitpedal::loadCircuitFile(circuitPath, document, error))
+    if (!loadCircuitWithSourceOverrides(circuitPath, state, document, error))
     {
-        error = "Could not load circuit: " + error;
+        if (error.rfind("Could not", 0U) != 0U && error.rfind("Unknown", 0U) != 0U
+            && error.rfind("Duplicate", 0U) != 0U)
+        {
+            error = "Could not load circuit: " + error;
+        }
         return false;
     }
     for (const auto& overrideValue : state.potOverrides)
