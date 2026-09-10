@@ -1,14 +1,14 @@
-# CircuitPedal V0.13
+# CircuitPedal V0.14
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.13 adds the first **dual-op-amp overdrive acceptance circuit**: a TS10 Tube Screamer Reference Draft. The engaged audio path includes the TS10 input-buffer bias arrangement, 20n input coupling, extra 220-ohm pre-op-amp resistance, 4558 clipping amplifier, diode feedback pair, active tone network, Level control and 2SC1815 output buffer.
+V0.14 upgrades the generic op-amp from a static high-gain controlled source to a **time-dependent compact model with finite gain-bandwidth and slew rate**. DC operating points still use the full nonlinear open-loop/rail equation, while transient processing advances a dominant-pole output state at the circuit's 4x sample rate and applies explicit slew and output-rail limits.
 
-This is an important compatibility step because the same generic MNA engine that already runs transistor fuzzes, Big Muff variants, JFET/MOSFET stages and switchable circuits is now running a complete two-op-amp overdrive topology. The 4558 and 2SC1815 models are still compact real-time approximations, so the TS10 remains explicitly labelled a reference draft until SPICE and hardware comparison are added.
+The built-in NJM/JRC4558 alias now uses a 3 MHz gain-bandwidth product and 1 V/us nominal slew rate, while CA3130 uses 15 MHz and 30 V/us. The TS10 acceptance circuit remains stable through the new dynamic op-amp path on both macOS and Ubuntu, so the extra fidelity is now exercised by a complete dual-op-amp pedal rather than only by a synthetic unit test.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.13 Circuit Lab Test
+## V0.14 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -35,6 +35,16 @@ In the GUI:
 The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft and TS10 Tube Screamer Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Dynamic generic op-amp model introduced in V0.14
+
+- Adds finite open-loop gain-bandwidth using a single dominant-pole state advanced at the actual generic-circuit sample rate.
+- Adds explicit slew-rate limiting without allocating or rebuilding the circuit in the audio callback.
+- Retains rail-limited DC operating-point solving and supply-dependent output bounds.
+- Sets the 4558 compact alias to 3 MHz GBW and 1 V/us slew rate.
+- Sets the CA3130 compact alias to 15 MHz GBW and 30 V/us slew rate.
+- Adds automated high-frequency attenuation and slew-step tests.
+- Re-runs the full TS10 dual-op-amp reference through the dynamic model as an end-to-end stability gate.
 
 ## TS10 op-amp acceptance circuit introduced in V0.13
 

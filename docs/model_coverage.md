@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.13
+## Component support in V0.14
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ real pedal circuits have reached each validation stage.
 | PNP BJT | Working | Compact polarity-reversed Ebers-Moll |
 | N-channel JFET | Working | Compact depletion square-law + gate junctions |
 | N-channel MOSFET | Working | Compact enhancement square-law + body diode |
-| Op-amp | Working, early | Static high-gain nonlinear controlled source with rail limiting |
+| Op-amp | Working, compact dynamic | Finite open-loop gain, dominant-pole GBW, slew-rate and supply-rail limiting |
 | SPST/SPDT/on-off-on switch | Working | Live discrete conductance switching in the generic solver |
 | Linked / dual-gang pot | Working | `POT_LINK` maps multiple electrical gangs to one live control |
 | P-channel JFET/MOSFET | Not yet | Add when a reference circuit needs it |
@@ -27,7 +27,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.13
+## Named model aliases in V0.14
 
 NPN BJTs currently include compact aliases for:
 
@@ -59,10 +59,10 @@ N-channel MOSFETs include:
 
 - BS170
 
-Op-amps include early compact aliases for:
+Op-amps include compact dynamic aliases for:
 
-- JRC4558 / 4558
-- CA3130 / CA3130E / CA3130EZ
+- JRC4558 / NJM4558 / 4558 — 3 MHz nominal GBW, 1 V/us slew rate
+- CA3130 / CA3130E / CA3130EZ — 15 MHz nominal GBW, 30 V/us slew rate
 
 Diodes include:
 
