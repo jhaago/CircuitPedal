@@ -21,6 +21,9 @@ The `circuits/` folder contains human-readable `.cpedal` models used by the gene
 - `animato_reference_draft.cpedal` reconstructs the Human Gear Animato signal
   path with NTE102/NTE103 germanium front end, 2SC2240 Muff-derived stages,
   dual-gang Distortion and linked Bias switching.
+- `kalamazoo_reference_draft.cpedal` reconstructs the Lovepedal Kalamazoo
+  engaged path with dual JRC4558 sections, series-pair silicon feedback clipping,
+  separate Tone/Glass networks and four live controls.
 - `two_transistor_fuzz_demo.cpedal` remains a generic solver demonstration.
 
 The Woolly file is deliberately labelled **Reference Draft**. CircuitPedal's

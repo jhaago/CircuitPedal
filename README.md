@@ -1,14 +1,14 @@
-# CircuitPedal V0.15
+# CircuitPedal V0.16
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.15 adds **mechanically linked multi-pole switches** and the first Human Gear Animato reference model. `SWITCH_LINK` lets a single GUI control operate multiple electrical switch poles, complementing the existing `POT_LINK` support for dual-gang potentiometers.
+V0.16 expands the built-in library with a **Lovepedal Kalamazoo Reference Draft**, using the dynamic JRC4558 model introduced in V0.14. The reconstruction follows the supplied verified layout and an independent WhiteKeyHole trace: series-pair silicon feedback clipping, 500k Drive, separate Tone treble-softening network, separate Glass high-frequency boost stage, and Level control.
 
-The Animato reference draft uses the supplied layout plus an independent schematic cross-check to model its complementary NTE102/NTE103 germanium front end, five 2SC2240 silicon stages, dual-gang Distortion control, linked Bias switch, Big-Muff-derived clipping/tone stages and output buffer. The complete model now passes the 4x nonlinear suite on macOS and Ubuntu.
+The new model passes the full 4x nonlinear audio/control-sweep suite on both macOS and Ubuntu. It remains a reference draft rather than a hardware-accuracy claim: the optional Cx compensation capacitor is deliberately omitted, and exact component/device fitting still belongs to the SPICE/measurement phase.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.15 Circuit Lab Test
+## V0.16 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,19 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft and Human Gear Animato Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft and Lovepedal Kalamazoo Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Kalamazoo library expansion introduced in V0.16
+
+- Adds a Lovepedal Kalamazoo reference draft reconstructed from the supplied verified board layout plus an independent schematic trace.
+- Uses the V0.14 dynamic JRC4558 model for both op-amp sections.
+- Models two silicon diodes in series for each feedback polarity rather than collapsing the clipper into a generic saturation block.
+- Exposes Drive, Tone, Glass and Level as live circuit controls.
+- Maps increasing Tone to greater treble softening and increasing Glass to greater high-frequency boost, matching the published control semantics.
+- Leaves the optional Cx compensation capacitor out of the base reference so it can later be treated as an explicit component variation.
+- Passes end-to-end 4x nonlinear validation while Drive, Tone and Glass are changed live.
 
 ## Animato and linked-switch milestone introduced in V0.15
 
@@ -261,6 +271,7 @@ The automated suite currently checks:
 - Fuzzolo across Passive/Active pickup selection and live Pulse Width changes;
 - TS10 Tube Screamer engaged path with two op-amp sections and live Drive/Tone changes;
 - linked multi-pole switch parsing and live state changes;
-- Human Gear Animato with linked Bias and dual-gang Distortion sweeps.
+- Human Gear Animato with linked Bias and dual-gang Distortion sweeps;
+- Lovepedal Kalamazoo with dynamic dual-4558 processing and live Drive/Tone/Glass sweeps.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.

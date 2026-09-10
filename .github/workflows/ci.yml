@@ -29,5 +29,6 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fuzzolo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/ts10_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal

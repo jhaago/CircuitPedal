@@ -104,7 +104,7 @@ stability, not exact audible matching to an original commercial pedal.
 The supplied colour-coded layouts are being used as the model backlog:
 
 - Blueberry Bass Overdrive — CA3130 + 2N5457; engine devices now exist.
-- Lovepedal Kalamazoo — 4558 + diodes; engine devices now exist.
+- Lovepedal Kalamazoo — converted and CI-validated as a four-control dynamic-4558 reference draft.
 - TS10 Tube Screamer — converted and CI-validated as an engaged-path reference draft using 4558 + 2SC1815 buffers + silicon clipping diodes.
 - ST9 Super Tube Screamer — 4558 + NPN + diodes; linked/dual-gang Mids infrastructure now exists, circuit conversion still queued.
 - Arctic White Fuzz — BC550C + J113; engine devices now exist.
