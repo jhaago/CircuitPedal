@@ -491,6 +491,8 @@ bool CircuitDefinition::validate(std::string& error) const
             || opAmp.output == opAmp.positiveRail
             || opAmp.output == opAmp.negativeRail
             || !finitePositive(opAmp.model.openLoopGain)
+            || !finitePositive(opAmp.model.gainBandwidthHz)
+            || !finitePositive(opAmp.model.slewRateVoltsPerSecond)
             || !std::isfinite(opAmp.model.outputHeadroomVolts)
             || opAmp.model.outputHeadroomVolts < 0.0
             || !std::isfinite(opAmp.model.inputOffsetVolts))
@@ -599,7 +601,10 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
     npnBjts_ = definition.npnBjts_;
     pnpBjts_ = definition.pnpBjts_;
     njfets_ = definition.njfets_;
-    opAmps_ = definition.opAmps_;
+    opAmps_.clear();
+    opAmps_.reserve(definition.opAmps_.size());
+    for (const auto& opAmp : definition.opAmps_)
+        opAmps_.push_back({ opAmp, 0.0 });
     nmosFets_ = definition.nmosFets_;
     switches_ = definition.switches_;
     potentiometers_ = definition.potentiometers_;
@@ -661,6 +666,8 @@ bool GenericCircuit::compile(const CircuitDefinition& definition,
         capacitor.previousVoltage =
             voltage(capacitor.component.a) - voltage(capacitor.component.b);
     }
+    for (auto& opAmp : opAmps_)
+        opAmp.previousOutputVoltage = voltage(opAmp.component.output);
     lastSolveConverged_ = true;
     return true;
 }
@@ -677,6 +684,8 @@ void GenericCircuit::reset() noexcept
         capacitor.previousVoltage =
             voltage(capacitor.component.a) - voltage(capacitor.component.b);
     }
+    for (auto& opAmp : opAmps_)
+        opAmp.previousOutputVoltage = voltage(opAmp.component.output);
     lastSolveConverged_ = true;
 }
 
@@ -776,6 +785,8 @@ bool GenericCircuit::solveTransient(double input) noexcept
         capacitor.previousVoltage =
             voltage(capacitor.component.a) - voltage(capacitor.component.b);
     }
+    for (auto& opAmp : opAmps_)
+        opAmp.previousOutputVoltage = voltage(opAmp.component.output);
     return true;
 }
 
@@ -791,7 +802,7 @@ bool GenericCircuit::newtonSolve(bool dcMode, double input) noexcept
     {
         clearSystem();
         stampLinear(dcMode, input);
-        stampNonlinear();
+        stampNonlinear(dcMode);
 
         double maximumNodeResidual = 0.0;
         for (std::size_t i = 0; i < nodeUnknownCount_; ++i)
@@ -833,7 +844,7 @@ bool GenericCircuit::newtonSolve(bool dcMode, double input) noexcept
         {
             clearSystem();
             stampLinear(dcMode, input);
-            stampNonlinear();
+            stampNonlinear(dcMode);
 
             double nodeResidual = 0.0;
             for (std::size_t i = 0; i < nodeUnknownCount_; ++i)
@@ -973,7 +984,7 @@ void GenericCircuit::stampLinear(bool dcMode, double input) noexcept
     }
 }
 
-void GenericCircuit::stampNonlinear() noexcept
+void GenericCircuit::stampNonlinear(bool dcMode) noexcept
 {
     for (const auto& diode : diodes_)
     {
@@ -1219,15 +1230,13 @@ void GenericCircuit::stampNonlinear() noexcept
 
     for (std::size_t opAmpIndex = 0; opAmpIndex < opAmps_.size(); ++opAmpIndex)
     {
-        const auto& opAmp = opAmps_[opAmpIndex];
+        const auto& runtimeOpAmp = opAmps_[opAmpIndex];
+        const auto& opAmp = runtimeOpAmp.component;
         const std::size_t branchIndex =
             nodeUnknownCount_ + voltageSources_.size() + opAmpIndex;
         const int outputIndex = nodeIndex(opAmp.output);
         const double branchCurrent = solution_[branchIndex];
 
-        // Treat the op-amp output as a controlled ideal voltage source. The
-        // branch current is an MNA unknown; input terminals draw no current in
-        // this first generic model.
         if (outputIndex >= 0)
         {
             residual_[static_cast<std::size_t>(outputIndex)] += branchCurrent;
@@ -1246,12 +1255,22 @@ void GenericCircuit::stampNonlinear() noexcept
             voltage(opAmp.nonInverting)
             - voltage(opAmp.inverting)
             + opAmp.model.inputOffsetVolts;
-        const double x = opAmp.model.openLoopGain * differential / halfSpan;
-        const double tanhX = std::tanh(x);
-        const double sechSquared = std::max(0.0, 1.0 - tanhX * tanhX);
-        const double target = midpoint + halfSpan * tanhX;
+        const double staticX =
+            opAmp.model.openLoopGain * differential / halfSpan;
+        const double staticTanh = std::tanh(staticX);
+        const double staticSechSquared =
+            std::max(0.0, 1.0 - staticTanh * staticTanh);
+        const double target = midpoint + halfSpan * staticTanh;
 
-        residual_[branchIndex] += voltage(opAmp.output) - target;
+        const double dTarget_dDifferential =
+            opAmp.model.openLoopGain * staticSechSquared;
+        const bool spanIsActive = rawHalfSpan > 0.05;
+        const double dTarget_dHalf =
+            staticTanh - staticX * staticSechSquared;
+        const double dTarget_dPositiveRail =
+            0.5 + (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
+        const double dTarget_dNegativeRail =
+            0.5 - (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
 
         const auto stampEquationNode =
             [this, branchIndex](CircuitNode node, double derivative) noexcept {
@@ -1263,23 +1282,51 @@ void GenericCircuit::stampNonlinear() noexcept
                 }
             };
 
-        stampEquationNode(opAmp.output, 1.0);
+        if (dcMode)
+        {
+            residual_[branchIndex] += voltage(opAmp.output) - target;
+            stampEquationNode(opAmp.output, 1.0);
+            stampEquationNode(opAmp.nonInverting, -dTarget_dDifferential);
+            stampEquationNode(opAmp.inverting, dTarget_dDifferential);
+            stampEquationNode(opAmp.positiveRail, -dTarget_dPositiveRail);
+            stampEquationNode(opAmp.negativeRail, -dTarget_dNegativeRail);
+            continue;
+        }
 
-        const double dTarget_dDifferential =
-            opAmp.model.openLoopGain * sechSquared;
-        stampEquationNode(opAmp.nonInverting, -dTarget_dDifferential);
-        stampEquationNode(opAmp.inverting, dTarget_dDifferential);
+        // Single-dominant-pole large-signal model. GBW/AOL gives the open-loop
+        // dominant pole; closed-loop bandwidth emerges from feedback. A tanh
+        // limiter makes the state derivative approach the configured slew rate
+        // smoothly, which keeps the Newton Jacobian continuous.
+        constexpr double twoPi = 6.28318530717958647692;
+        const double dominantPoleHz =
+            opAmp.model.gainBandwidthHz / opAmp.model.openLoopGain;
+        const double omegaPole = twoPi * dominantPoleHz;
+        const double outputError = target - voltage(opAmp.output);
+        const double linearRate = omegaPole * outputError;
+        const double slew = opAmp.model.slewRateVoltsPerSecond;
+        const double slewX = linearRate / slew;
+        const double slewTanh = std::tanh(slewX);
+        const double slewSechSquared =
+            std::max(0.0, 1.0 - slewTanh * slewTanh);
+        const double rate = slew * slewTanh;
+        const double dRate_dError = omegaPole * slewSechSquared;
+        const double transientScale = timestep_ * dRate_dError;
 
-        const bool spanIsActive = rawHalfSpan > 0.05;
-        const double dTarget_dHalf =
-            tanhX - x * sechSquared;
-        const double dTarget_dPositiveRail =
-            0.5 + (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
-        const double dTarget_dNegativeRail =
-            0.5 - (spanIsActive ? 0.5 * dTarget_dHalf : 0.0);
-        stampEquationNode(opAmp.positiveRail, -dTarget_dPositiveRail);
-        stampEquationNode(opAmp.negativeRail, -dTarget_dNegativeRail);
-    }
+        residual_[branchIndex] +=
+            voltage(opAmp.output)
+            - runtimeOpAmp.previousOutputVoltage
+            - timestep_ * rate;
+
+        stampEquationNode(opAmp.output, 1.0 + transientScale);
+        stampEquationNode(opAmp.nonInverting,
+                          -transientScale * dTarget_dDifferential);
+        stampEquationNode(opAmp.inverting,
+                          transientScale * dTarget_dDifferential);
+        stampEquationNode(opAmp.positiveRail,
+                          -transientScale * dTarget_dPositiveRail);
+        stampEquationNode(opAmp.negativeRail,
+                          -transientScale * dTarget_dNegativeRail);
+    }}
 }
 
 void GenericCircuit::stampConductance(CircuitNode a,

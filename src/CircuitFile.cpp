@@ -446,6 +446,8 @@ GenericOpAmpModel builtInOpAmpModel(const std::string& name, bool& ok) noexcept
         || normalized == "JRC4558D")
     {
         model.openLoopGain = 100000.0;
+        model.gainBandwidthHz = 3.0e6;
+        model.slewRateVoltsPerSecond = 1.0e6;
         model.outputHeadroomVolts = 1.4;
         ok = true;
         return model;
@@ -455,6 +457,8 @@ GenericOpAmpModel builtInOpAmpModel(const std::string& name, bool& ok) noexcept
         || normalized == "CA3130EZ")
     {
         model.openLoopGain = 100000.0;
+        model.gainBandwidthHz = 15.0e6;
+        model.slewRateVoltsPerSecond = 30.0e6;
         model.outputHeadroomVolts = 0.25;
         ok = true;
         return model;

@@ -47,9 +47,12 @@ struct GenericNjfetModel {
 };
 
 struct GenericOpAmpModel {
-    // V0.9 static nonlinear op-amp core. GBW/slew/input-bias refinements are
-    // intentionally separate from establishing topology-independent op-amps.
+    // Compact dominant-pole voltage-feedback op-amp model. The DC solution uses
+    // the full open-loop gain; transient operation adds finite gain-bandwidth
+    // and a smooth slew-rate limit while retaining rail limiting.
     double openLoopGain = 100000.0;
+    double gainBandwidthHz = 1.0e6;
+    double slewRateVoltsPerSecond = 5.0e5;
     double outputHeadroomVolts = 1.0;
     double inputOffsetVolts = 0.0;
 };
@@ -231,7 +234,7 @@ private:
     std::vector<CircuitNpnBjt> npnBjts_;
     std::vector<CircuitPnpBjt> pnpBjts_;
     std::vector<CircuitNjfet> njfets_;
-    std::vector<CircuitOpAmp> opAmps_;
+    std::vector<RuntimeOpAmp> opAmps_;
     std::vector<CircuitNmos> nmosFets_;
     std::vector<CircuitSwitch> switches_;
     std::vector<CircuitPotentiometer> potentiometers_;
@@ -272,13 +275,18 @@ private:
         double previousVoltage = 0.0;
     };
 
+    struct RuntimeOpAmp {
+        CircuitOpAmp component;
+        double previousOutputVoltage = 0.0;
+    };
+
     bool solveOperatingPoint() noexcept;
     bool solveTransient(double input) noexcept;
     bool newtonSolve(bool dcMode, double input) noexcept;
     bool solveLinearSystem() noexcept;
     void clearSystem() noexcept;
     void stampLinear(bool dcMode, double input) noexcept;
-    void stampNonlinear() noexcept;
+    void stampNonlinear(bool dcMode) noexcept;
     void stampConductance(CircuitNode a, CircuitNode b, double conductance) noexcept;
     void stampCurrent(CircuitNode a, CircuitNode b, double current) noexcept;
     void stampJacobianCurrent(CircuitNode rowNode,

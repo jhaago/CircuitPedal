@@ -387,6 +387,89 @@ void testOpAmpFollower()
            "op-amp follower produced no meaningful AC output");
 }
 
+void testOpAmpBandwidthAndSlew()
+{
+    // Compare two unity-gain followers whose only meaningful difference is GBW.
+    // The low-GBW model must attenuate a 10 kHz tone substantially more.
+    auto highFrequencyPeak = [](double gainBandwidthHz) {
+        circuitpedal::CircuitDefinition definition;
+        const auto vcc = definition.addNode("VCC");
+        const auto input = definition.addNode("INPUT");
+        const auto out = definition.addNode("OUT");
+
+        definition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+        definition.addVoltageSource(input,
+                                    circuitpedal::circuitGround,
+                                    4.5,
+                                    0.05);
+        circuitpedal::GenericOpAmpModel model;
+        model.openLoopGain = 100000.0;
+        model.gainBandwidthHz = gainBandwidthHz;
+        model.slewRateVoltsPerSecond = 1.0e9;
+        model.outputHeadroomVolts = 1.0;
+        definition.addOpAmp(input, out, out, vcc, circuitpedal::circuitGround, model);
+        definition.setOutputNode(out);
+
+        circuitpedal::GenericCircuit circuit;
+        std::string error;
+        expect(circuit.compile(definition, 192000.0, error),
+               "GBW follower failed to compile: " + error);
+
+        constexpr double pi = 3.14159265358979323846;
+        double peak = 0.0;
+        for (int n = 0; n < 38400; ++n)
+        {
+            const float inputSample = static_cast<float>(
+                std::sin(2.0 * pi * 10000.0
+                    * static_cast<double>(n) / 192000.0));
+            (void)circuit.processSample(inputSample);
+            if (n > 19200)
+                peak = std::max(peak, std::abs(circuit.nodeVoltage(out) - 4.5));
+        }
+        return peak;
+    };
+
+    const double lowBandwidthPeak = highFrequencyPeak(5000.0);
+    const double highBandwidthPeak = highFrequencyPeak(3.0e6);
+    expect(highBandwidthPeak > lowBandwidthPeak * 2.0,
+           "finite op-amp GBW did not reduce high-frequency closed-loop response");
+
+    // Force a deliberately slow 0.001 V/us model and verify the first large
+    // output step is bounded close to slewRate * dt.
+    circuitpedal::CircuitDefinition slewDefinition;
+    const auto vcc = slewDefinition.addNode("VCC");
+    const auto input = slewDefinition.addNode("INPUT");
+    const auto out = slewDefinition.addNode("OUT");
+    slewDefinition.addVoltageSource(vcc, circuitpedal::circuitGround, 9.0);
+    slewDefinition.addVoltageSource(input,
+                                    circuitpedal::circuitGround,
+                                    4.5,
+                                    1.0);
+
+    circuitpedal::GenericOpAmpModel slewModel;
+    slewModel.openLoopGain = 100000.0;
+    slewModel.gainBandwidthHz = 20.0e6;
+    slewModel.slewRateVoltsPerSecond = 1000.0;
+    slewModel.outputHeadroomVolts = 1.0;
+    slewDefinition.addOpAmp(input,
+                            out,
+                            out,
+                            vcc,
+                            circuitpedal::circuitGround,
+                            slewModel);
+    slewDefinition.setOutputNode(out);
+
+    circuitpedal::GenericCircuit slewCircuit;
+    std::string slewError;
+    expect(slewCircuit.compile(slewDefinition, 48000.0, slewError),
+           "slew follower failed to compile: " + slewError);
+    const double dc = slewCircuit.nodeVoltage(out);
+    (void)slewCircuit.processSample(1.0f);
+    const double firstStep = slewCircuit.nodeVoltage(out) - dc;
+    expect(firstStep > 0.005 && firstStep < 0.030,
+           "op-amp slew limit did not bound the first output step");
+}
+
 void testLiveSwitches()
 {
     {
@@ -606,6 +689,7 @@ int main()
     testNjfetOperatingPointAndAudio();
     testNmosOperatingPointAndAudio();
     testOpAmpFollower();
+    testOpAmpBandwidthAndSlew();
     testLiveSwitches();
     testOversampledGenericCircuit();
     testTwoTransistorFuzzLikeNetwork();
@@ -616,6 +700,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.11 generic circuit validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.14 generic circuit validation suite\n";
     return 0;
 }
