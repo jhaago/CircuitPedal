@@ -1,0 +1,68 @@
+* CircuitPedal Woolly Mammoth independent ngspice reference candidate
+* Engaged audio path only. Values and node names match the .cpedal draft.
+* The full Gummel-Poon 2N3904 model is intentionally more detailed than
+* CircuitPedal's compact Ebers-Moll alias.
+
+.param SUPPLY=9
+.param INPUT_FS=0.25
+.param AUDIO_SCALE=0.20
+.param FREQ=110
+.param WOOL=0.75
+.param PINCH=0.35
+.param EQPOS=0.50
+.param OUTPUT_POS=0.70
+.param TSTEP=5.208333333333333u
+.param TSTOP=1
+
+VCCSRC VCC 0 {SUPPLY}
+VINPUT INPUT 0 SIN(0 {INPUT_FS*AUDIO_SCALE} {FREQ})
+R_INPUT_PULLDOWN INPUT 0 1Meg
+
+C1 INPUT B1 220n
+C2 B1 0 10n
+Q1 C1_NODE B1 0 Q2N3904
+R3 VCC C1_NODE 51k
+Q2 C2_NODE C1_NODE E2 Q2N3904
+R4 VCC C2_NODE 20k
+R1 E2 0 2.2k
+
+C6 E2 WOOL_TOP 100u
+R_WOOL WOOL_TOP 0 {max(1m,2k*(1-WOOL))}
+
+R2 B1 PINCH_FIXED 100k
+R_PINCH PINCH_FIXED E2 {max(1m,500k*PINCH)}
+
+C5 C2_NODE TONE_SRC 100u
+C3 TONE_SRC HIGH_PRE 10n
+R5 HIGH_PRE EQ_HIGH 10k
+R6 TONE_SRC EQ_LOW 4.99k
+C4 EQ_LOW 0 220n
+R_EQ_1 EQ_LOW TONE_OUT {max(1m,10k*EQPOS)}
+R_EQ_3 TONE_OUT EQ_HIGH {max(1m,10k*(1-EQPOS))}
+
+R_OUTPUT_1 0 OUT {max(1m,10k*OUTPUT_POS)}
+R_OUTPUT_3 OUT TONE_OUT {max(1m,10k*(1-OUTPUT_POS))}
+
+* Widely distributed Q2N3904 Gummel-Poon parameter set. This is a candidate
+* simulator reference, not yet a nominated physical-device lot. Provenance and
+* checksum requirements are documented beside this file.
+.model Q2N3904 NPN(Is=6.734f Xti=3 Eg=1.11 Vaf=74.03 Bf=416.4
++ Ne=1.259 Ise=6.734f Ikf=66.78m Xtb=1.5 Br=.7371 Nc=2
++ Isc=0 Ikr=0 Rc=1 Cjc=3.638p Mjc=.3085 Vjc=.75 Fc=.5
++ Cje=4.493p Mje=.2593 Vje=.75 Tr=239.5n Tf=301.2p
++ Itf=.4 Vtf=4 Xtf=2 Rb=10)
+
+.options method=gear maxord=1 reltol=1e-6 abstol=1e-12 vntol=1e-8
+.tran {TSTEP} {TSTOP} 0 {TSTEP}
+
+.control
+set wr_singlescale
+set wr_vecnames
+op
+print v(B1) v(C1_NODE) v(E2) v(C2_NODE) v(OUT)
+run
+wrdata woolly_mammoth_ngspice.dat v(OUT) v(B1) v(C1_NODE) v(E2) v(C2_NODE)
+quit
+.endc
+
+.end

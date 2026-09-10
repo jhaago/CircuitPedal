@@ -1,14 +1,14 @@
-# CircuitPedal V0.18
+# CircuitPedal V0.20
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.18 introduces the first **offline electrical reference-validation framework**. `circuitpedal_validate` can now render a `.cpedal` circuit deterministically at a chosen solver rate, record the raw output-node voltage, and compare that waveform with a normalized SPICE or measurement CSV using alignment, RMS/peak/DC/gain error and optional harmonic-amplitude metrics.
+V0.20 deepens the first Woolly Mammoth validation campaign. The validator now supports silent pre-roll, mismatched-rate interpolation, steady-state comparison windows, harmonic phase and THD metrics, stronger CI thresholds, and a reproducible independent ngspice reference candidate. V0.19's internal-node capture, exact-supply DC checks and source-linked working-board dataset remain intact.
 
 This milestone deliberately does **not** promote any existing pedal from Reference Draft to component-accurate reproduction. It provides the tooling needed to make that promotion evidence-based. The first intended validation campaign is the Woolly Mammoth, followed by other representative models such as Animato, TS10 and Blueberry.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format, [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture, and [`docs/validation_tool.md`](docs/validation_tool.md) for the new offline validation workflow.
 
-## V0.18 Circuit Lab and validation test
+## V0.20 Circuit Lab and validation test
 
 The native macOS Circuit Lab remains the functional live-audio test interface rather than the final CircuitPedal visual design.
 
@@ -50,6 +50,24 @@ The new validation tool is built on macOS and Linux. For example:
 ```
 
 See `docs/validation_tool.md` for SPICE CSV comparison, control overrides, harmonic reporting and threshold-based CI gates.
+
+## Deeper Woolly validation introduced in V0.20
+
+- Adds silent render pre-roll with `--warmup` so dynamic state can settle before capture.
+- Automatically linearly interpolates differing simulator/measurement sample rates; `--no-resample` retains strict-rate checks.
+- Isolates steady-state regions with `--start` and `--duration`.
+- Reports harmonic phase error, reference/actual THD and THD error.
+- Adds correlation, gain-error and THD-error threshold gates.
+- Adds a reproducible independent Woolly Mammoth ngspice topology and normalized multi-node export.
+- Keeps the ngspice transistor data explicitly at candidate status pending manufacturer provenance or physical-device corroboration.
+- Adds AddressSanitizer and UndefinedBehaviorSanitizer CI coverage.
+
+## External-reference validation introduced in V0.19
+
+- Adds arbitrary internal-node capture and named CSV-column comparison.
+- Adds DC operating-point reporting and machine-readable per-node reference gates.
+- Adds validation-only fixed-source overrides so measured supply conditions can be reproduced without changing live models.
+- Records the Woolly Mammoth 9.33 V working-board readings and the exact CircuitPedal baseline.
 
 ## Offline reference validation introduced in V0.18
 

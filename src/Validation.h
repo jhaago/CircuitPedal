@@ -59,6 +59,13 @@ bool loadWaveformCsv(const std::string& path,
                      Waveform& waveform,
                      std::string& error);
 
+// Linearly interpolates a uniformly or non-uniformly sampled waveform onto a
+// uniform target rate while preserving its original time span.
+bool resampleWaveform(const Waveform& source,
+                      double targetSampleRate,
+                      Waveform& result,
+                      std::string& error);
+
 struct DcReferencePoint {
     std::string nodeName;
     double expectedVolts = 0.0;
@@ -77,6 +84,9 @@ struct ComparisonOptions {
     int maxLagSamples = 0;
     double fundamentalHz = 0.0;
     std::size_t harmonicCount = 0;
+    double startTimeSeconds = 0.0;
+    double durationSeconds = 0.0; // Zero compares the remaining waveform.
+    bool allowResampling = true;
 };
 
 struct HarmonicComparison {
@@ -85,6 +95,9 @@ struct HarmonicComparison {
     double referenceAmplitude = 0.0;
     double actualAmplitude = 0.0;
     double amplitudeErrorDb = 0.0;
+    double referencePhaseDegrees = 0.0;
+    double actualPhaseDegrees = 0.0;
+    double phaseErrorDegrees = 0.0;
 };
 
 struct ComparisonMetrics {
@@ -98,6 +111,9 @@ struct ComparisonMetrics {
     double dcError = 0.0;
     double gainErrorDb = 0.0;
     double correlation = 0.0;
+    double referenceThdPercent = 0.0;
+    double actualThdPercent = 0.0;
+    double thdErrorDb = 0.0;
     std::vector<HarmonicComparison> harmonics;
 };
 

@@ -92,3 +92,40 @@ comparison, but the next confidence steps are still substantial:
 
 This directory is intended to accumulate those reference datasets and metadata
 rather than hiding fidelity assumptions inside the circuit implementation.
+
+## Independent ngspice reference candidate
+
+`woolly_mammoth_ngspice.cir` expresses the same topology independently in
+ngspice and uses a fuller Gummel-Poon Q2N3904 model. Run it with:
+
+```bash
+validation/woolly_mammoth/run_ngspice.sh build/validation/woolly
+```
+
+The script produces a normalized CSV containing the output plus B1, C1_NODE,
+E2 and C2_NODE. Render the matching CircuitPedal state and compare a steady-
+state window with:
+
+```bash
+./build/circuitpedal_validate render \
+  circuits/woolly_mammoth_reference_draft.cpedal \
+  build/validation/woolly/circuitpedal.csv \
+  --sample-rate 192000 --seconds 1 --warmup 0.05 \
+  --signal sine --frequency 110 --amplitude 0.25 \
+  --control WOOL=0.75 --control PINCH=0.35 \
+  --control EQ=0.50 --control OUTPUT=0.70 \
+  --node B1 --node C1_NODE --node E2 --node C2_NODE
+
+./build/circuitpedal_validate compare \
+  build/validation/woolly/woolly_mammoth_ngspice.csv \
+  build/validation/woolly/circuitpedal.csv \
+  --start 0.25 --duration 0.50 --max-lag 64 \
+  --fundamental 110 --harmonics 8
+```
+
+This remains a **candidate**, not golden data. The included Q2N3904 parameter
+set is widely distributed, but its original manufacturer/library provenance is
+not established here. Before permanent fidelity thresholds are introduced,
+replace or corroborate it with a versioned manufacturer model and record its
+source URL, retrieval date, licence and SHA-256 checksum, or nominate and
+measure a physical transistor lot.

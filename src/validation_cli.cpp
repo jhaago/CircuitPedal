@@ -131,6 +131,7 @@ void printUsage()
         << "  --frequency <Hz>         sine/dualtone/sweep start, default 440\n"
         << "  --frequency2 <Hz>        dualtone second tone, default 1000\n"
         << "  --sweep-end <Hz>         logsweep end, default 12000\n"
+        << "  --warmup <seconds>       process silence before capture, default 0\n"
         << "  --control NAME=0..1      set a pot before the DC solve; repeatable\n"
         << "  --switch NAME=POSITION   set a switch before the DC solve; repeatable\n"
         << "  --source NAME=VOLTS      override a named fixed V source for validation\n"
@@ -142,17 +143,23 @@ void printUsage()
         << "Check a DC operating point against a reference table:\n"
         << "  circuitpedal_validate dc-check <circuit.cpedal> <reference.csv> [options]\n"
         << "  Uses --sample-rate/--control/--switch/--source.\n\n"
-        << "Compare two uniformly sampled waveform CSV files:\n"
+        << "Compare two waveform CSV files:\n"
         << "  circuitpedal_validate compare <reference.csv> <actual.csv> [options]\n\n"
         << "Compare options:\n"
         << "  --column <name>          use this value column in both CSV files\n"
         << "  --reference-column <n>  select the reference CSV value column\n"
         << "  --actual-column <name>   select the actual CSV value column\n"
         << "  --max-lag <samples>      integer alignment search range\n"
+        << "  --start <seconds>        skip this time from each waveform\n"
+        << "  --duration <seconds>     compare only this duration after --start\n"
+        << "  --no-resample            require matching sample rates\n"
         << "  --fundamental <Hz>       report harmonic amplitude errors\n"
         << "  --harmonics <count>      default 5 when --fundamental is used\n"
         << "  --max-nrms <percent>     fail when normalized RMS error is higher\n"
-        << "  --max-peak <volts>       fail when peak absolute error is higher\n";
+        << "  --max-peak <volts>       fail when peak absolute error is higher\n"
+        << "  --min-correlation <0..1> fail when correlation is lower\n"
+        << "  --max-gain-db <dB>       fail when absolute RMS gain error is higher\n"
+        << "  --max-thd-db <dB>        fail when absolute THD error is higher\n";
 }
 
 bool parseSignalKind(const std::string& text, SignalKind& kind)
@@ -494,6 +501,7 @@ int renderCommand(int argc, const char* argv[])
     SignalConfiguration signal;
     CircuitStateOptions state;
     state.sampleRate = signal.sampleRate;
+    double warmupSeconds = 0.0;
     std::vector<std::string> requestedNodes;
     std::string error;
 
@@ -543,6 +551,11 @@ int renderCommand(int argc, const char* argv[])
         {
             requestedNodes.push_back(value);
         }
+        else if (option == "--warmup")
+        {
+            if (!parseDouble(value, warmupSeconds))
+                return 2;
+        }
         else if (isStateOption(option))
         {
             if (!parseStateOption(option, value, state, error))
@@ -561,9 +574,12 @@ int renderCommand(int argc, const char* argv[])
 
     if (!validSampleRate(signal.sampleRate)
         || !std::isfinite(signal.durationSeconds) || signal.durationSeconds <= 0.0
-        || signal.durationSeconds > 60.0)
+        || signal.durationSeconds > 60.0
+        || !std::isfinite(warmupSeconds) || warmupSeconds < 0.0
+        || warmupSeconds > 60.0)
     {
-        std::cerr << "Use a sample rate from 8 kHz to 384 kHz and duration from 0 to 60 seconds.\n";
+        std::cerr << "Use a sample rate from 8 kHz to 384 kHz and capture/warmup "
+                     "durations from 0 to 60 seconds.\n";
         return 2;
     }
 
@@ -604,6 +620,15 @@ int renderCommand(int argc, const char* argv[])
     std::size_t convergenceFailures = 0U;
     const auto outputNode = document.definition.outputNode();
 
+    const std::size_t warmupSampleCount = static_cast<std::size_t>(
+        std::llround(signal.sampleRate * warmupSeconds));
+    for (std::size_t i = 0; i < warmupSampleCount; ++i)
+    {
+        (void)circuit.processSample(0.0f);
+        if (!circuit.lastSolveConverged())
+            ++convergenceFailures;
+    }
+
     for (std::size_t sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
     {
         const double input = circuitpedal::validation::signalSample(signal, sampleIndex);
@@ -631,6 +656,7 @@ int renderCommand(int argc, const char* argv[])
 
     std::cout << "Rendered: " << document.name << '\n'
               << "Samples: " << sampleCount << " @ " << signal.sampleRate << " Hz\n"
+              << "Warmup samples: " << warmupSampleCount << '\n'
               << "Output: " << outputPath << '\n'
               << "Internal node probes: " << probes.size() << '\n'
               << "Nonlinear solve failures: " << convergenceFailures << '\n';
@@ -812,6 +838,9 @@ int compareCommand(int argc, const char* argv[])
     ComparisonOptions options;
     double maxNrms = -1.0;
     double maxPeak = -1.0;
+    double minimumCorrelation = -1.0;
+    double maxGainErrorDb = -1.0;
+    double maxThdErrorDb = -1.0;
     bool harmonicCountSpecified = false;
     std::string referenceColumn;
     std::string actualColumn;
@@ -819,6 +848,11 @@ int compareCommand(int argc, const char* argv[])
     for (int i = 4; i < argc; ++i)
     {
         const std::string option = argv[i];
+        if (option == "--no-resample")
+        {
+            options.allowResampling = false;
+            continue;
+        }
         if (i + 1 >= argc)
         {
             std::cerr << "Missing value for option: " << option << '\n';
@@ -845,6 +879,18 @@ int compareCommand(int argc, const char* argv[])
                 return 2;
             options.maxLagSamples = static_cast<int>(parsed);
         }
+        else if (option == "--start")
+        {
+            if (!parseDouble(value, options.startTimeSeconds)
+                || options.startTimeSeconds < 0.0)
+                return 2;
+        }
+        else if (option == "--duration")
+        {
+            if (!parseDouble(value, options.durationSeconds)
+                || options.durationSeconds <= 0.0)
+                return 2;
+        }
         else if (option == "--fundamental")
         {
             if (!parseDouble(value, options.fundamentalHz) || options.fundamentalHz <= 0.0)
@@ -866,6 +912,22 @@ int compareCommand(int argc, const char* argv[])
             if (!parseDouble(value, maxPeak) || maxPeak < 0.0)
                 return 2;
         }
+        else if (option == "--min-correlation")
+        {
+            if (!parseDouble(value, minimumCorrelation)
+                || minimumCorrelation < 0.0 || minimumCorrelation > 1.0)
+                return 2;
+        }
+        else if (option == "--max-gain-db")
+        {
+            if (!parseDouble(value, maxGainErrorDb) || maxGainErrorDb < 0.0)
+                return 2;
+        }
+        else if (option == "--max-thd-db")
+        {
+            if (!parseDouble(value, maxThdErrorDb) || maxThdErrorDb < 0.0)
+                return 2;
+        }
         else
         {
             std::cerr << "Unknown compare option: " << option << '\n';
@@ -875,6 +937,12 @@ int compareCommand(int argc, const char* argv[])
 
     if (options.fundamentalHz > 0.0 && !harmonicCountSpecified)
         options.harmonicCount = 5U;
+    if (maxThdErrorDb >= 0.0
+        && (options.fundamentalHz <= 0.0 || options.harmonicCount < 2U))
+    {
+        std::cerr << "--max-thd-db requires --fundamental and at least two harmonics.\n";
+        return 2;
+    }
 
     Waveform reference;
     Waveform actual;
@@ -922,15 +990,19 @@ int compareCommand(int argc, const char* argv[])
 
     if (!metrics.harmonics.empty())
     {
-        std::cout << "Harmonic amplitude comparison:\n";
+        std::cout << "Harmonic amplitude/phase comparison:\n";
         for (const auto& harmonic : metrics.harmonics)
         {
             std::cout << "  H" << harmonic.harmonic
                       << " " << harmonic.frequencyHz << " Hz"
                       << " ref=" << harmonic.referenceAmplitude
                       << " V actual=" << harmonic.actualAmplitude
-                      << " V error=" << harmonic.amplitudeErrorDb << " dB\n";
+                      << " V amplitude-error=" << harmonic.amplitudeErrorDb << " dB"
+                      << " phase-error=" << harmonic.phaseErrorDegrees << " deg\n";
         }
+        std::cout << "Reference THD: " << metrics.referenceThdPercent << "%\n"
+                  << "Actual THD: " << metrics.actualThdPercent << "%\n"
+                  << "THD error: " << metrics.thdErrorDb << " dB\n";
     }
 
     bool passed = true;
@@ -942,6 +1014,23 @@ int compareCommand(int argc, const char* argv[])
     if (maxPeak >= 0.0 && metrics.peakAbsoluteError > maxPeak)
     {
         std::cerr << "FAIL: peak absolute error exceeds " << maxPeak << " V\n";
+        passed = false;
+    }
+    if (minimumCorrelation >= 0.0 && metrics.correlation < minimumCorrelation)
+    {
+        std::cerr << "FAIL: correlation is lower than " << minimumCorrelation << '\n';
+        passed = false;
+    }
+    if (maxGainErrorDb >= 0.0 && std::abs(metrics.gainErrorDb) > maxGainErrorDb)
+    {
+        std::cerr << "FAIL: absolute RMS gain error exceeds "
+                  << maxGainErrorDb << " dB\n";
+        passed = false;
+    }
+    if (maxThdErrorDb >= 0.0 && std::abs(metrics.thdErrorDb) > maxThdErrorDb)
+    {
+        std::cerr << "FAIL: absolute THD error exceeds "
+                  << maxThdErrorDb << " dB\n";
         passed = false;
     }
     return passed ? 0 : 3;

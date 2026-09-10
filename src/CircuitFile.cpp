@@ -367,7 +367,6 @@ GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept
     }
     if (normalized == "NTE102")
     {
-        GenericPnpBjtModel model;
         // PNP complement to NTE103. Keep the compact pair intentionally
         // symmetric until leakage/temperature measurements are available.
         model.saturationCurrentAmps = 5.0e-8;

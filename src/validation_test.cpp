@@ -9,6 +9,7 @@
 namespace {
 
 int failures = 0;
+constexpr double testPi = 3.14159265358979323846;
 
 void expect(bool condition, const std::string& message)
 {
@@ -48,18 +49,19 @@ void testSignalGeneration()
 circuitpedal::validation::Waveform makeSine(std::size_t count,
                                             double sampleRate,
                                             double frequency,
-                                            double gain = 1.0)
+                                            double gain = 1.0,
+                                            double phaseRadians = 0.0)
 {
     circuitpedal::validation::Waveform waveform;
     waveform.sampleRate = sampleRate;
     waveform.timeSeconds.reserve(count);
     waveform.values.reserve(count);
-    constexpr double pi = 3.14159265358979323846;
     for (std::size_t i = 0; i < count; ++i)
     {
         waveform.timeSeconds.push_back(static_cast<double>(i) / sampleRate);
         waveform.values.push_back(
-            gain * std::sin(2.0 * pi * frequency * static_cast<double>(i) / sampleRate));
+            gain * std::sin(2.0 * testPi * frequency * static_cast<double>(i) / sampleRate
+                            + phaseRadians));
     }
     return waveform;
 }
@@ -209,6 +211,67 @@ void testDcReferenceLoading()
     (void)std::remove(path.c_str());
 }
 
+void testResamplingAndWindow()
+{
+    auto reference = makeSine(4801U, 48000.0, 1000.0);
+    auto actual = makeSine(4411U, 44100.0, 1000.0);
+    for (std::size_t i = 0; i < 500U; ++i)
+        reference.values[i] += 0.5;
+    for (std::size_t i = 0; i < 460U; ++i)
+        actual.values[i] += 0.5;
+
+    circuitpedal::validation::ComparisonOptions options;
+    options.startTimeSeconds = 0.02;
+    options.durationSeconds = 0.06;
+    circuitpedal::validation::ComparisonMetrics metrics;
+    std::string error;
+    expect(circuitpedal::validation::compareWaveforms(
+               reference, actual, options, metrics, error),
+           "mismatched-rate windowed comparison failed: " + error);
+    expect(metrics.normalizedRmsErrorPercent < 0.25,
+           "linear resampling introduced excessive sine-wave error");
+
+    options.allowResampling = false;
+    expect(!circuitpedal::validation::compareWaveforms(
+               reference, actual, options, metrics, error),
+           "mismatched sample rates were accepted with resampling disabled");
+}
+
+void testPhaseAndThdMetrics()
+{
+    constexpr double sampleRate = 48000.0;
+    constexpr double frequency = 1000.0;
+    constexpr std::size_t count = 4800U;
+    auto reference = makeSine(count, sampleRate, frequency);
+    auto actual = makeSine(count, sampleRate, frequency, 1.0, testPi / 6.0);
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const double time = static_cast<double>(i) / sampleRate;
+        reference.values[i] += 1.0
+            + 0.1 * std::sin(4.0 * testPi * frequency * time);
+        actual.values[i] += 2.0
+            + 0.2 * std::sin(4.0 * testPi * frequency * time + testPi / 6.0);
+    }
+
+    circuitpedal::validation::ComparisonOptions options;
+    options.fundamentalHz = frequency;
+    options.harmonicCount = 5U;
+    circuitpedal::validation::ComparisonMetrics metrics;
+    std::string error;
+    expect(circuitpedal::validation::compareWaveforms(
+               reference, actual, options, metrics, error),
+           "phase/THD comparison failed: " + error);
+    expect(!metrics.harmonics.empty()
+               && near(metrics.harmonics.front().phaseErrorDegrees, 30.0, 0.2),
+           "fundamental phase error was not recovered");
+    expect(near(metrics.referenceThdPercent, 10.0, 0.2),
+           "reference THD was not recovered");
+    expect(near(metrics.actualThdPercent, 20.0, 0.3),
+           "actual THD was not recovered");
+    expect(near(metrics.thdErrorDb, 20.0 * std::log10(2.0), 0.1),
+           "THD error in dB was incorrect");
+}
+
 } // namespace
 
 int main()
@@ -219,6 +282,8 @@ int main()
     testGainError();
     testCsvLoadingPrefersOutputVolts();
     testDcReferenceLoading();
+    testResamplingAndWindow();
+    testPhaseAndThdMetrics();
 
     if (failures != 0)
     {

@@ -17,6 +17,15 @@ The V0.19 validation stage extends it with:
 - the first committed external-reference dataset for the Woolly Mammoth;
 - visible Woolly DC reference reporting in CI.
 
+The V0.20 validation stage adds:
+
+- silent pre-roll before transient capture;
+- automatic reference-rate interpolation and steady-state comparison windows;
+- harmonic phase and THD reporting;
+- correlation, RMS-gain and THD acceptance thresholds;
+- a reproducible independent Woolly Mammoth ngspice reference candidate;
+- AddressSanitizer and UndefinedBehaviorSanitizer CI coverage.
+
 The current implementation can therefore:
 
 - generate deterministic sine, step, impulse, dual-tone and logarithmic-sweep stimuli;
@@ -24,9 +33,10 @@ The current implementation can therefore:
 - apply named potentiometer, switch and validation-only fixed-source states before the DC operating-point solve;
 - export the raw declared output-node voltage, calibrated CircuitPedal output and requested internal-node voltages to CSV;
 - load normalized CircuitPedal/SPICE waveform CSV files and select arbitrary value columns;
+- interpolate different reference rates onto a common time grid and crop matching windows;
 - search a bounded integer-sample lag for alignment;
 - report correlation, RMS error, normalized RMS error, peak error, DC error and gain error;
-- report per-harmonic amplitude error for a requested fundamental;
+- report per-harmonic amplitude/phase error and aggregate THD error;
 - fail with threshold-based exit status for transient golden-reference CI gates;
 - fail a DC reference check when any node leaves its documented tolerance.
 
@@ -62,11 +72,11 @@ Every comparison must report time alignment, amplitude calibration, RMS error,
 peak error and harmonic-amplitude error. Store tolerances beside each trusted
 golden dataset rather than relying on visual inspection.
 
-V0.19 covers arbitrary-node capture, named-column comparison, machine-readable
-DC gates and exact reference supply matching. The main remaining framework work
-before broad automated SPICE acceptance is reference-data
-resampling/interpolation, richer spectral metrics and committed reference
-metadata describing simulator/model versions and circuit state.
+V0.20 covers arbitrary-node capture, named-column comparison, machine-readable
+DC gates, exact reference supply matching, interpolation, steady-state windows
+and focused harmonic/THD metrics. The main remaining framework work before
+broad automated SPICE acceptance is fractional-delay alignment, broadband
+spectral-error analysis and trusted device-model metadata.
 
 ## Physical measurements
 

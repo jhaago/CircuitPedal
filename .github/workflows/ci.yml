@@ -42,3 +42,44 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
+
+  sanitizer-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure sanitizers
+        run: >-
+          cmake -S . -B build-sanitize
+          -DCMAKE_BUILD_TYPE=Debug
+          -DCIRCUITPEDAL_ENABLE_SANITIZERS=ON
+      - name: Build
+        run: cmake --build build-sanitize --parallel
+      - name: Test with AddressSanitizer and UndefinedBehaviorSanitizer
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-sanitize --output-on-failure
+
+  ngspice-reference-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ngspice
+        run: sudo apt-get update && sudo apt-get install -y ngspice
+      - name: Build validation CLI
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --parallel --target circuitpedal_validate
+      - name: Render Woolly Mammoth reference candidate
+        run: validation/woolly_mammoth/run_ngspice.sh build/validation/woolly
+      - name: Validate normalized reference columns
+        run: |
+          build/circuitpedal_validate compare \
+            build/validation/woolly/woolly_mammoth_ngspice.csv \
+            build/validation/woolly/woolly_mammoth_ngspice.csv \
+            --column node_C2_NODE_v \
+            --start 0.1 --duration 0.1 \
+            --fundamental 110 --harmonics 5 \
+            --max-nrms 0.000001 --max-peak 0.000001 \
+            --min-correlation 0.999999 --max-gain-db 0.000001 \
+            --max-thd-db 0.000001

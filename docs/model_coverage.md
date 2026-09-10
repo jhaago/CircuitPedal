@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.14
+## Component support in V0.20
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.14
+## Named model aliases in V0.20
 
 NPN BJTs currently include compact aliases for:
 
@@ -92,6 +92,9 @@ Diodes include:
 - Fat Fuzz Factory Reference
 - Fuzzolo Reference Draft
 - TS10 Tube Screamer Reference Draft
+- Human Gear Animato Reference Draft
+- Lovepedal Kalamazoo Reference Draft
+- BearFoot Blueberry Bass Overdrive Reference Draft
 - Woolly Mammoth Reference Draft
 - generic two-transistor fuzz demo
 
@@ -99,11 +102,11 @@ These files are parsed from disk, compiled through the generic circuit engine an
 run through nonlinear audio in CI. This validates the architecture and numerical
 stability, not exact audible matching to an original commercial pedal.
 
-### Supplied references queued for conversion
+### Supplied references and conversion status
 
 The supplied colour-coded layouts are being used as the model backlog:
 
-- Blueberry Bass Overdrive — CA3130 + 2N5457; engine devices now exist.
+- Blueberry Bass Overdrive — converted and CI-validated; independent SPICE/physical validation remains.
 - Lovepedal Kalamazoo — converted and CI-validated as a four-control dynamic-4558 reference draft.
 - TS10 Tube Screamer — converted and CI-validated as an engaged-path reference draft using 4558 + 2SC1815 buffers + silicon clipping diodes.
 - ST9 Super Tube Screamer — 4558 + NPN + diodes; linked/dual-gang Mids infrastructure now exists, circuit conversion still queued.
@@ -116,7 +119,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Fuzzolo — converted and CI-validated with Pulse Width, Volume and a live Passive/Active pickup selector.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
-- Human Gear Animato — newly supplied reference; dual-gang Distortion, DPDT Bias, NTE102/NTE103 germanium and 2SC2240 device aliases are now representable. Explicit schematic-to-netlist conversion is next.
+- Human Gear Animato — converted and CI-validated with linked Distortion and Bias controls; germanium-device validation remains.
 
 ## Conversion rule
 

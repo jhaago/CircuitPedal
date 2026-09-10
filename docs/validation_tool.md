@@ -12,6 +12,11 @@ V0.19 adds arbitrary internal-node capture, named CSV-column comparison, DC
 operating-point reporting, machine-readable DC reference gates and validation-
 only overrides for named fixed voltage sources.
 
+V0.20 adds silent render pre-roll, automatic linear interpolation across
+different sample rates, steady-state comparison windows, harmonic phase and THD
+metrics, stronger acceptance thresholds, sanitizer CI and the first reproducible
+independent ngspice reference candidate.
+
 The electrical validator works before the real-time host FIR/downsampling path.
 That separation is intentional: circuit-equation error can be measured without
 mixing it with host resampling error.
@@ -68,7 +73,8 @@ Example: render the Woolly Mammoth for one second at 192 kHz:
   --seconds 1 \
   --signal sine \
   --frequency 110 \
-  --amplitude 0.25
+  --amplitude 0.25 \
+  --warmup 0.05
 ```
 
 Available deterministic stimuli are `sine`, `step`, `impulse`, `dualtone` and
@@ -76,6 +82,10 @@ Available deterministic stimuli are `sine`, `step`, `impulse`, `dualtone` and
 
 The transient renderer streams rows directly to disk rather than retaining the
 whole run in memory, making high-rate and multi-node captures practical.
+
+`--warmup` processes silence before sample zero without writing those samples.
+This lets capacitor and dynamic-device state settle while keeping the captured
+stimulus phase and CSV time anchored at zero.
 
 ## Internal-node capture
 
@@ -208,15 +218,22 @@ When simulator and CircuitPedal column names differ, use
 `--reference-column` and `--actual-column` separately. Named column matching is
 case-insensitive.
 
+The comparator automatically linearly interpolates the actual waveform onto the
+reference sample grid when effective rates differ. Use `--no-resample` when an
+exact rate match is itself an acceptance requirement. Select matching steady-
+state regions with `--start SECONDS` and `--duration SECONDS`.
+
 The report includes best integer-sample alignment, correlation, reference and
 actual RMS, RMS error, normalized RMS error, peak absolute error, DC error, RMS
-gain error and optional per-harmonic amplitude errors.
+gain error, per-harmonic amplitude/phase error and aggregate THD error. Select a
+steady-state window containing an integer number of fundamental cycles for
+meaningful harmonic results.
 
 ## CI thresholds
 
-Transient comparisons can fail CI with `--max-nrms` and `--max-peak`. DC
-reference tables carry their tolerances per node and can be used directly as
-`dc-check` gates.
+Transient comparisons can fail CI with `--max-nrms`, `--max-peak`,
+`--min-correlation`, `--max-gain-db` and `--max-thd-db`. DC reference tables
+carry their tolerances per node and can be used directly as `dc-check` gates.
 
 The Woolly working-board check is the first such external-reference gate and its
 actual node-by-node report is printed as a dedicated CI step.
@@ -226,11 +243,11 @@ actual node-by-node report is printed as a dedicated CI step.
 The validator is evidence infrastructure; it does not by itself prove that a
 commercial pedal is component-accurate.
 
-- Transient reference data must currently be uniformly sampled at the same
-  nominal sample rate. Simulator interpolation/resampling is still needed.
 - Alignment is integer-sample only.
-- Harmonic analysis checks requested harmonic amplitudes but is not yet a full
-  spectral-error analysis.
+- Linear interpolation handles ordinary simulator and measurement exports but
+  is not a band-limited sample-rate converter.
+- Harmonic analysis checks requested harmonic amplitude/phase and THD but is
+  not yet a full broadband spectral-error analysis.
 - Fixed-source override matching uses the `.cpedal` `V` directive ID and is
   intentionally confined to offline validation.
 - Compact transistor, JFET, diode and op-amp aliases still require comparison

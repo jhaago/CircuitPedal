@@ -176,34 +176,50 @@ double rmsRange(const std::vector<double>& values,
     return std::sqrt(sumSquares / static_cast<double>(count));
 }
 
-double harmonicAmplitude(const std::vector<double>& values,
-                         std::size_t start,
-                         std::size_t count,
-                         double sampleRate,
-                         double frequencyHz) noexcept
+struct SpectralComponent {
+    double amplitude = 0.0;
+    double phaseDegrees = 0.0;
+};
+
+SpectralComponent spectralComponent(const std::vector<double>& values,
+                                    std::size_t start,
+                                    std::size_t count,
+                                    double sampleRate,
+                                    double frequencyHz) noexcept
 {
     if (count < 4U || sampleRate <= 0.0 || frequencyHz <= 0.0)
-        return 0.0;
+        return {};
 
-    double sineProjection = 0.0;
-    double cosineProjection = 0.0;
+    double weightedMean = 0.0;
     double weightSum = 0.0;
     for (std::size_t i = 0; i < count; ++i)
     {
         const double phasePosition = static_cast<double>(i) / static_cast<double>(count - 1U);
         const double weight = 0.5 - 0.5 * std::cos(2.0 * pi * phasePosition);
-        const double phase = 2.0 * pi * frequencyHz * static_cast<double>(i) / sampleRate;
-        const double value = values[start + i];
-        sineProjection += weight * value * std::sin(phase);
-        cosineProjection += weight * value * std::cos(phase);
+        weightedMean += weight * values[start + i];
         weightSum += weight;
     }
 
     if (weightSum <= tiny)
-        return 0.0;
-    return 2.0 * std::sqrt(sineProjection * sineProjection
-                           + cosineProjection * cosineProjection)
-        / weightSum;
+        return {};
+    weightedMean /= weightSum;
+
+    double sineProjection = 0.0;
+    double cosineProjection = 0.0;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const double phasePosition = static_cast<double>(i) / static_cast<double>(count - 1U);
+        const double weight = 0.5 - 0.5 * std::cos(2.0 * pi * phasePosition);
+        const double phase = 2.0 * pi * frequencyHz * static_cast<double>(i) / sampleRate;
+        const double value = values[start + i] - weightedMean;
+        sineProjection += weight * value * std::sin(phase);
+        cosineProjection += weight * value * std::cos(phase);
+    }
+    return {
+        2.0 * std::sqrt(sineProjection * sineProjection
+                        + cosineProjection * cosineProjection) / weightSum,
+        std::atan2(cosineProjection, sineProjection) * 180.0 / pi
+    };
 }
 
 double amplitudeErrorDb(double referenceAmplitude,
@@ -212,6 +228,56 @@ double amplitudeErrorDb(double referenceAmplitude,
     const double referenceSafe = std::max(referenceAmplitude, tiny);
     const double actualSafe = std::max(actualAmplitude, tiny);
     return 20.0 * std::log10(actualSafe / referenceSafe);
+}
+
+double wrappedPhaseDifference(double actual, double reference) noexcept
+{
+    double difference = std::fmod(actual - reference + 180.0, 360.0);
+    if (difference < 0.0)
+        difference += 360.0;
+    return difference - 180.0;
+}
+
+bool windowWaveform(const Waveform& source,
+                    double startSeconds,
+                    double durationSeconds,
+                    Waveform& result,
+                    std::string& error)
+{
+    if (!std::isfinite(startSeconds) || startSeconds < 0.0
+        || !std::isfinite(durationSeconds) || durationSeconds < 0.0)
+    {
+        error = "Comparison start and duration must be finite and non-negative.";
+        return false;
+    }
+    if (source.timeSeconds.size() != source.values.size()
+        || source.timeSeconds.empty())
+    {
+        error = "Comparison waveform timestamps do not match its values.";
+        return false;
+    }
+
+    const double firstTime = source.timeSeconds.front();
+    const double windowStart = firstTime + startSeconds;
+    const double windowEnd = durationSeconds > 0.0
+        ? windowStart + durationSeconds
+        : std::numeric_limits<double>::infinity();
+    result = {};
+    result.sampleRate = source.sampleRate;
+    for (std::size_t i = 0; i < source.values.size(); ++i)
+    {
+        const double time = source.timeSeconds[i];
+        if (time + tiny < windowStart || time >= windowEnd)
+            continue;
+        result.timeSeconds.push_back(time - windowStart);
+        result.values.push_back(source.values[i]);
+    }
+    if (result.values.size() < 8U)
+    {
+        error = "Comparison window contains fewer than eight samples.";
+        return false;
+    }
+    return true;
 }
 
 } // namespace
@@ -384,8 +450,7 @@ bool loadWaveformCsv(const std::string& path,
 
     double deltaSum = 0.0;
     std::size_t deltaCount = 0U;
-    const std::size_t checkCount = std::min<std::size_t>(
-        waveform.timeSeconds.size() - 1U, 1024U);
+    const std::size_t checkCount = waveform.timeSeconds.size() - 1U;
     for (std::size_t i = 0; i < checkCount; ++i)
     {
         const double delta = waveform.timeSeconds[i + 1U] - waveform.timeSeconds[i];
@@ -399,6 +464,65 @@ bool loadWaveformCsv(const std::string& path,
     }
     const double averageDelta = deltaSum / static_cast<double>(deltaCount);
     waveform.sampleRate = 1.0 / averageDelta;
+    return true;
+}
+
+bool resampleWaveform(const Waveform& source,
+                      double targetSampleRate,
+                      Waveform& result,
+                      std::string& error)
+{
+    error.clear();
+    result = {};
+    if (source.values.size() < 2U
+        || source.timeSeconds.size() != source.values.size())
+    {
+        error = "Resampling requires at least two timestamped samples.";
+        return false;
+    }
+    if (!std::isfinite(targetSampleRate) || targetSampleRate <= 0.0)
+    {
+        error = "Resampling requires a positive finite target sample rate.";
+        return false;
+    }
+
+    const double start = source.timeSeconds.front();
+    const double end = source.timeSeconds.back();
+    if (!(end > start))
+    {
+        error = "Resampling requires an increasing time span.";
+        return false;
+    }
+    const std::size_t count = static_cast<std::size_t>(
+        std::floor((end - start) * targetSampleRate + 1.0e-9)) + 1U;
+    if (count < 2U || count > 100000000U)
+    {
+        error = "Requested resampling result is empty or too large.";
+        return false;
+    }
+
+    result.sampleRate = targetSampleRate;
+    result.timeSeconds.reserve(count);
+    result.values.reserve(count);
+    std::size_t upper = 1U;
+    for (std::size_t i = 0; i < count; ++i)
+    {
+        const double time = start + static_cast<double>(i) / targetSampleRate;
+        while (upper + 1U < source.timeSeconds.size()
+               && source.timeSeconds[upper] < time)
+        {
+            ++upper;
+        }
+        const std::size_t lowerIndex = upper - 1U;
+        const double lowerTime = source.timeSeconds[lowerIndex];
+        const double upperTime = source.timeSeconds[upper];
+        const double fraction = upperTime > lowerTime
+            ? std::clamp((time - lowerTime) / (upperTime - lowerTime), 0.0, 1.0)
+            : 0.0;
+        result.timeSeconds.push_back(time - start);
+        result.values.push_back(source.values[lowerIndex]
+            + fraction * (source.values[upper] - source.values[lowerIndex]));
+    }
     return true;
 }
 
@@ -522,7 +646,9 @@ bool compareWaveforms(const Waveform& reference,
     error.clear();
     metrics = {};
 
-    if (reference.values.size() < 8U || actual.values.size() < 8U)
+    if (reference.values.size() < 8U || actual.values.size() < 8U
+        || reference.timeSeconds.size() != reference.values.size()
+        || actual.timeSeconds.size() != actual.values.size())
     {
         error = "Waveform comparison needs at least eight samples in each file.";
         return false;
@@ -534,15 +660,33 @@ bool compareWaveforms(const Waveform& reference,
         return false;
     }
 
-    const double relativeRateDifference =
-        std::abs(reference.sampleRate - actual.sampleRate) / reference.sampleRate;
-    if (relativeRateDifference > 1.0e-3)
+    Waveform referenceWindow;
+    Waveform actualWindow;
+    if (!windowWaveform(reference, options.startTimeSeconds,
+                        options.durationSeconds, referenceWindow, error)
+        || !windowWaveform(actual, options.startTimeSeconds,
+                           options.durationSeconds, actualWindow, error))
     {
-        error = "Reference and actual CSV sample rates differ by more than 0.1%.";
         return false;
     }
 
-    const std::size_t shortest = std::min(reference.values.size(), actual.values.size());
+    const double relativeRateDifference = std::abs(
+        referenceWindow.sampleRate - actualWindow.sampleRate) / referenceWindow.sampleRate;
+    if (relativeRateDifference > 1.0e-6 && !options.allowResampling)
+    {
+        error = "Reference and actual CSV sample rates differ and resampling is disabled.";
+        return false;
+    }
+    if (relativeRateDifference > 1.0e-6)
+    {
+        Waveform resampled;
+        if (!resampleWaveform(actualWindow, referenceWindow.sampleRate, resampled, error))
+            return false;
+        actualWindow = std::move(resampled);
+    }
+
+    const std::size_t shortest = std::min(
+        referenceWindow.values.size(), actualWindow.values.size());
     const int maximumAllowedLag = shortest > 16U
         ? static_cast<int>(std::min<std::size_t>(shortest / 2U, 100000U))
         : 0;
@@ -550,10 +694,10 @@ bool compareWaveforms(const Waveform& reference,
     const int maxLag = std::min(requestedLag, maximumAllowedLag);
 
     int bestLag = 0;
-    double bestCorrelation = correlationForLag(reference, actual, 0);
+    double bestCorrelation = correlationForLag(referenceWindow, actualWindow, 0);
     for (int lag = -maxLag; lag <= maxLag; ++lag)
     {
-        const double candidate = correlationForLag(reference, actual, lag);
+        const double candidate = correlationForLag(referenceWindow, actualWindow, lag);
         if (candidate > bestCorrelation + 1.0e-12
             || (std::abs(candidate - bestCorrelation) <= 1.0e-12
                 && std::abs(lag) < std::abs(bestLag)))
@@ -563,7 +707,8 @@ bool compareWaveforms(const Waveform& reference,
         }
     }
 
-    const AlignedRange range = alignedRange(reference.values.size(), actual.values.size(), bestLag);
+    const AlignedRange range = alignedRange(
+        referenceWindow.values.size(), actualWindow.values.size(), bestLag);
     if (range.count < 8U)
     {
         error = "Alignment left too few samples to compare.";
@@ -576,8 +721,8 @@ bool compareWaveforms(const Waveform& reference,
     double actualMean = 0.0;
     for (std::size_t i = 0; i < range.count; ++i)
     {
-        const double r = reference.values[range.referenceStart + i];
-        const double a = actual.values[range.actualStart + i];
+        const double r = referenceWindow.values[range.referenceStart + i];
+        const double a = actualWindow.values[range.actualStart + i];
         const double difference = a - r;
         errorSquares += difference * difference;
         peakError = std::max(peakError, std::abs(difference));
@@ -589,8 +734,10 @@ bool compareWaveforms(const Waveform& reference,
 
     metrics.lagSamples = bestLag;
     metrics.comparedSamples = range.count;
-    metrics.referenceRms = rmsRange(reference.values, range.referenceStart, range.count);
-    metrics.actualRms = rmsRange(actual.values, range.actualStart, range.count);
+    metrics.referenceRms = rmsRange(
+        referenceWindow.values, range.referenceStart, range.count);
+    metrics.actualRms = rmsRange(
+        actualWindow.values, range.actualStart, range.count);
     metrics.rmsError = std::sqrt(errorSquares / static_cast<double>(range.count));
     metrics.normalizedRmsErrorPercent = metrics.referenceRms > tiny
         ? 100.0 * metrics.rmsError / metrics.referenceRms
@@ -606,21 +753,47 @@ bool compareWaveforms(const Waveform& reference,
         for (std::size_t harmonic = 1U; harmonic <= options.harmonicCount; ++harmonic)
         {
             const double frequency = options.fundamentalHz * static_cast<double>(harmonic);
-            if (frequency >= 0.5 * reference.sampleRate)
+            if (frequency >= 0.5 * referenceWindow.sampleRate)
                 break;
-            const double referenceAmplitude = harmonicAmplitude(
-                reference.values, range.referenceStart, range.count,
-                reference.sampleRate, frequency);
-            const double actualAmplitude = harmonicAmplitude(
-                actual.values, range.actualStart, range.count,
-                actual.sampleRate, frequency);
+            const auto referenceComponent = spectralComponent(
+                referenceWindow.values, range.referenceStart, range.count,
+                referenceWindow.sampleRate, frequency);
+            const auto actualComponent = spectralComponent(
+                actualWindow.values, range.actualStart, range.count,
+                actualWindow.sampleRate, frequency);
             metrics.harmonics.push_back({
                 harmonic,
                 frequency,
-                referenceAmplitude,
-                actualAmplitude,
-                amplitudeErrorDb(referenceAmplitude, actualAmplitude)
+                referenceComponent.amplitude,
+                actualComponent.amplitude,
+                amplitudeErrorDb(referenceComponent.amplitude, actualComponent.amplitude),
+                referenceComponent.phaseDegrees,
+                actualComponent.phaseDegrees,
+                wrappedPhaseDifference(actualComponent.phaseDegrees,
+                                       referenceComponent.phaseDegrees)
             });
+        }
+        if (!metrics.harmonics.empty())
+        {
+            double referenceHarmonicPower = 0.0;
+            double actualHarmonicPower = 0.0;
+            for (std::size_t i = 1U; i < metrics.harmonics.size(); ++i)
+            {
+                referenceHarmonicPower += metrics.harmonics[i].referenceAmplitude
+                    * metrics.harmonics[i].referenceAmplitude;
+                actualHarmonicPower += metrics.harmonics[i].actualAmplitude
+                    * metrics.harmonics[i].actualAmplitude;
+            }
+            metrics.referenceThdPercent = metrics.harmonics.front().referenceAmplitude > tiny
+                ? 100.0 * std::sqrt(referenceHarmonicPower)
+                    / metrics.harmonics.front().referenceAmplitude
+                : 0.0;
+            metrics.actualThdPercent = metrics.harmonics.front().actualAmplitude > tiny
+                ? 100.0 * std::sqrt(actualHarmonicPower)
+                    / metrics.harmonics.front().actualAmplitude
+                : 0.0;
+            metrics.thdErrorDb = amplitudeErrorDb(
+                metrics.referenceThdPercent, metrics.actualThdPercent);
         }
     }
 

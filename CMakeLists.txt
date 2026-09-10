@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.18.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.20.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -110,6 +110,7 @@ if(BUILD_TESTING)
             --signal sine
             --frequency 110
             --amplitude 0.1
+            --warmup 0.005
             --node B1
             --node C1
     )
@@ -121,6 +122,8 @@ if(BUILD_TESTING)
             --max-lag 8
             --max-nrms 0.000001
             --max-peak 0.000001
+            --min-correlation 0.999999
+            --max-gain-db 0.000001
     )
     set_tests_properties(validation_cli_compare_internal_node_self PROPERTIES
         DEPENDS validation_cli_render_internal_nodes
