@@ -11,11 +11,14 @@ namespace {
 
 constexpr std::uint64_t timingStride = 64;
 
+// Preserve normal/non-GUI behaviour at 4x so existing validation continues to
+// exercise the production oversampled path. The diagnostic macOS overlay
+// explicitly requests 1x before live audio is started.
 std::atomic<std::uint32_t> requestedModeRaw {
-    static_cast<std::uint32_t>(GenericProcessingMode::OneX)
+    static_cast<std::uint32_t>(GenericProcessingMode::FourX)
 };
 std::atomic<std::uint32_t> activeModeRaw {
-    static_cast<std::uint32_t>(GenericProcessingMode::OneX)
+    static_cast<std::uint32_t>(GenericProcessingMode::FourX)
 };
 std::atomic<std::uint64_t> hostSamplesProcessed { 0 };
 std::atomic<std::uint64_t> hostSolveFailures { 0 };
