@@ -753,6 +753,109 @@ void testTs10RepositoryModel()
 #endif
 }
 
+void testAnimatoRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Animato validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/animato_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Animato model did not load: " + error);
+    expect(document.controls.size() == 5,
+           "Animato did not expose Bias, Boost, Distortion, Tone and Volume");
+
+    std::size_t bias = document.controls.size();
+    std::size_t boost = document.controls.size();
+    std::size_t distortion = document.controls.size();
+    std::size_t tone = document.controls.size();
+    std::size_t volume = document.controls.size();
+    for (std::size_t i = 0; i < document.controls.size(); ++i)
+    {
+        const auto& name = document.controls[i].name;
+        if (name == "BIAS") bias = i;
+        else if (name == "BOOST") boost = i;
+        else if (name == "DISTORTION") distortion = i;
+        else if (name == "TONE") tone = i;
+        else if (name == "VOLUME") volume = i;
+    }
+
+    expect(bias < document.controls.size(), "Animato Bias control missing");
+    expect(boost < document.controls.size(), "Animato Boost control missing");
+    expect(distortion < document.controls.size(), "Animato Distortion control missing");
+    expect(tone < document.controls.size(), "Animato Tone control missing");
+    expect(volume < document.controls.size(), "Animato Volume control missing");
+
+    if (bias < document.controls.size())
+    {
+        expect(document.controls[bias].kind
+                   == circuitpedal::CircuitFileControlKind::Switch,
+               "Animato Bias was not parsed as a switch");
+        expect(document.controls[bias].linkedSwitchIndices.size() == 1,
+               "Animato Bias did not retain its second linked switch pole");
+    }
+    if (distortion < document.controls.size())
+    {
+        expect(document.controls[distortion].linkedPotentiometerIndices.size() == 1,
+               "Animato Distortion did not retain its second pot gang");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Animato did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    int failureCount = 0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        if (n == 6000 && bias < document.controls.size())
+        {
+            const auto& control = document.controls[bias];
+            expect(circuit.setSwitchPosition(control.switchIndex, 1),
+                   "Animato primary Bias pole could not move");
+            for (const std::size_t linked : control.linkedSwitchIndices)
+                expect(circuit.setSwitchPosition(linked, 1),
+                       "Animato linked Bias pole could not move");
+        }
+        if (n == 12000 && distortion < document.controls.size())
+        {
+            const auto& control = document.controls[distortion];
+            expect(circuit.setPotentiometerPosition(
+                       control.potentiometerIndex, 0.9),
+                   "Animato Distortion primary gang could not move");
+            for (const std::size_t linked : control.linkedPotentiometerIndices)
+                expect(circuit.setPotentiometerPosition(linked, 0.9),
+                       "Animato Distortion linked gang could not move");
+        }
+        if (n == 18000 && tone < document.controls.size())
+        {
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[tone].potentiometerIndex, 0.8),
+                   "Animato Tone could not move");
+        }
+
+        const float input = static_cast<float>(
+            0.35 * std::sin(2.0 * pi * 82.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Animato produced non-finite audio");
+        if (!circuit.lastSolveConverged())
+            ++failureCount;
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(failureCount == 0,
+           "Animato nonlinear solve failed during live-control sweep");
+    expect(peak > 1.0e-6, "Animato produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -796,6 +899,7 @@ int main()
     testFatFuzzFactoryRepositoryModel();
     testFuzzoloRepositoryModel();
     testTs10RepositoryModel();
+    testAnimatoRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)

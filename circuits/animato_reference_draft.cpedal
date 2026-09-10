@@ -1,0 +1,106 @@
+CPEDAL 1
+NAME "Human Gear Animato Reference Draft"
+
+# Reconstructed from the supplied Effects Layouts Animato board drawing and
+# cross-checked against the Aion Polaris schematic (an Animato adaptation).
+# The original semiconductor designators are retained: NTE103/NTE102 germanium
+# for the Sziklai Rangemaster front end and 2SC2240 for the five silicon stages.
+#
+# DISTORTION is a physical dual-gang 100k audio pot. BIAS is a two-position
+# mechanically linked two-pole switch that inserts a second 100k base-bias
+# resistor and a second 4k7 emitter resistor in parallel.
+#
+# BOOST is the internal 10k linear trimmer from the traced circuit. It is exposed
+# in CircuitPedal so the Rangemaster stage can be explored during validation.
+# Power protection/LED/bypass switching are omitted from the engaged audio model.
+
+V VCCSRC VA 0 9
+AUDIO GUITAR INPUT 0 0.20
+
+# Input and complementary-feedback (Sziklai) Rangemaster stage.
+R R1 INPUT 0 1M
+C C1 INPUT Q1B 10n
+R R2 Q1B 0 100k
+R R3 VA Q1B 680k
+
+# Q1 NPN drives Q2 PNP. Q2 collector feeds back to the Q1 emitter node.
+Q Q1 Q2B Q1B PAIR_E NTE103
+PNP Q2 PAIR_E Q2B PAIR_C NTE102
+
+# Always-present bias resistors plus the switchable parallel pair.
+R R4 Q1B BIAS_BASE 100k
+SWITCH BIAS SPST BIAS_BASE 0 OFF "Normal" "Alt Bias"
+R R5 PAIR_E BIAS_EMITTER 4k7
+SWITCH_LINK BIAS BIAS_EMITTER 0
+R R6 PAIR_E 0 4k7
+C C2 PAIR_E 0 2.2u
+
+# Rangemaster collector/boost control and first Distortion gang.
+POT BOOST PAIR_C BOOST_W VA 10k LIN 0.65
+C C3 BOOST_W DISTA_3 6.8n
+POT DISTORTION 0 DISTA_W DISTA_3 100k LOG 0.65
+R R7 DISTA_W 0 470k
+R R8 DISTA_W Q3_IN 33k
+C C4 Q3_IN Q3B 10u
+
+# Q3: first Big Muff boost stage.
+R R9 Q3B 0 100k
+R R10 Q3B Q3C 470k
+C C5 Q3B Q3C 470p
+R R11 VA Q3C 10k
+R R12 Q3E 0 470
+Q Q3 Q3C Q3B Q3E 2SC2240
+
+# Second Distortion gang controls the level leaving Q3.
+C C6 Q3C DISTB_3 470n
+POT_LINK DISTORTION 0 DISTB_W DISTB_3 100k LOG
+C C7 DISTB_W Q4_IN 470n
+R R13 Q4_IN Q4B 10k
+
+# Q4: first diode-clipping Muff stage.
+R R14 Q4B 0 100k
+R R15 Q4B Q4C 470k
+C C8 Q4B Q4C 470p
+C C9 Q4B Q4CLIP 100n
+D D2 Q4CLIP Q4C 1N914
+D D3 Q4C Q4CLIP 1N914
+R R16 VA Q4C 10k
+R R17 Q4E 0 100
+Q Q4 Q4C Q4B Q4E 2SC2240
+
+# Q5: second diode-clipping Muff stage.
+C C10 Q4C Q5_IN 10u
+R R18 Q5_IN Q5B 10k
+R R19 Q5B 0 100k
+R R20 Q5B Q5C 470k
+C C11 Q5B Q5C 470p
+C C12 Q5B Q5CLIP 100n
+D D4 Q5CLIP Q5C 1N914
+D D5 Q5C Q5CLIP 1N914
+R R21 VA Q5C 15k
+R R22 Q5E 0 100
+Q Q5 Q5C Q5B Q5E 2SC2240
+
+# Classic Big Muff passive tone network.
+R R23 Q5C TONE_1 39k
+C C14 TONE_1 0 10n
+C C13 Q5C TONE_3 4.7n
+R R24 TONE_3 0 100k
+POT TONE TONE_1 TONE_W TONE_3 100k LIN 0.50
+C C15 TONE_W Q6B 1u
+
+# Recovery gain stage.
+R R25 VA Q6B 470k
+R R26 Q6B 0 100k
+R R27 VA Q6C 10k
+R R28 Q6E 0 2k2
+Q Q6 Q6C Q6B Q6E 2SC2240
+
+# Emitter-follower output buffer.
+Q Q7 VA Q6C Q7E 2SC2240
+R R29 Q7E 0 12k
+C C16 Q7E VOL_3 10u
+R R30 VOL_3 0 100k
+POT VOLUME 0 OUT VOL_3 100k LIN 0.55
+
+OUTPUT OUT 0.5
