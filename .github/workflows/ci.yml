@@ -54,6 +54,13 @@ jobs:
             --node Q1_BASE --node Q1_COLLECTOR \
             --node Q2_EMITTER --node Q2_COLLECTOR --node RECT_BIAS \
             --node Q3_BASE --node Q3_EMITTER --node OUT
+          echo "=== Blueberry Bass Overdrive ==="
+          ./build/circuitpedal_validate dc \
+            circuits/blueberry_bass_overdrive_reference_draft.cpedal \
+            --sample-rate 48000 \
+            --control DRIVE=0.55 --control TONE=0.5 --control VOLUME=0.55 \
+            --node VA --node VB --node OP_PLUS --node OP_MINUS --node OP_OUT \
+            --node CLAMP_A --node CLAMP_B --node Q1G --node Q1D --node Q1S --node OUT
           echo "=== Animato ==="
           ./build/circuitpedal_validate dc \
             circuits/animato_reference_draft.cpedal \
