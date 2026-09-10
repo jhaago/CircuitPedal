@@ -23,7 +23,9 @@ struct CircuitFileControl {
     std::vector<std::size_t> linkedPotentiometerIndices;
 
     CircuitFileControlKind kind = CircuitFileControlKind::Potentiometer;
+    CircuitSwitchMode switchMode = CircuitSwitchMode::Spst;
     std::size_t switchIndex = 0;
+    std::vector<std::size_t> linkedSwitchIndices;
     std::uint32_t switchPositionCount = 0;
     std::uint32_t initialSwitchPosition = 0;
     std::vector<std::string> switchPositionNames;

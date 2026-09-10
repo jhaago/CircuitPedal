@@ -19,6 +19,7 @@ real pedal circuits have reached each validation stage.
 | Op-amp | Working, compact dynamic | Finite open-loop gain, dominant-pole GBW, slew-rate and supply-rail limiting |
 | SPST/SPDT/on-off-on switch | Working | Live discrete conductance switching in the generic solver |
 | Linked / dual-gang pot | Working | `POT_LINK` maps multiple electrical gangs to one live control |
+| Linked / multi-pole switch | Working | `SWITCH_LINK` maps DPDT or larger mechanical switches to one live control |
 | P-channel JFET/MOSFET | Not yet | Add when a reference circuit needs it |
 | Inductor / transformer | Not yet | Later |
 | Full SPICE/Gummel-Poon semiconductor model | Not yet | Fidelity phase |
@@ -112,6 +113,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Fuzzolo — converted and CI-validated with Pulse Width, Volume and a live Passive/Active pickup selector.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
+- Human Gear Animato — newly supplied reference; dual-gang Distortion and DPDT Bias controls are now representable. NTE102/NTE103 germanium and 2SC2240 model aliases are the next device-library step before netlist conversion.
 
 ## Conversion rule
 

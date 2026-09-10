@@ -222,6 +222,56 @@ OUTPUT OUT 1
            "parsed switch circuit did not compile: " + error);
 }
 
+void testLinkedSwitchParsing()
+{
+    const char* linkedSwitchCircuit = R"CPEDAL(
+CPEDAL 1
+NAME "Linked DPDT Test"
+V VA VA 0 1
+V VB VB 0 0.25
+R RA OUT_A 0 10k
+R RB OUT_B 0 10k
+SWITCH BIAS SPDT OUT_A VA VB A "Mode A" "Mode B"
+SWITCH_LINK BIAS OUT_B VB VA
+OUTPUT OUT_A 1
+)CPEDAL";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::parseCircuitFileText(
+               linkedSwitchCircuit, document, error),
+           "linked-switch circuit did not parse: " + error);
+    expect(document.controls.size() == 1,
+           "linked switch incorrectly created a second GUI control");
+    expect(document.definition.switchCount() == 2,
+           "SWITCH_LINK did not create the second electrical pole");
+    if (document.controls.size() == 1)
+    {
+        const auto& control = document.controls[0];
+        expect(control.kind == circuitpedal::CircuitFileControlKind::Switch,
+               "linked switch primary control kind mismatch");
+        expect(control.switchMode == circuitpedal::CircuitSwitchMode::Spdt,
+               "linked switch did not retain SPDT mode");
+        expect(control.linkedSwitchIndices.size() == 1,
+               "linked switch index was not attached to primary control");
+
+        circuitpedal::GenericCircuit circuit;
+        expect(circuit.compile(document.definition, 48000.0, error),
+               "linked-switch circuit did not compile: " + error);
+        if (circuit.switchCount() == 2)
+        {
+            expect(circuit.setSwitchPosition(control.switchIndex, 1),
+                   "primary linked switch pole could not move");
+            expect(circuit.setSwitchPosition(control.linkedSwitchIndices[0], 1),
+                   "secondary linked switch pole could not move");
+            (void)circuit.processSample(0.0f);
+            expect(circuit.switchPosition(control.switchIndex) == 1
+                   && circuit.switchPosition(control.linkedSwitchIndices[0]) == 1,
+                   "linked switch poles did not share requested position");
+        }
+    }
+}
+
 void testParserFailures()
 {
     circuitpedal::CircuitFileDocument document;
@@ -254,6 +304,12 @@ void testParserFailures()
                document,
                error),
            "out-of-range switch position was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nSWITCH_LINK MISSING A B C\nOUTPUT A\n",
+               document,
+               error),
+           "SWITCH_LINK to an unknown control was accepted");
 }
 
 void testRepositoryWoollyReference()
@@ -717,6 +773,7 @@ int main()
     testParseAndCompile();
     testLinkedPotentiometerParsing();
     testSwitchParsing();
+    testLinkedSwitchParsing();
     testParserFailures();
     testRepositoryWoollyReference();
     testBigMuffRepositoryModels();

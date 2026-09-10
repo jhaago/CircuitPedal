@@ -660,13 +660,24 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                         std::max<std::uint32_t>(2U, mapping.switchPositionCount);
                     const auto position = static_cast<std::uint32_t>(
                         std::llround(value * static_cast<double>(positions - 1U)));
+                    const std::uint32_t boundedPosition =
+                        std::min(position, positions - 1U);
                     if (!configuredDefinition.setSwitchPosition(
-                            mapping.switchIndex,
-                            std::min(position, positions - 1U)))
+                            mapping.switchIndex, boundedPosition))
                     {
                         error = "Could not apply switch control before DC bias solve.";
                         stop();
                         return false;
+                    }
+                    for (const std::size_t linked : mapping.linkedSwitchIndices)
+                    {
+                        if (!configuredDefinition.setSwitchPosition(
+                                linked, boundedPosition))
+                        {
+                            error = "Could not apply linked switch pole before DC bias solve.";
+                            stop();
+                            return false;
+                        }
                     }
                     continue;
                 }
@@ -880,9 +891,17 @@ bool MacAudioEngine::setCircuitControl(std::size_t index, float normalized) noex
             const auto position = static_cast<std::uint32_t>(
                 std::llround(static_cast<double>(stored)
                              * static_cast<double>(positions - 1U)));
-            return impl_->genericCircuit.setSwitchPosition(
-                mapping.switchIndex,
-                std::min(position, positions - 1U));
+            const std::uint32_t boundedPosition =
+                std::min(position, positions - 1U);
+            bool ok = impl_->genericCircuit.setSwitchPosition(
+                mapping.switchIndex, boundedPosition);
+            for (const std::size_t linked : mapping.linkedSwitchIndices)
+            {
+                ok = impl_->genericCircuit.setSwitchPosition(
+                         linked, boundedPosition)
+                    && ok;
+            }
+            return ok;
         }
 
         bool ok = impl_->genericCircuit.setPotentiometerPosition(

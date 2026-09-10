@@ -893,12 +893,63 @@ bool parseCircuitFileText(const std::string& text,
             CircuitFileControl control;
             control.name = tokens[1];
             control.kind = CircuitFileControlKind::Switch;
+            control.switchMode = mode;
             control.switchIndex = switchIndex;
             control.switchPositionCount =
                 mode == CircuitSwitchMode::OnOffOn ? 3U : 2U;
             control.initialSwitchPosition = position;
             control.switchPositionNames = std::move(labels);
             parsed.controls.push_back(std::move(control));
+        }
+        else if (command == "SWITCH_LINK")
+        {
+            if (tokens.size() != 4 && tokens.size() != 5)
+            {
+                error = lineError(lineNumber,
+                    "SWITCH_LINK syntax: SWITCH_LINK <existing-switch-name> "
+                    "<a> <b> for SPST, or <common> <throw-a> <throw-b> "
+                    "for SPDT/ONOFFON.");
+                return false;
+            }
+
+            const auto control = std::find_if(
+                parsed.controls.begin(),
+                parsed.controls.end(),
+                [&tokens](const CircuitFileControl& candidate) {
+                    return candidate.name == tokens[1];
+                });
+            if (control == parsed.controls.end()
+                || control->kind != CircuitFileControlKind::Switch)
+            {
+                error = lineError(lineNumber,
+                    "SWITCH_LINK references unknown/non-switch control '"
+                    + tokens[1] + "'.");
+                return false;
+            }
+
+            const bool spst = control->switchMode == CircuitSwitchMode::Spst;
+            if ((spst && tokens.size() != 4)
+                || (!spst && tokens.size() != 5))
+            {
+                error = lineError(lineNumber,
+                    spst
+                        ? "Linked SPST needs two electrical nodes."
+                        : "Linked SPDT/ONOFFON needs common and two throw nodes.");
+                return false;
+            }
+
+            const CircuitNode common = nodeFor(parsed.definition, tokens[2]);
+            const CircuitNode throwA = nodeFor(parsed.definition, tokens[3]);
+            const CircuitNode throwB = spst
+                ? circuitGround
+                : nodeFor(parsed.definition, tokens[4]);
+            const auto index = parsed.definition.addSwitch(
+                control->switchMode,
+                common,
+                throwA,
+                throwB,
+                control->initialSwitchPosition);
+            control->linkedSwitchIndices.push_back(index);
         }
         else if (command == "POT")
         {
@@ -952,10 +1003,12 @@ bool parseCircuitFileText(const std::string& text,
                 [&tokens](const CircuitFileControl& candidate) {
                     return candidate.name == tokens[1];
                 });
-            if (control == parsed.controls.end())
+            if (control == parsed.controls.end()
+                || control->kind != CircuitFileControlKind::Potentiometer)
             {
                 error = lineError(lineNumber,
-                    "POT_LINK references unknown control '" + tokens[1] + "'.");
+                    "POT_LINK references unknown/non-pot control '"
+                    + tokens[1] + "'.");
                 return false;
             }
 

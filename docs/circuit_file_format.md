@@ -1,4 +1,4 @@
-# CircuitPedal .cpedal format — V0.11
+# CircuitPedal .cpedal format — V0.15
 
 The circuit file is intentionally small and human-readable. It is designed
 so a reviewed schematic can be translated into a circuit definition without
@@ -41,6 +41,8 @@ POT_LINK <existing-control-name> <terminal1> <wiper> <terminal3> <resistance> <t
 SWITCH <name> SPST <a> <b> <initial> [<off-label> <on-label>]
 SWITCH <name> SPDT <common> <throw-a> <throw-b> <initial> [<a-label> <b-label>]
 SWITCH <name> ONOFFON <common> <throw-a> <throw-b> <initial> [<a-label> <off-label> <b-label>]
+SWITCH_LINK <existing-switch-name> <a> <b>
+SWITCH_LINK <existing-switch-name> <common> <throw-a> <throw-b>
 
 OUTPUT <node> [digital-full-scale-per-volt]
 ```
@@ -94,11 +96,18 @@ switch remains in the MNA topology at every position: closed contacts use a very
 low resistance and open contacts use a finite very-high resistance. That avoids
 rebuilding or allocating a new circuit topology in the real-time callback.
 
+For DPDT and other mechanically linked multi-pole switches, define the first
+electrical pole with `SWITCH` and add the remaining pole(s) with `SWITCH_LINK`.
+The linked pole inherits the primary switch mode and initial position and follows
+the same GUI control. SPST links use two nodes; SPDT and ONOFFON links use a
+common node plus two throws. This is the switch equivalent of `POT_LINK` and is
+intended for circuits such as the Human Gear Animato's DPDT Bias switch.
+
 ## Built-in device models
 
-V0.9 adds compact named aliases for common pedal parts.
+The current format includes compact named aliases for common pedal parts.
 
-- NPN: `2N3904`, `2N2222A`, `2N5088`, `2N5133`, `BC239C`,
+- NPN: `2N3904`, `2SC1815`, `2N2222A`, `2N5088`, `2N5133`, `BC239C`,
   `BC550C`, `KT3102E`
 - PNP: `AC128`, `2N1308`, `GENERIC_PNP`
 - N-JFET: `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
@@ -107,9 +116,9 @@ V0.9 adds compact named aliases for common pedal parts.
 - diode: `1N4148`, `1N914`, `KD521`, `1N34A`, `1N6263`
 
 These are compact real-time solver models. They are deliberately not described
-as complete manufacturer SPICE models. The op-amp model in particular is still
-an early static high-gain/rail-limited device; GBW, slew-rate, output-current and
-input-bias refinements remain fidelity work.
+as complete manufacturer SPICE models. The op-amp aliases now include finite
+gain-bandwidth and slew-rate behaviour; output-current, detailed input-stage
+behaviour and manufacturer macromodel fitting remain fidelity work.
 
 ## macOS loading workflow
 
