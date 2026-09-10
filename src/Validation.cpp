@@ -1,6 +1,7 @@
 #include "Validation.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -291,21 +292,34 @@ bool loadWaveformCsv(const std::string& path,
     }
 
     const auto headers = splitCsvLine(line);
+    std::vector<std::string> normalizedHeaders;
+    normalizedHeaders.reserve(headers.size());
+    for (const auto& header : headers)
+        normalizedHeaders.push_back(lower(trim(header)));
+
     std::size_t timeColumn = headers.size();
+    for (std::size_t i = 0; i < normalizedHeaders.size(); ++i)
+    {
+        if (normalizedHeaders[i] == "time_s" || normalizedHeaders[i] == "time")
+        {
+            timeColumn = i;
+            break;
+        }
+    }
+
     std::size_t valueColumn = headers.size();
     const std::vector<std::string> valueNames {
         "output_v", "output_volts", "output", "value", "v(out)"
     };
-
-    for (std::size_t i = 0; i < headers.size(); ++i)
+    for (const auto& preferredName : valueNames)
     {
-        const std::string name = lower(trim(headers[i]));
-        if (name == "time_s" || name == "time")
-            timeColumn = i;
-        if (valueColumn == headers.size()
-            && std::find(valueNames.begin(), valueNames.end(), name) != valueNames.end())
+        const auto found = std::find(
+            normalizedHeaders.begin(), normalizedHeaders.end(), preferredName);
+        if (found != normalizedHeaders.end())
         {
-            valueColumn = i;
+            valueColumn = static_cast<std::size_t>(
+                std::distance(normalizedHeaders.begin(), found));
+            break;
         }
     }
 
@@ -348,7 +362,8 @@ bool loadWaveformCsv(const std::string& path,
 
     double deltaSum = 0.0;
     std::size_t deltaCount = 0U;
-    const std::size_t checkCount = std::min<std::size_t>(waveform.timeSeconds.size() - 1U, 1024U);
+    const std::size_t checkCount = std::min<std::size_t>(
+        waveform.timeSeconds.size() - 1U, 1024U);
     for (std::size_t i = 0; i < checkCount; ++i)
     {
         const double delta = waveform.timeSeconds[i + 1U] - waveform.timeSeconds[i];
