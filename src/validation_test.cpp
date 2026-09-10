@@ -143,10 +143,10 @@ void testCsvLoadingPrefersOutputVolts()
     const std::string path = "validation_test_waveform.csv";
     {
         std::ofstream output(path);
-        output << "sample,time_s,input_fs,output_v,output_fs,converged\n";
-        output << "0,0.0,0.0,1.25,0.1,1\n";
-        output << "1,0.001,0.0,1.50,0.2,1\n";
-        output << "2,0.002,0.0,1.75,0.3,1\n";
+        output << "sample,time_s,input_fs,output_v,output_fs,converged,node_B1_v\n";
+        output << "0,0.0,0.0,1.25,0.1,1,0.55\n";
+        output << "1,0.001,0.0,1.50,0.2,1,0.56\n";
+        output << "2,0.002,0.0,1.75,0.3,1,0.57\n";
     }
 
     circuitpedal::validation::Waveform waveform;
@@ -161,6 +161,51 @@ void testCsvLoadingPrefersOutputVolts()
         expect(near(waveform.sampleRate, 1000.0, 1.0e-9),
                "CSV sample-rate inference was incorrect");
     }
+
+    circuitpedal::validation::Waveform nodeWaveform;
+    expect(circuitpedal::validation::loadWaveformCsv(
+               path, "NODE_b1_V", nodeWaveform, error),
+           "named internal-node CSV column could not be loaded: " + error);
+    if (nodeWaveform.values.size() == 3U)
+    {
+        expect(near(nodeWaveform.values[0], 0.55, 1.0e-12),
+               "named CSV column did not select the internal-node trace");
+        expect(near(nodeWaveform.values[2], 0.57, 1.0e-12),
+               "named CSV column returned the wrong final sample");
+    }
+
+    circuitpedal::validation::Waveform missing;
+    expect(!circuitpedal::validation::loadWaveformCsv(
+               path, "node_missing_v", missing, error),
+           "missing named CSV column was accepted");
+    (void)std::remove(path.c_str());
+}
+
+void testDcReferenceLoading()
+{
+    const std::string path = "validation_test_dc_reference.csv";
+    {
+        std::ofstream output(path);
+        output << "node,expected_v,relative_tolerance_percent,absolute_tolerance_v,notes\n";
+        output << "B1,0.58,10,0.01,base\n";
+        output << "C1_NODE,1.20,15,0,collector\n";
+    }
+
+    std::vector<circuitpedal::validation::DcReferencePoint> points;
+    std::string error;
+    expect(circuitpedal::validation::loadDcReferenceCsv(path, points, error),
+           "DC reference CSV could not be loaded: " + error);
+    expect(points.size() == 2U, "DC reference point count was incorrect");
+    if (points.size() == 2U)
+    {
+        expect(points[0].nodeName == "B1", "DC reference node name mismatch");
+        expect(near(points[0].expectedVolts, 0.58, 1.0e-12),
+               "DC reference expected voltage mismatch");
+        expect(near(points[0].relativeTolerancePercent, 10.0, 1.0e-12),
+               "DC reference relative tolerance mismatch");
+        expect(near(points[0].absoluteToleranceVolts, 0.01, 1.0e-12),
+               "DC reference absolute tolerance mismatch");
+    }
     (void)std::remove(path.c_str());
 }
 
@@ -173,6 +218,7 @@ int main()
     testDelayAlignment();
     testGainError();
     testCsvLoadingPrefersOutputVolts();
+    testDcReferenceLoading();
 
     if (failures != 0)
     {

@@ -100,6 +100,54 @@ if(BUILD_TESTING)
     set_tests_properties(validation_cli_compare_self PROPERTIES
         DEPENDS validation_cli_render
     )
+
+    add_test(NAME validation_cli_render_internal_nodes
+        COMMAND circuitpedal_validate render
+            "${CMAKE_CURRENT_SOURCE_DIR}/circuits/two_transistor_fuzz_demo.cpedal"
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_node_smoke.csv"
+            --sample-rate 48000
+            --seconds 0.02
+            --signal sine
+            --frequency 110
+            --amplitude 0.1
+            --node B1
+            --node C1
+    )
+    add_test(NAME validation_cli_compare_internal_node_self
+        COMMAND circuitpedal_validate compare
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_node_smoke.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_node_smoke.csv"
+            --column node_B1_v
+            --max-lag 8
+            --max-nrms 0.000001
+            --max-peak 0.000001
+    )
+    set_tests_properties(validation_cli_compare_internal_node_self PROPERTIES
+        DEPENDS validation_cli_render_internal_nodes
+    )
+
+    add_test(NAME validation_cli_dc_smoke
+        COMMAND circuitpedal_validate dc
+            "${CMAKE_CURRENT_SOURCE_DIR}/circuits/woolly_mammoth_reference_draft.cpedal"
+            --source VCCSRC=9.33
+            --control WOOL=1
+            --control PINCH=1
+            --node B1
+            --node C1_NODE
+            --node E2
+            --node C2_NODE
+    )
+
+    add_test(NAME woolly_working_board_dc_reference
+        COMMAND circuitpedal_validate dc-check
+            "${CMAKE_CURRENT_SOURCE_DIR}/circuits/woolly_mammoth_reference_draft.cpedal"
+            "${CMAKE_CURRENT_SOURCE_DIR}/validation/woolly_mammoth/working_board_dc.csv"
+            --source VCCSRC=9.33
+            --control WOOL=1
+            --control PINCH=1
+            --control EQ=1
+            --control OUTPUT=1
+    )
 endif()
 
 if(APPLE)

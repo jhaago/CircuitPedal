@@ -5,24 +5,41 @@
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstdlib>
+#include <cstdint>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace {
 
+using circuitpedal::CircuitDefinition;
 using circuitpedal::CircuitFileControlKind;
 using circuitpedal::CircuitFileDocument;
+using circuitpedal::CircuitNode;
 using circuitpedal::GenericCircuit;
 using circuitpedal::validation::ComparisonMetrics;
 using circuitpedal::validation::ComparisonOptions;
-using circuitpedal::validation::RenderedSample;
+using circuitpedal::validation::DcReferencePoint;
 using circuitpedal::validation::SignalConfiguration;
 using circuitpedal::validation::SignalKind;
 using circuitpedal::validation::Waveform;
+
+struct CircuitStateOptions {
+    double sampleRate = 192000.0;
+    std::vector<std::pair<std::string, double>> potOverrides;
+    std::vector<std::pair<std::string, std::size_t>> switchOverrides;
+    std::vector<std::pair<std::string, double>> sourceOverrides;
+};
+
+struct NodeProbe {
+    std::string name;
+    std::string columnName;
+    CircuitNode node = circuitpedal::circuitGround;
+};
 
 std::string upper(std::string text)
 {
@@ -77,6 +94,29 @@ bool splitAssignment(const std::string& text,
     return true;
 }
 
+bool validSampleRate(double sampleRate) noexcept
+{
+    return std::isfinite(sampleRate)
+        && sampleRate >= 8000.0
+        && sampleRate <= 384000.0;
+}
+
+std::string probeColumnName(const std::string& nodeName)
+{
+    std::string result = "node_";
+    result.reserve(nodeName.size() + 7U);
+    for (char raw : nodeName)
+    {
+        const auto c = static_cast<unsigned char>(raw);
+        if (std::isalnum(c) != 0 || raw == '_')
+            result.push_back(raw);
+        else
+            result.push_back('_');
+    }
+    result += "_v";
+    return result;
+}
+
 void printUsage()
 {
     std::cout
@@ -92,10 +132,22 @@ void printUsage()
         << "  --frequency2 <Hz>        dualtone second tone, default 1000\n"
         << "  --sweep-end <Hz>         logsweep end, default 12000\n"
         << "  --control NAME=0..1      set a pot before the DC solve; repeatable\n"
-        << "  --switch NAME=POSITION   set a switch before the DC solve; repeatable\n\n"
+        << "  --switch NAME=POSITION   set a switch before the DC solve; repeatable\n"
+        << "  --source NAME=VOLTS      override a named fixed V source for validation\n"
+        << "  --node NAME              export an internal node-voltage column; repeatable\n\n"
+        << "Print a circuit DC operating point:\n"
+        << "  circuitpedal_validate dc <circuit.cpedal> [options]\n"
+        << "  Uses --sample-rate/--control/--switch/--source and optional --node NAME.\n"
+        << "  With no --node arguments, every circuit node is printed.\n\n"
+        << "Check a DC operating point against a reference table:\n"
+        << "  circuitpedal_validate dc-check <circuit.cpedal> <reference.csv> [options]\n"
+        << "  Uses --sample-rate/--control/--switch/--source.\n\n"
         << "Compare two uniformly sampled waveform CSV files:\n"
         << "  circuitpedal_validate compare <reference.csv> <actual.csv> [options]\n\n"
         << "Compare options:\n"
+        << "  --column <name>          use this value column in both CSV files\n"
+        << "  --reference-column <n>  select the reference CSV value column\n"
+        << "  --actual-column <name>   select the actual CSV value column\n"
         << "  --max-lag <samples>      integer alignment search range\n"
         << "  --fundamental <Hz>       report harmonic amplitude errors\n"
         << "  --harmonics <count>      default 5 when --fundamental is used\n"
@@ -197,6 +249,238 @@ bool applySwitchOverride(CircuitFileDocument& document,
     return false;
 }
 
+bool parseStateOption(const std::string& option,
+                      const std::string& value,
+                      CircuitStateOptions& state,
+                      std::string& error)
+{
+    if (option == "--sample-rate")
+    {
+        if (!parseDouble(value, state.sampleRate) || !validSampleRate(state.sampleRate))
+        {
+            error = "Sample rate must be from 8 kHz to 384 kHz.";
+            return false;
+        }
+        return true;
+    }
+    if (option == "--control")
+    {
+        std::string name;
+        std::string positionText;
+        double position = 0.0;
+        if (!splitAssignment(value, name, positionText)
+            || !parseDouble(positionText, position)
+            || position < 0.0 || position > 1.0)
+        {
+            error = "Expected --control NAME=0..1";
+            return false;
+        }
+        state.potOverrides.emplace_back(name, position);
+        return true;
+    }
+    if (option == "--switch")
+    {
+        std::string name;
+        std::string positionText;
+        std::size_t position = 0U;
+        if (!splitAssignment(value, name, positionText)
+            || !parseUnsigned(positionText, position))
+        {
+            error = "Expected --switch NAME=POSITION";
+            return false;
+        }
+        state.switchOverrides.emplace_back(name, position);
+        return true;
+    }
+    if (option == "--source")
+    {
+        std::string name;
+        std::string voltsText;
+        double volts = 0.0;
+        if (!splitAssignment(value, name, voltsText)
+            || !parseDouble(voltsText, volts)
+            || std::abs(volts) > 1000.0)
+        {
+            error = "Expected --source NAME=VOLTS with magnitude no greater than 1000 V";
+            return false;
+        }
+        state.sourceOverrides.emplace_back(name, volts);
+        return true;
+    }
+    error = "Unknown circuit-state option: " + option;
+    return false;
+}
+
+bool isStateOption(const std::string& option) noexcept
+{
+    return option == "--sample-rate"
+        || option == "--control"
+        || option == "--switch"
+        || option == "--source";
+}
+
+bool loadCircuitWithSourceOverrides(const std::string& circuitPath,
+                                    const CircuitStateOptions& state,
+                                    CircuitFileDocument& document,
+                                    std::string& error)
+{
+    if (state.sourceOverrides.empty())
+        return circuitpedal::loadCircuitFile(circuitPath, document, error);
+
+    std::ifstream input(circuitPath);
+    if (!input)
+    {
+        error = "Could not open circuit file: " + circuitPath;
+        return false;
+    }
+
+    std::vector<std::size_t> matchCounts(state.sourceOverrides.size(), 0U);
+    std::ostringstream rebuilt;
+    std::string rawLine;
+    while (std::getline(input, rawLine))
+    {
+        std::string code = rawLine;
+        const auto comment = code.find('#');
+        if (comment != std::string::npos)
+            code.erase(comment);
+
+        std::istringstream lineStream(code);
+        std::string command;
+        std::string id;
+        std::string positive;
+        std::string negative;
+        std::string value;
+        if (lineStream >> command >> id >> positive >> negative >> value
+            && upper(command) == "V")
+        {
+            bool replaced = false;
+            for (std::size_t i = 0; i < state.sourceOverrides.size(); ++i)
+            {
+                if (upper(id) != upper(state.sourceOverrides[i].first))
+                    continue;
+                ++matchCounts[i];
+                rebuilt << "V " << id << ' ' << positive << ' ' << negative << ' '
+                        << std::setprecision(17) << state.sourceOverrides[i].second << '\n';
+                replaced = true;
+                break;
+            }
+            if (replaced)
+                continue;
+        }
+        rebuilt << rawLine << '\n';
+    }
+
+    for (std::size_t i = 0; i < state.sourceOverrides.size(); ++i)
+    {
+        if (matchCounts[i] == 0U)
+        {
+            error = "Unknown fixed voltage source: " + state.sourceOverrides[i].first;
+            return false;
+        }
+        if (matchCounts[i] > 1U)
+        {
+            error = "Duplicate fixed voltage-source id in circuit: "
+                + state.sourceOverrides[i].first;
+            return false;
+        }
+    }
+
+    if (!circuitpedal::parseCircuitFileText(rebuilt.str(), document, error))
+    {
+        error = "Could not parse circuit after validation source override: " + error;
+        return false;
+    }
+    return true;
+}
+
+bool prepareDocument(const std::string& circuitPath,
+                     const CircuitStateOptions& state,
+                     CircuitFileDocument& document,
+                     std::string& error)
+{
+    if (!loadCircuitWithSourceOverrides(circuitPath, state, document, error))
+    {
+        if (error.rfind("Could not", 0U) != 0U && error.rfind("Unknown", 0U) != 0U
+            && error.rfind("Duplicate", 0U) != 0U)
+        {
+            error = "Could not load circuit: " + error;
+        }
+        return false;
+    }
+    for (const auto& overrideValue : state.potOverrides)
+    {
+        if (!applyPotOverride(document, overrideValue.first, overrideValue.second, error))
+            return false;
+    }
+    for (const auto& overrideValue : state.switchOverrides)
+    {
+        if (!applySwitchOverride(document, overrideValue.first, overrideValue.second, error))
+            return false;
+    }
+    return true;
+}
+
+bool resolveNode(const CircuitDefinition& definition,
+                 const std::string& requestedName,
+                 NodeProbe& probe,
+                 std::string& error)
+{
+    const std::string requestedUpper = upper(requestedName);
+    for (std::size_t i = 0; i < definition.nodeCount(); ++i)
+    {
+        const auto node = static_cast<CircuitNode>(i);
+        const std::string& candidate = definition.nodeName(node);
+        if (upper(candidate) == requestedUpper)
+        {
+            probe.name = candidate;
+            probe.columnName = probeColumnName(candidate);
+            probe.node = node;
+            return true;
+        }
+    }
+    error = "Unknown circuit node: " + requestedName;
+    return false;
+}
+
+bool resolveNodes(const CircuitDefinition& definition,
+                  const std::vector<std::string>& requestedNames,
+                  std::vector<NodeProbe>& probes,
+                  std::string& error)
+{
+    probes.clear();
+    if (requestedNames.size() > 64U)
+    {
+        error = "A render may export at most 64 internal nodes.";
+        return false;
+    }
+    for (const auto& requestedName : requestedNames)
+    {
+        NodeProbe probe;
+        if (!resolveNode(definition, requestedName, probe, error))
+            return false;
+        const auto duplicate = std::find_if(
+            probes.begin(), probes.end(),
+            [&probe](const NodeProbe& existing) { return existing.node == probe.node; });
+        if (duplicate != probes.end())
+        {
+            error = "Duplicate circuit node probe: " + probe.name;
+            return false;
+        }
+        const auto duplicateColumn = std::find_if(
+            probes.begin(), probes.end(),
+            [&probe](const NodeProbe& existing) {
+                return upper(existing.columnName) == upper(probe.columnName);
+            });
+        if (duplicateColumn != probes.end())
+        {
+            error = "Node names collide after CSV column normalization: " + probe.name;
+            return false;
+        }
+        probes.push_back(probe);
+    }
+    return true;
+}
+
 int renderCommand(int argc, const char* argv[])
 {
     if (argc < 4)
@@ -208,8 +492,10 @@ int renderCommand(int argc, const char* argv[])
     const std::string circuitPath = argv[2];
     const std::string outputPath = argv[3];
     SignalConfiguration signal;
-    std::vector<std::pair<std::string, double>> potOverrides;
-    std::vector<std::pair<std::string, std::size_t>> switchOverrides;
+    CircuitStateOptions state;
+    state.sampleRate = signal.sampleRate;
+    std::vector<std::string> requestedNodes;
+    std::string error;
 
     for (int i = 4; i < argc; ++i)
     {
@@ -227,11 +513,6 @@ int renderCommand(int argc, const char* argv[])
                 std::cerr << "Unknown signal kind: " << value << '\n';
                 return 2;
             }
-        }
-        else if (option == "--sample-rate")
-        {
-            if (!parseDouble(value, signal.sampleRate))
-                return 2;
         }
         else if (option == "--seconds")
         {
@@ -258,31 +539,18 @@ int renderCommand(int argc, const char* argv[])
             if (!parseDouble(value, signal.sweepEndFrequencyHz))
                 return 2;
         }
-        else if (option == "--control")
+        else if (option == "--node")
         {
-            std::string name;
-            std::string positionText;
-            double position = 0.0;
-            if (!splitAssignment(value, name, positionText)
-                || !parseDouble(positionText, position))
-            {
-                std::cerr << "Expected --control NAME=0..1\n";
-                return 2;
-            }
-            potOverrides.emplace_back(name, position);
+            requestedNodes.push_back(value);
         }
-        else if (option == "--switch")
+        else if (isStateOption(option))
         {
-            std::string name;
-            std::string positionText;
-            std::size_t position = 0U;
-            if (!splitAssignment(value, name, positionText)
-                || !parseUnsigned(positionText, position))
+            if (!parseStateOption(option, value, state, error))
             {
-                std::cerr << "Expected --switch NAME=POSITION\n";
+                std::cerr << error << '\n';
                 return 2;
             }
-            switchOverrides.emplace_back(name, position);
+            signal.sampleRate = state.sampleRate;
         }
         else
         {
@@ -291,8 +559,7 @@ int renderCommand(int argc, const char* argv[])
         }
     }
 
-    if (!std::isfinite(signal.sampleRate)
-        || signal.sampleRate < 8000.0 || signal.sampleRate > 384000.0
+    if (!validSampleRate(signal.sampleRate)
         || !std::isfinite(signal.durationSeconds) || signal.durationSeconds <= 0.0
         || signal.durationSeconds > 60.0)
     {
@@ -301,28 +568,17 @@ int renderCommand(int argc, const char* argv[])
     }
 
     CircuitFileDocument document;
-    std::string error;
-    if (!circuitpedal::loadCircuitFile(circuitPath, document, error))
+    if (!prepareDocument(circuitPath, state, document, error))
     {
-        std::cerr << "Could not load circuit: " << error << '\n';
+        std::cerr << error << '\n';
         return 2;
     }
 
-    for (const auto& overrideValue : potOverrides)
+    std::vector<NodeProbe> probes;
+    if (!resolveNodes(document.definition, requestedNodes, probes, error))
     {
-        if (!applyPotOverride(document, overrideValue.first, overrideValue.second, error))
-        {
-            std::cerr << error << '\n';
-            return 2;
-        }
-    }
-    for (const auto& overrideValue : switchOverrides)
-    {
-        if (!applySwitchOverride(document, overrideValue.first, overrideValue.second, error))
-        {
-            std::cerr << error << '\n';
-            return 2;
-        }
+        std::cerr << error << '\n';
+        return 2;
     }
 
     GenericCircuit circuit;
@@ -332,13 +588,22 @@ int renderCommand(int argc, const char* argv[])
         return 2;
     }
 
+    std::ofstream output(outputPath);
+    if (!output)
+    {
+        std::cerr << "Could not open render CSV for writing: " << outputPath << '\n';
+        return 2;
+    }
+    output << "sample,time_s,input_fs,output_v,output_fs,converged";
+    for (const auto& probe : probes)
+        output << ',' << probe.columnName;
+    output << '\n' << std::setprecision(17);
+
     const double requestedSamples = signal.sampleRate * signal.durationSeconds;
     const std::size_t sampleCount = static_cast<std::size_t>(std::llround(requestedSamples));
-    std::vector<RenderedSample> samples;
-    samples.reserve(sampleCount);
     std::size_t convergenceFailures = 0U;
-
     const auto outputNode = document.definition.outputNode();
+
     for (std::size_t sampleIndex = 0; sampleIndex < sampleCount; ++sampleIndex)
     {
         const double input = circuitpedal::validation::signalSample(signal, sampleIndex);
@@ -346,27 +611,192 @@ int renderCommand(int argc, const char* argv[])
         const bool converged = circuit.lastSolveConverged();
         if (!converged)
             ++convergenceFailures;
-        samples.push_back({
-            sampleIndex,
-            static_cast<double>(sampleIndex) / signal.sampleRate,
-            input,
-            circuit.nodeVoltage(outputNode),
-            static_cast<double>(outputFullScale),
-            converged
-        });
+
+        output << sampleIndex << ','
+               << static_cast<double>(sampleIndex) / signal.sampleRate << ','
+               << input << ','
+               << circuit.nodeVoltage(outputNode) << ','
+               << static_cast<double>(outputFullScale) << ','
+               << (converged ? 1 : 0);
+        for (const auto& probe : probes)
+            output << ',' << circuit.nodeVoltage(probe.node);
+        output << '\n';
     }
 
-    if (!circuitpedal::validation::writeRenderCsv(outputPath, samples, error))
+    if (!output)
     {
-        std::cerr << error << '\n';
+        std::cerr << "Failed while writing render CSV: " << outputPath << '\n';
         return 2;
     }
 
     std::cout << "Rendered: " << document.name << '\n'
               << "Samples: " << sampleCount << " @ " << signal.sampleRate << " Hz\n"
               << "Output: " << outputPath << '\n'
+              << "Internal node probes: " << probes.size() << '\n'
               << "Nonlinear solve failures: " << convergenceFailures << '\n';
     return convergenceFailures == 0U ? 0 : 3;
+}
+
+int dcCommand(int argc, const char* argv[])
+{
+    if (argc < 3)
+    {
+        printUsage();
+        return 2;
+    }
+
+    const std::string circuitPath = argv[2];
+    CircuitStateOptions state;
+    std::vector<std::string> requestedNodes;
+    std::string error;
+
+    for (int i = 3; i < argc; ++i)
+    {
+        const std::string option = argv[i];
+        if (i + 1 >= argc)
+        {
+            std::cerr << "Missing value for option: " << option << '\n';
+            return 2;
+        }
+        const std::string value = argv[++i];
+        if (option == "--node")
+            requestedNodes.push_back(value);
+        else if (isStateOption(option))
+        {
+            if (!parseStateOption(option, value, state, error))
+            {
+                std::cerr << error << '\n';
+                return 2;
+            }
+        }
+        else
+        {
+            std::cerr << "Unknown DC option: " << option << '\n';
+            return 2;
+        }
+    }
+
+    CircuitFileDocument document;
+    if (!prepareDocument(circuitPath, state, document, error))
+    {
+        std::cerr << error << '\n';
+        return 2;
+    }
+    GenericCircuit circuit;
+    if (!circuit.compile(document.definition, state.sampleRate, error))
+    {
+        std::cerr << "Could not compile circuit: " << error << '\n';
+        return 2;
+    }
+
+    std::vector<NodeProbe> probes;
+    if (requestedNodes.empty())
+    {
+        requestedNodes.reserve(document.definition.nodeCount());
+        for (std::size_t i = 0; i < document.definition.nodeCount(); ++i)
+        {
+            requestedNodes.push_back(
+                document.definition.nodeName(static_cast<CircuitNode>(i)));
+        }
+    }
+    if (!resolveNodes(document.definition, requestedNodes, probes, error))
+    {
+        std::cerr << error << '\n';
+        return 2;
+    }
+
+    std::cout << std::setprecision(10)
+              << "DC operating point: " << document.name << '\n'
+              << "Solver sample rate: " << state.sampleRate << " Hz\n";
+    for (const auto& probe : probes)
+        std::cout << "  " << probe.name << " = " << circuit.nodeVoltage(probe.node) << " V\n";
+    return 0;
+}
+
+int dcCheckCommand(int argc, const char* argv[])
+{
+    if (argc < 4)
+    {
+        printUsage();
+        return 2;
+    }
+
+    const std::string circuitPath = argv[2];
+    const std::string referencePath = argv[3];
+    CircuitStateOptions state;
+    std::string error;
+
+    for (int i = 4; i < argc; ++i)
+    {
+        const std::string option = argv[i];
+        if (i + 1 >= argc)
+        {
+            std::cerr << "Missing value for option: " << option << '\n';
+            return 2;
+        }
+        const std::string value = argv[++i];
+        if (!isStateOption(option)
+            || !parseStateOption(option, value, state, error))
+        {
+            if (error.empty())
+                error = "Unknown DC-check option: " + option;
+            std::cerr << error << '\n';
+            return 2;
+        }
+    }
+
+    CircuitFileDocument document;
+    if (!prepareDocument(circuitPath, state, document, error))
+    {
+        std::cerr << error << '\n';
+        return 2;
+    }
+    GenericCircuit circuit;
+    if (!circuit.compile(document.definition, state.sampleRate, error))
+    {
+        std::cerr << "Could not compile circuit: " << error << '\n';
+        return 2;
+    }
+
+    std::vector<DcReferencePoint> referencePoints;
+    if (!circuitpedal::validation::loadDcReferenceCsv(
+            referencePath, referencePoints, error))
+    {
+        std::cerr << error << '\n';
+        return 2;
+    }
+
+    bool passed = true;
+    std::cout << std::setprecision(8)
+              << "DC reference check: " << document.name << '\n'
+              << "Reference: " << referencePath << '\n';
+    for (const auto& reference : referencePoints)
+    {
+        NodeProbe probe;
+        if (!resolveNode(document.definition, reference.nodeName, probe, error))
+        {
+            std::cerr << error << '\n';
+            return 2;
+        }
+        const double actual = circuit.nodeVoltage(probe.node);
+        const double difference = actual - reference.expectedVolts;
+        const double absoluteError = std::abs(difference);
+        const double relativeAllowance = std::abs(reference.expectedVolts)
+            * reference.relativeTolerancePercent / 100.0;
+        const double allowance = std::max(
+            relativeAllowance, reference.absoluteToleranceVolts);
+        const bool pointPassed = absoluteError <= allowance;
+        passed = passed && pointPassed;
+
+        std::cout << "  " << probe.name
+                  << " expected=" << reference.expectedVolts << " V"
+                  << " actual=" << actual << " V"
+                  << " error=" << difference << " V"
+                  << " allowed=±" << allowance << " V"
+                  << " [" << (pointPassed ? "PASS" : "FAIL") << "]\n";
+    }
+    std::cout << (passed ? "DC reference check PASSED\n" : "DC reference check FAILED\n");
+    return passed ? 0 : 3;
 }
 
 int compareCommand(int argc, const char* argv[])
@@ -383,6 +813,8 @@ int compareCommand(int argc, const char* argv[])
     double maxNrms = -1.0;
     double maxPeak = -1.0;
     bool harmonicCountSpecified = false;
+    std::string referenceColumn;
+    std::string actualColumn;
 
     for (int i = 4; i < argc; ++i)
     {
@@ -393,7 +825,20 @@ int compareCommand(int argc, const char* argv[])
             return 2;
         }
         const std::string value = argv[++i];
-        if (option == "--max-lag")
+        if (option == "--column")
+        {
+            referenceColumn = value;
+            actualColumn = value;
+        }
+        else if (option == "--reference-column")
+        {
+            referenceColumn = value;
+        }
+        else if (option == "--actual-column")
+        {
+            actualColumn = value;
+        }
+        else if (option == "--max-lag")
         {
             std::size_t parsed = 0U;
             if (!parseUnsigned(value, parsed) || parsed > 100000U)
@@ -434,12 +879,21 @@ int compareCommand(int argc, const char* argv[])
     Waveform reference;
     Waveform actual;
     std::string error;
-    if (!circuitpedal::validation::loadWaveformCsv(referencePath, reference, error))
+    const bool referenceLoaded = referenceColumn.empty()
+        ? circuitpedal::validation::loadWaveformCsv(referencePath, reference, error)
+        : circuitpedal::validation::loadWaveformCsv(
+              referencePath, referenceColumn, reference, error);
+    if (!referenceLoaded)
     {
         std::cerr << error << '\n';
         return 2;
     }
-    if (!circuitpedal::validation::loadWaveformCsv(actualPath, actual, error))
+
+    const bool actualLoaded = actualColumn.empty()
+        ? circuitpedal::validation::loadWaveformCsv(actualPath, actual, error)
+        : circuitpedal::validation::loadWaveformCsv(
+              actualPath, actualColumn, actual, error);
+    if (!actualLoaded)
     {
         std::cerr << error << '\n';
         return 2;
@@ -505,6 +959,10 @@ int main(int argc, const char* argv[])
     const std::string command = argv[1];
     if (command == "render")
         return renderCommand(argc, argv);
+    if (command == "dc")
+        return dcCommand(argc, argv);
+    if (command == "dc-check")
+        return dcCheckCommand(argc, argv);
     if (command == "compare")
         return compareCommand(argc, argv);
     if (command == "--help" || command == "-h" || command == "help")

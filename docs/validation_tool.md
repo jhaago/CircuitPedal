@@ -1,24 +1,20 @@
 # CircuitPedal offline validation tool
 
-`circuitpedal_validate` is the first implementation layer of the CircuitPedal
-SPICE/physical-reference validation plan.
+`circuitpedal_validate` is the executable layer of the CircuitPedal
+SPICE/physical-reference validation plan. Its purpose is to turn circuit-model
+accuracy into a measurable engineering problem rather than a listening-only
+judgement.
 
-Its purpose is to turn circuit-model accuracy into a measurable engineering
-problem rather than a listening-only judgement.
+## Scope
 
-## Scope of V0.18
+V0.18 introduced deterministic electrical rendering and waveform comparison.
+V0.19 adds arbitrary internal-node capture, named CSV-column comparison, DC
+operating-point reporting, machine-readable DC reference gates and validation-
+only overrides for named fixed voltage sources.
 
-V0.18 validates the **generic electrical circuit solver** before the real-time
-host oversampling FIR/downsampling path.
-
-A `.cpedal` file is loaded, its requested control state is applied before the DC
-operating-point solve, and the circuit is then solved directly at a chosen
-validation sample rate. The CSV contains both the raw electrical output-node
-voltage and CircuitPedal's calibrated/clamped full-scale output.
-
-For SPICE comparison, use `output_v`. This avoids mixing electrical-model error
-with host resampling/filter error. A later validation layer can separately test
-the complete real-time audio path.
+The electrical validator works before the real-time host FIR/downsampling path.
+That separation is intentional: circuit-equation error can be measured without
+mixing it with host resampling error.
 
 ## Build
 
@@ -28,16 +24,41 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-The validation executable is then available as:
+Then use:
 
 ```bash
 ./build/circuitpedal_validate --help
 ```
 
+## Reproducible circuit state
+
+The render, `dc` and `dc-check` commands can set a circuit state before the DC
+operating-point solve:
+
+- `--control NAME=0..1` sets a named potentiometer; repeatable.
+- `--switch NAME=POSITION` sets a named switch; repeatable.
+- `--source NAME=VOLTS` temporarily changes a named fixed `V` source; repeatable.
+- `--sample-rate HZ` selects the electrical solver rate from 8 kHz to 384 kHz.
+
+Linked potentiometer sections and linked switch poles move together as they do in
+the GUI/live circuit.
+
+`--source` is deliberately validation-only. The validator rewrites the named
+fixed `V` directive in memory before parsing. It does not edit the `.cpedal`
+file, does not alter the bundled circuit library and does not affect live audio.
+This lets a measurement or SPICE run be reproduced at its actual supply voltage
+without making that reference condition the normal pedal setting.
+
+For example, the Woolly working-board data was measured at 9.33 V while its
+normal `.cpedal` file uses 9.0 V:
+
+```bash
+--source VCCSRC=9.33
+```
+
 ## Render a circuit
 
-Example: render the Woolly Mammoth at a 192 kHz electrical solver rate for one
-second using a 110 Hz sine stimulus:
+Example: render the Woolly Mammoth for one second at 192 kHz:
 
 ```bash
 ./build/circuitpedal_validate render \
@@ -50,58 +71,110 @@ second using a 110 Hz sine stimulus:
   --amplitude 0.25
 ```
 
-Available deterministic stimuli are:
+Available deterministic stimuli are `sine`, `step`, `impulse`, `dualtone` and
+`logsweep`.
 
-- `sine`
-- `step`
-- `impulse`
-- `dualtone`
-- `logsweep`
+The transient renderer streams rows directly to disk rather than retaining the
+whole run in memory, making high-rate and multi-node captures practical.
 
-Potentiometers can be fixed before the operating-point solve with repeatable
-`--control NAME=0..1` arguments. Switches use their discrete zero-based position:
+## Internal-node capture
+
+Use repeatable `--node` options to capture named `.cpedal` nodes alongside the
+declared output:
 
 ```bash
 ./build/circuitpedal_validate render \
-  circuits/animato_reference_draft.cpedal \
-  build/animato_test.csv \
-  --control DISTORTION=0.75 \
-  --control TONE=0.50 \
-  --switch BIAS=1
+  circuits/woolly_mammoth_reference_draft.cpedal \
+  build/woolly_nodes.csv \
+  --source VCCSRC=9.33 \
+  --sample-rate 192000 \
+  --seconds 1 \
+  --signal sine \
+  --frequency 82 \
+  --amplitude 0.25 \
+  --node B1 \
+  --node C1_NODE \
+  --node E2 \
+  --node C2_NODE \
+  --node TONE_SRC \
+  --node OUT
 ```
 
-Linked pot sections and linked switch poles follow the named control together,
-matching the GUI/live-circuit behaviour.
+Node names are matched case-insensitively. Each requested node becomes a
+sanitized CSV column such as `node_B1_v` or `node_C1_NODE_v`.
 
-## Render CSV format
+## Render CSV
 
-CircuitPedal writes:
+Without extra node probes the columns are:
 
 ```text
 sample,time_s,input_fs,output_v,output_fs,converged
 ```
 
-- `sample`: zero-based electrical-solver sample index
-- `time_s`: time in seconds
-- `input_fs`: normalized digital stimulus supplied to the `.cpedal` AUDIO source
-- `output_v`: raw voltage at the circuit's declared `OUTPUT` node
-- `output_fs`: calibrated/clamped CircuitPedal full-scale output
-- `converged`: `1` when the nonlinear solve converged for that sample
+Requested nodes are appended as `node_<NODE>_v` columns.
+
+- `sample` is the zero-based electrical-solver sample index.
+- `time_s` is time in seconds.
+- `input_fs` is the normalized validation stimulus.
+- `output_v` is raw voltage at the circuit's declared output node.
+- `output_fs` is calibrated/clamped CircuitPedal full-scale output.
+- `converged` is 1 when the nonlinear solve converged.
+- `node_*_v` values are raw internal-node voltages.
 
 A render exits nonzero if any transient nonlinear solve fails.
 
-## Compare against a reference waveform
+## DC operating point
 
-The comparison loader accepts a CSV containing `time_s` or `time`, plus one of:
+The `dc` command reports the solved operating point before transient processing:
 
-1. `output_v`
-2. `output_volts`
-3. `output`
-4. `value`
-5. `v(out)`
+```bash
+./build/circuitpedal_validate dc \
+  circuits/woolly_mammoth_reference_draft.cpedal \
+  --source VCCSRC=9.33 \
+  --control WOOL=1 \
+  --control PINCH=1 \
+  --node B1 \
+  --node C1_NODE \
+  --node E2 \
+  --node C2_NODE
+```
 
-The names are searched in that priority order. This allows a SPICE export to be
-normalized to a small two-column file such as:
+With no `--node` arguments, every named circuit node is printed.
+
+## Machine-readable DC reference checks
+
+`dc-check` compares the solved operating point with a CSV table. A reference
+table requires `node` and `expected_v`, plus at least one positive tolerance via
+`relative_tolerance_percent` or `absolute_tolerance_v`.
+
+Example:
+
+```bash
+./build/circuitpedal_validate dc-check \
+  circuits/woolly_mammoth_reference_draft.cpedal \
+  validation/woolly_mammoth/working_board_dc.csv \
+  --source VCCSRC=9.33 \
+  --control WOOL=1 \
+  --control PINCH=1 \
+  --control EQ=1 \
+  --control OUTPUT=1
+```
+
+For each point the checker reports expected voltage, actual voltage, signed
+error, allowed error and pass/fail. It exits nonzero if any point fails.
+
+The first committed external-reference table is under
+`validation/woolly_mammoth/`. Its present 35% tolerance preserves the old broad
+sanity guard; it is not a component-accuracy claim. V0.19 now removes the supply
+mismatch by evaluating the circuit at the source measurement's actual 9.33 V.
+
+## Waveform comparison
+
+The default CSV loader expects `time_s` or `time` and then searches for one of
+these value columns, in order: `output_v`, `output_volts`, `output`, `value`,
+`v(out)`.
+
+A normalized simulator export can therefore be as simple as:
 
 ```text
 time_s,output_v
@@ -110,7 +183,7 @@ time_s,output_v
 ...
 ```
 
-Then run:
+Run a comparison with:
 
 ```bash
 ./build/circuitpedal_validate compare \
@@ -121,54 +194,49 @@ Then run:
   --harmonics 8
 ```
 
-The report includes:
-
-- best integer-sample alignment
-- correlation
-- reference and actual RMS amplitude
-- RMS error
-- normalized RMS error
-- peak absolute error
-- DC error
-- RMS gain error in dB
-- optional per-harmonic amplitude error in dB
-
-A positive reported lag means the CircuitPedal/actual waveform is delayed
-relative to the reference waveform.
-
-## CI/golden-reference thresholds
-
-The comparator can act as a pass/fail gate:
+For an internal node, select a column explicitly:
 
 ```bash
 ./build/circuitpedal_validate compare \
-  reference.csv actual.csv \
-  --max-lag 16 \
-  --max-nrms 5 \
-  --max-peak 0.10
+  reference/woolly_spice_nodes.csv \
+  build/woolly_nodes.csv \
+  --column node_C2_NODE_v \
+  --max-lag 32
 ```
 
-It exits nonzero when either requested threshold is exceeded. This is intended
-for future committed golden SPICE/measurement datasets so tolerances live beside
-the reference data rather than being judged visually.
+When simulator and CircuitPedal column names differ, use
+`--reference-column` and `--actual-column` separately. Named column matching is
+case-insensitive.
 
-## Important current limitations
+The report includes best integer-sample alignment, correlation, reference and
+actual RMS, RMS error, normalized RMS error, peak absolute error, DC error, RMS
+gain error and optional per-harmonic amplitude errors.
 
-V0.18 is infrastructure, not yet proof that any commercial pedal is
-component-accurate.
+## CI thresholds
 
-- The comparator currently expects uniformly sampled reference data at the same
-  nominal sample rate as the CircuitPedal render. SPICE interpolation/resampling
-  support is a later step.
+Transient comparisons can fail CI with `--max-nrms` and `--max-peak`. DC
+reference tables carry their tolerances per node and can be used directly as
+`dc-check` gates.
+
+The Woolly working-board check is the first such external-reference gate and its
+actual node-by-node report is printed as a dedicated CI step.
+
+## Current limitations
+
+The validator is evidence infrastructure; it does not by itself prove that a
+commercial pedal is component-accurate.
+
+- Transient reference data must currently be uniformly sampled at the same
+  nominal sample rate. Simulator interpolation/resampling is still needed.
 - Alignment is integer-sample only.
-- Harmonic analysis reports amplitude agreement at requested harmonic bins; it
-  is not yet a complete FFT/spectral-error report.
-- The renderer records the declared circuit output node. Arbitrary internal-node
-  capture will be added before detailed multi-node SPICE acceptance work.
-- Compact transistor, JFET, diode and op-amp device models still require fitting
-  and validation against trusted SPICE models and physical measurements.
+- Harmonic analysis checks requested harmonic amplitudes but is not yet a full
+  spectral-error analysis.
+- Fixed-source override matching uses the `.cpedal` `V` directive ID and is
+  intentionally confined to offline validation.
+- Compact transistor, JFET, diode and op-amp aliases still require comparison
+  with trusted simulator models and physical measurements.
 
-The next intended use of this framework is a Woolly Mammoth reference campaign:
-DC-node agreement first, then transient/spectral comparison at several control
-settings, followed by a physical reference build when suitable measurements are
-available.
+The active Woolly campaign is therefore: exact-supply DC comparison, investigate
+collector-node error, established 2N3904 SPICE comparison, transient multi-node
+comparison at several control settings, spectral/intermodulation comparison and
+finally physical reference-pedal measurements where available.

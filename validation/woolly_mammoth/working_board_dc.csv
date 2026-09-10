@@ -1,0 +1,5 @@
+node,expected_v,relative_tolerance_percent,absolute_tolerance_v,source_supply_v
+B1,0.58,35,0,9.33
+C1_NODE,1.20,35,0,9.33
+E2,0.88,35,0,9.33
+C2_NODE,2.30,35,0,9.33

@@ -19,6 +19,16 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Woolly working-board DC report
+        run: |
+          ./build/circuitpedal_validate dc-check \
+            circuits/woolly_mammoth_reference_draft.cpedal \
+            validation/woolly_mammoth/working_board_dc.csv \
+            --source VCCSRC=9.33 \
+            --control WOOL=1 \
+            --control PINCH=1 \
+            --control EQ=1 \
+            --control OUTPUT=1
       - name: Confirm macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
