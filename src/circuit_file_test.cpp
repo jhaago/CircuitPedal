@@ -631,6 +631,60 @@ void testFuzzoloRepositoryModel()
 #endif
 }
 
+void testTs10RepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for TS10 validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/ts10_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "TS10 model did not load: " + error);
+    expect(document.controls.size() == 3,
+           "TS10 did not expose Drive, Tone and Level controls");
+    if (document.controls.size() == 3)
+    {
+        expect(document.controls[0].name == "DRIVE", "TS10 Drive control missing");
+        expect(document.controls[1].name == "TONE", "TS10 Tone control missing");
+        expect(document.controls[2].name == "LEVEL", "TS10 Level control missing");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "TS10 did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    for (int n = 0; n < 18000; ++n)
+    {
+        if (n == 6000)
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[0].potentiometerIndex, 0.95),
+                   "TS10 Drive could not move live");
+        if (n == 12000)
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[1].potentiometerIndex, 0.80),
+                   "TS10 Tone could not move live");
+
+        const float input = static_cast<float>(
+            0.35 * std::sin(2.0 * pi * 196.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "TS10 produced non-finite audio");
+        expect(circuit.lastSolveConverged(),
+               "TS10 nonlinear solve failed");
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    expect(peak > 1.0e-6, "TS10 produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -658,6 +712,7 @@ int main()
     testFuzzFactoryRepositoryModel();
     testFatFuzzFactoryRepositoryModel();
     testFuzzoloRepositoryModel();
+    testTs10RepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)

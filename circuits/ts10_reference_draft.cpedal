@@ -1,0 +1,72 @@
+CPEDAL 1
+NAME "TS10 Tube Screamer Reference Draft"
+
+# Engaged-effect reference path for the Ibanez TS10 family. The signal topology
+# follows the documented TS-series clipping/tone architecture and the TS10
+# differences: 20n input coupling, 2SC1815 buffers, the higher input-buffer bias
+# rail and the additional 220-ohm resistance before the clipping op-amp.
+#
+# Electronic bypass JFETs, LED switching and protection parts are omitted here;
+# this file models the effect-on audio path. The generic 4558 and 2SC1815 models
+# remain compact real-time approximations rather than manufacturer SPICE models.
+
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.20
+
+# Common half-supply reference used by the op-amp/tone/output sections.
+R R_VREF_TOP VCC VREF 10k
+R R_VREF_BOTTOM VREF 0 10k
+C C_VREF VREF 0 47u
+
+# TS10 input-buffer bias is higher than the common 4.5 V rail.
+R R_IBIAS_TOP VCC IBIAS 9k1
+R R_IBIAS_BOTTOM IBIAS 0 22k
+C C_IBIAS IBIAS 0 10u
+
+# Input buffer.
+R R_INPUT_LOAD INPUT 0 1M
+C C1 INPUT INPUT_SER 20n
+R R1 INPUT_SER Q1B 1k
+R R3 IBIAS Q1B 510k
+Q Q1 VCC Q1B Q1E 2SC1815BL
+R R4 Q1E 0 10k
+
+# TS10 coupling and its extra 220-ohm series resistance.
+C C3 Q1E CLIP_PRE 1u
+R R5 CLIP_PRE CLIP_PLUS 220
+R R_BIAS_CLIP CLIP_PLUS VREF 10k
+
+# First half of the 4558: frequency-selective soft-clipping amplifier.
+OPAMP U1A CLIP_PLUS CLIP_MINUS CLIP_OUT VCC 0 JRC4558
+R R6 CLIP_MINUS HP_NODE 4k7
+C C5 HP_NODE VREF 47n
+R R7 CLIP_OUT DRIVE_TOP 51k
+POT DRIVE DRIVE_TOP CLIP_MINUS CLIP_MINUS 500k LOG 0.65
+C C6 CLIP_OUT CLIP_MINUS 51p
+D D1 CLIP_OUT CLIP_MINUS 1S1588
+D D2 CLIP_MINUS CLIP_OUT 1S1588
+
+# Classic Tube Screamer active tone stage. The 20k control blends the low-pass
+# node with the 220n/220-ohm high-frequency feedback branch.
+R R8 CLIP_OUT TONE_PLUS 1k
+C C8 TONE_PLUS 0 220n
+R R9 TONE_PLUS VREF 10k
+C C9 TONE_TOP TONE_HP 220n
+R R10 TONE_HP 0 220
+POT TONE TONE_PLUS TONE_W TONE_TOP 20k LIN 0.50
+OPAMP U1B TONE_PLUS TONE_W TONE_OUT VCC 0 JRC4558
+R R11 TONE_OUT TONE_W 1k
+
+# Level and TS10 output emitter follower.
+C C11 TONE_OUT LEVEL_PRE 1u
+R R12 LEVEL_PRE LEVEL_TOP 1k
+POT LEVEL 0 LEVEL_W LEVEL_TOP 100k LOG 0.55
+C C12 LEVEL_W Q2B 1u
+R R17 VREF Q2B 510k
+Q Q2 VCC Q2B Q2E 2SC1815BL
+R R18 Q2E 0 10k
+R R19 Q2E OUT_COUPLE 470
+C C13 OUT_COUPLE OUT 10u
+R R20 OUT 0 100k
+
+OUTPUT OUT 1

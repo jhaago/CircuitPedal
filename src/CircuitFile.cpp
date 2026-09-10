@@ -270,6 +270,16 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
+    if (normalized == "2SC1815" || normalized == "2SC1815BL")
+    {
+        GenericNpnBjtModel model;
+        // BL is the high-gain rank commonly found in Tube Screamer buffers.
+        model.saturationCurrentAmps = 2.0e-14;
+        model.forwardBeta = normalized == "2SC1815BL" ? 500.0 : 300.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
     if (normalized == "2N5088")
     {
         GenericNpnBjtModel model;
@@ -487,6 +497,7 @@ GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
     }
     if (normalized == "1N4148"
         || normalized == "1N914"
+        || normalized == "1S1588"
         || normalized == "KD521"
         || normalized == "SILICON")
     {
