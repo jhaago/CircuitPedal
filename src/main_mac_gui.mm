@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -78,6 +79,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     CircuitPedalFlippedView* _circuitDocumentView;
     NSTextField* _circuitLabels[16];
     NSSlider* _circuitSliders[16];
+    NSPopUpButton* _circuitSwitchPopups[16];
     NSTextField* _circuitValues[16];
 
     NSButton* _startButton;
@@ -244,6 +246,15 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         _circuitSliders[i].continuous = YES;
         _circuitSliders[i].tag = i;
         [_circuitDocumentView addSubview:_circuitSliders[i]];
+
+        _circuitSwitchPopups[i] = [[NSPopUpButton alloc]
+            initWithFrame:NSMakeRect(114.0, y, 455.0, 28.0)
+                pullsDown:NO];
+        _circuitSwitchPopups[i].target = self;
+        _circuitSwitchPopups[i].action = @selector(circuitSwitchChanged:);
+        _circuitSwitchPopups[i].tag = i;
+        _circuitSwitchPopups[i].hidden = YES;
+        [_circuitDocumentView addSubview:_circuitSwitchPopups[i]];
 
         _circuitValues[i] = makeLabel(@"50%",
                                       NSMakeRect(574.0, y + 4.0, 58.0, 22.0));
@@ -518,15 +529,46 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     {
         const BOOL visible = generic && i < visibleControlCount;
         _circuitLabels[i].hidden = !visible;
-        _circuitSliders[i].hidden = !visible;
-        _circuitValues[i].hidden = !visible;
-        if (visible)
+        _circuitSliders[i].hidden = YES;
+        _circuitSwitchPopups[i].hidden = YES;
+        _circuitValues[i].hidden = YES;
+
+        if (!visible)
+            continue;
+
+        const auto& control = _circuitControls[i];
+        _circuitLabels[i].stringValue = nsString(control.name);
+
+        if (control.kind == circuitpedal::CircuitFileControlKind::Switch)
         {
-            _circuitLabels[i].stringValue = nsString(_circuitControls[i].name);
-            const double value = 100.0 * static_cast<double>(_engine->circuitControl(i));
+            [_circuitSwitchPopups[i] removeAllItems];
+            for (const auto& label : control.switchPositionNames)
+                [_circuitSwitchPopups[i] addItemWithTitle:nsString(label)];
+
+            const std::uint32_t count =
+                std::max<std::uint32_t>(2U, control.switchPositionCount);
+            const double normalized =
+                static_cast<double>(_engine->circuitControl(i));
+            const NSInteger position = static_cast<NSInteger>(
+                std::llround(normalized * static_cast<double>(count - 1U)));
+            if (_circuitSwitchPopups[i].numberOfItems > 0)
+            {
+                [_circuitSwitchPopups[i] selectItemAtIndex:
+                    std::clamp<NSInteger>(position,
+                                          0,
+                                          _circuitSwitchPopups[i].numberOfItems - 1)];
+            }
+            _circuitSwitchPopups[i].hidden = NO;
+        }
+        else
+        {
+            const double value =
+                100.0 * static_cast<double>(_engine->circuitControl(i));
             _circuitSliders[i].doubleValue = value;
             _circuitValues[i].stringValue =
                 [NSString stringWithFormat:@"%.0f%%", value];
+            _circuitSliders[i].hidden = NO;
+            _circuitValues[i].hidden = NO;
         }
     }
 
@@ -547,7 +589,10 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _outputSlider.enabled = !_engine->usingCircuitFile();
 
     for (NSInteger i = 0; i < 16; ++i)
+    {
         _circuitSliders[i].enabled = _engine->usingCircuitFile();
+        _circuitSwitchPopups[i].enabled = _engine->usingCircuitFile();
+    }
 
     _startButton.enabled =
         !running && !_devices.empty() && _channelPopup.numberOfItems > 0;
@@ -703,6 +748,31 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     (void)_engine->setCircuitControl(
         static_cast<std::size_t>(index),
         static_cast<float>(value / 100.0));
+}
+
+- (void)circuitSwitchChanged:(id)sender
+{
+    NSPopUpButton* popup = (NSPopUpButton*)sender;
+    const NSInteger index = popup.tag;
+    if (index < 0
+        || index >= 16
+        || static_cast<std::size_t>(index) >= _circuitControls.size())
+    {
+        return;
+    }
+
+    const auto& control = _circuitControls[static_cast<std::size_t>(index)];
+    const std::uint32_t count =
+        std::max<std::uint32_t>(2U, control.switchPositionCount);
+    const NSInteger selected = popup.indexOfSelectedItem;
+    if (selected < 0)
+        return;
+
+    const float normalized =
+        static_cast<float>(selected)
+        / static_cast<float>(count - 1U);
+    (void)_engine->setCircuitControl(
+        static_cast<std::size_t>(index), normalized);
 }
 
 - (void)bypassChanged:(id)sender
