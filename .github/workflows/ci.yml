@@ -13,6 +13,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - name: Confirm launcher permissions
+        run: |
+          test -x build_and_run.command
+          test -x build_and_run_gui.command
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
       - name: Build
@@ -29,7 +33,7 @@ jobs:
             --control PINCH=1 \
             --control EQ=1 \
             --control OUTPUT=1
-      - name: Confirm macOS GUI bundle
+      - name: Confirm stable macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
           test -x build/CircuitPedalGUI.app/Contents/MacOS/CircuitPedalGUI
@@ -38,11 +42,15 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fat_fuzz_factory_reference.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fuzzolo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/ts10_reference_draft.cpedal
-          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
-          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/eqd_tentacle_reference_draft.cpedal
+
+          # These models remain source drafts but are deliberately withheld from
+          # the stable app until physical listening checks accept them.
+          test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal
+          test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/blueberry_bass_overdrive_reference_draft.cpedal
+          test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/eqd_tentacle_reference_draft.cpedal
 
   sanitizer-test:
     runs-on: ubuntu-latest
