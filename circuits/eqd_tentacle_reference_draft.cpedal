@@ -47,6 +47,8 @@ D D_RECT_LOWER RECT_LOWER Q3_BASE 1N4148
 Q Q3 VCC Q3_BASE Q3_EMITTER 2N5089
 R R_Q3_EMITTER Q3_EMITTER 0 10k
 C C_OUTPUT Q3_EMITTER OUT 100n
-R R_OUTPUT_LOAD OUT 0 4k7
+# PedalPCB Squidward reference uses 47k here. The previous 4k7 value loaded
+# the AC-coupled output ten times more heavily than the traced/reference circuit.
+R R_OUTPUT_LOAD OUT 0 47k
 
 OUTPUT OUT 1
