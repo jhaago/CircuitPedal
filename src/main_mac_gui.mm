@@ -3,8 +3,8 @@
 #include "MacAudioEngine.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <cmath>
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -17,7 +17,25 @@ NSString* nsString(const std::string& text)
     return converted != nil ? converted : @"Unknown text";
 }
 
-NSTextField* makeLabel(NSString* text, NSRect frame)
+NSColor* cpColor(CGFloat r, CGFloat g, CGFloat b)
+{
+    return [NSColor colorWithSRGBRed:r green:g blue:b alpha:1.0];
+}
+
+NSColor* backgroundColor() { return cpColor(0.035, 0.043, 0.050); }
+NSColor* panelColor() { return cpColor(0.055, 0.065, 0.075); }
+NSColor* pedalColor() { return cpColor(0.085, 0.090, 0.095); }
+NSColor* borderColor() { return cpColor(0.16, 0.18, 0.20); }
+NSColor* accentColor() { return cpColor(0.94, 0.64, 0.22); }
+NSColor* textColor() { return cpColor(0.92, 0.93, 0.94); }
+NSColor* mutedTextColor() { return cpColor(0.52, 0.56, 0.60); }
+NSColor* liveColor() { return cpColor(0.35, 0.90, 0.45); }
+
+NSTextField* makeLabel(NSString* text,
+                       NSRect frame,
+                       CGFloat size = 13.0,
+                       NSFontWeight weight = NSFontWeightRegular,
+                       NSColor* color = nil)
 {
     NSTextField* label = [[NSTextField alloc] initWithFrame:frame];
     label.stringValue = text;
@@ -25,6 +43,20 @@ NSTextField* makeLabel(NSString* text, NSRect frame)
     label.selectable = NO;
     label.bezeled = NO;
     label.drawsBackground = NO;
+    label.font = [NSFont systemFontOfSize:size weight:weight];
+    label.textColor = color != nil ? color : textColor();
+    return label;
+}
+
+NSTextField* makeSectionLabel(NSString* text, NSRect frame)
+{
+    NSTextField* label = makeLabel(text,
+                                   frame,
+                                   10.5,
+                                   NSFontWeightSemibold,
+                                   mutedTextColor());
+    label.font = [NSFont monospacedSystemFontOfSize:10.5
+                                            weight:NSFontWeightSemibold];
     return label;
 }
 
@@ -35,19 +67,202 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     button.bezelStyle = NSBezelStyleRounded;
     button.target = target;
     button.action = action;
+    button.font = [NSFont systemFontOfSize:12.0 weight:NSFontWeightMedium];
+    button.contentTintColor = textColor();
     return button;
 }
 
+void stylePopup(NSPopUpButton* popup)
+{
+    popup.font = [NSFont systemFontOfSize:12.0 weight:NSFontWeightRegular];
+    popup.contentTintColor = textColor();
+}
+
+void styleRotarySlider(NSSlider* slider)
+{
+    slider.sliderType = NSSliderTypeCircular;
+    slider.minValue = 0.0;
+    slider.maxValue = 100.0;
+    slider.continuous = YES;
+    slider.contentTintColor = accentColor();
+}
+
+NSString* dbText(double peak)
+{
+    if (!std::isfinite(peak) || peak <= 1.0e-5)
+        return @"−∞ dB";
+    const double db = std::max(-60.0, 20.0 * std::log10(peak));
+    return [NSString stringWithFormat:@"%.1f dB", db];
+}
+
 } // namespace
+
+@interface CircuitPedalPanelView : NSView
+@property(strong) NSColor* fillColor;
+@property(strong) NSColor* strokeColor;
+@property CGFloat cornerRadius;
+@end
+
+@implementation CircuitPedalPanelView
+
+- (instancetype)initWithFrame:(NSRect)frameRect
+{
+    self = [super initWithFrame:frameRect];
+    if (self != nil)
+    {
+        _fillColor = panelColor();
+        _strokeColor = borderColor();
+        _cornerRadius = 10.0;
+    }
+    return self;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    NSBezierPath* path = [NSBezierPath bezierPathWithRoundedRect:self.bounds
+                                                        xRadius:self.cornerRadius
+                                                        yRadius:self.cornerRadius];
+    [self.fillColor setFill];
+    [path fill];
+    [self.strokeColor setStroke];
+    path.lineWidth = 1.0;
+    [path stroke];
+}
+
+@end
+
+@interface CircuitPedalFaceView : CircuitPedalPanelView
+@end
+
+@implementation CircuitPedalFaceView
+
+- (instancetype)initWithFrame:(NSRect)frameRect
+{
+    self = [super initWithFrame:frameRect];
+    if (self != nil)
+    {
+        self.fillColor = pedalColor();
+        self.strokeColor = cpColor(0.28, 0.25, 0.20);
+        self.cornerRadius = 16.0;
+    }
+    return self;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    [super drawRect:dirtyRect];
+
+    [[NSColor colorWithWhite:1.0 alpha:0.035] setStroke];
+    NSBezierPath* highlight = [NSBezierPath bezierPath];
+    [highlight moveToPoint:NSMakePoint(18.0, NSHeight(self.bounds) - 22.0)];
+    [highlight lineToPoint:NSMakePoint(NSWidth(self.bounds) - 18.0,
+                                       NSHeight(self.bounds) - 22.0)];
+    highlight.lineWidth = 1.0;
+    [highlight stroke];
+
+    const NSPoint screws[] = {
+        NSMakePoint(18.0, 18.0),
+        NSMakePoint(NSWidth(self.bounds) - 18.0, 18.0),
+        NSMakePoint(18.0, NSHeight(self.bounds) - 18.0),
+        NSMakePoint(NSWidth(self.bounds) - 18.0, NSHeight(self.bounds) - 18.0)
+    };
+    for (const NSPoint point : screws)
+    {
+        NSBezierPath* screw = [NSBezierPath bezierPathWithOvalInRect:
+            NSMakeRect(point.x - 5.0, point.y - 5.0, 10.0, 10.0)];
+        [cpColor(0.20, 0.20, 0.19) setFill];
+        [screw fill];
+        [cpColor(0.42, 0.40, 0.35) setStroke];
+        [screw stroke];
+    }
+}
+
+@end
+
+@interface CircuitPedalMeterView : NSView
+@property double level;
+@end
+
+@implementation CircuitPedalMeterView
+
+- (instancetype)initWithFrame:(NSRect)frameRect
+{
+    self = [super initWithFrame:frameRect];
+    if (self != nil)
+        _level = 0.0;
+    return self;
+}
+
+- (BOOL)isOpaque { return NO; }
+
+- (void)setLevel:(double)level
+{
+    _level = std::clamp(level, 0.0, 1.0);
+    self.needsDisplay = YES;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    const NSInteger segments = 18;
+    const CGFloat gap = 2.0;
+    const CGFloat width = (NSWidth(self.bounds) - gap * (segments - 1)) / segments;
+    const NSInteger lit = static_cast<NSInteger>(std::ceil(self.level * segments));
+
+    for (NSInteger i = 0; i < segments; ++i)
+    {
+        NSColor* color = cpColor(0.12, 0.14, 0.15);
+        if (i < lit)
+        {
+            const double normalized = static_cast<double>(i) / static_cast<double>(segments - 1);
+            if (normalized > 0.86)
+                color = cpColor(0.95, 0.30, 0.24);
+            else if (normalized > 0.68)
+                color = cpColor(0.95, 0.73, 0.22);
+            else
+                color = liveColor();
+        }
+
+        NSRect segment = NSMakeRect(i * (width + gap), 1.0, width, NSHeight(self.bounds) - 2.0);
+        NSBezierPath* path = [NSBezierPath bezierPathWithRoundedRect:segment
+                                                            xRadius:2.0
+                                                            yRadius:2.0];
+        [color setFill];
+        [path fill];
+    }
+}
+
+@end
+
+@interface CircuitPedalStatusDotView : NSView
+@property BOOL active;
+@end
+
+@implementation CircuitPedalStatusDotView
+
+- (void)setActive:(BOOL)active
+{
+    _active = active;
+    self.needsDisplay = YES;
+}
+
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    NSRect dotRect = NSInsetRect(self.bounds, 2.0, 2.0);
+    NSBezierPath* dot = [NSBezierPath bezierPathWithOvalInRect:dotRect];
+    [(self.active ? liveColor() : cpColor(0.25, 0.28, 0.30)) setFill];
+    [dot fill];
+}
+
+@end
 
 @interface CircuitPedalFlippedView : NSView
 @end
 
 @implementation CircuitPedalFlippedView
-- (BOOL)isFlipped
-{
-    return YES;
-}
+- (BOOL)isFlipped { return YES; }
 @end
 
 @interface CircuitPedalAppDelegate : NSObject <NSApplicationDelegate> {
@@ -58,11 +273,15 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     std::vector<std::string> _circuitLibraryPaths;
 
     NSWindow* _window;
+    NSTextField* _pedalTitle;
+    NSTextField* _pedalSubtitle;
+    NSTextField* _modelValue;
+    CircuitPedalStatusDotView* _liveDot;
+    NSTextField* _liveText;
+
     NSPopUpButton* _devicePopup;
     NSPopUpButton* _channelPopup;
     NSPopUpButton* _bufferPopup;
-
-    NSTextField* _modelValue;
     NSPopUpButton* _circuitLibraryPopup;
     NSButton* _builtinButton;
 
@@ -86,8 +305,10 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     NSButton* _stopButton;
     NSButton* _bypassButton;
 
-    NSProgressIndicator* _inputMeter;
-    NSProgressIndicator* _outputMeter;
+    CircuitPedalMeterView* _inputMeter;
+    CircuitPedalMeterView* _outputMeter;
+    NSTextField* _inputDbLabel;
+    NSTextField* _outputDbLabel;
     NSTextField* _statusLabel;
     NSTextField* _errorLabel;
     NSTimer* _meterTimer;
@@ -101,85 +322,159 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     (void)notification;
     _engine = std::make_unique<circuitpedal::MacAudioEngine>();
 
-    const NSRect windowRect = NSMakeRect(0.0, 0.0, 720.0, 840.0);
+    const NSRect windowRect = NSMakeRect(0.0, 0.0, 1180.0, 760.0);
     const NSWindowStyleMask style = NSWindowStyleMaskTitled
         | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
     _window = [[NSWindow alloc] initWithContentRect:windowRect
                                           styleMask:style
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
-    _window.title = @"CircuitPedal V0.20";
+    _window.title = @"CircuitPedal — Circuit Lab";
     _window.releasedWhenClosed = NO;
+    _window.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    _window.backgroundColor = backgroundColor();
+
     NSView* content = _window.contentView;
+    content.wantsLayer = YES;
 
-    NSTextField* title = makeLabel(@"CircuitPedal V0.20 — Circuit File Lab",
-                                   NSMakeRect(24.0, 796.0, 672.0, 28.0));
-    title.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
-    [content addSubview:title];
+    CircuitPedalPanelView* header = [[CircuitPedalPanelView alloc]
+        initWithFrame:NSMakeRect(0.0, 700.0, 1180.0, 60.0)];
+    header.cornerRadius = 0.0;
+    header.fillColor = cpColor(0.045, 0.052, 0.060);
+    [content addSubview:header];
 
-    NSTextField* warning = makeLabel(
-        @"Start with your interface, headphones or amplifier volume low.",
-        NSMakeRect(24.0, 770.0, 672.0, 20.0));
-    warning.textColor = [NSColor systemRedColor];
-    [content addSubview:warning];
+    NSTextField* brand = makeLabel(@"CircuitPedal",
+                                   NSMakeRect(24.0, 719.0, 260.0, 28.0),
+                                   24.0,
+                                   NSFontWeightSemibold);
+    [content addSubview:brand];
+    NSTextField* brandTag = makeLabel(@"REAL CIRCUITS  •  REAL TONE",
+                                      NSMakeRect(26.0, 705.0, 280.0, 14.0),
+                                      9.0,
+                                      NSFontWeightMedium,
+                                      mutedTextColor());
+    brandTag.font = [NSFont monospacedSystemFontOfSize:9.0 weight:NSFontWeightMedium];
+    [content addSubview:brandTag];
 
-    [content addSubview:makeLabel(@"Effect Model", NSMakeRect(24.0, 730.0, 110.0, 22.0))];
+    NSTextField* mode = makeLabel(@"PLAY",
+                                  NSMakeRect(545.0, 719.0, 90.0, 24.0),
+                                  12.0,
+                                  NSFontWeightSemibold,
+                                  accentColor());
+    mode.alignment = NSTextAlignmentCenter;
+    [content addSubview:mode];
+
+    _liveDot = [[CircuitPedalStatusDotView alloc]
+        initWithFrame:NSMakeRect(925.0, 724.0, 14.0, 14.0)];
+    [content addSubview:_liveDot];
+    _liveText = makeLabel(@"AUDIO STOPPED",
+                          NSMakeRect(946.0, 719.0, 200.0, 24.0),
+                          10.5,
+                          NSFontWeightSemibold,
+                          mutedTextColor());
+    _liveText.font = [NSFont monospacedSystemFontOfSize:10.5 weight:NSFontWeightSemibold];
+    [content addSubview:_liveText];
+
+    CircuitPedalPanelView* leftPanel = [[CircuitPedalPanelView alloc]
+        initWithFrame:NSMakeRect(16.0, 90.0, 260.0, 596.0)];
+    [content addSubview:leftPanel];
+
+    [leftPanel addSubview:makeSectionLabel(@"PEDAL LIBRARY", NSMakeRect(16.0, 552.0, 220.0, 20.0))];
     _modelValue = makeLabel(@"Built-in Distortion+",
-                            NSMakeRect(140.0, 730.0, 280.0, 22.0));
-    _modelValue.font = [NSFont systemFontOfSize:13.0 weight:NSFontWeightMedium];
-    _modelValue.lineBreakMode = NSLineBreakByTruncatingMiddle;
-    [content addSubview:_modelValue];
+                            NSMakeRect(16.0, 510.0, 228.0, 38.0),
+                            15.0,
+                            NSFontWeightSemibold);
+    _modelValue.usesSingleLineMode = NO;
+    _modelValue.lineBreakMode = NSLineBreakByWordWrapping;
+    [leftPanel addSubview:_modelValue];
 
     _circuitLibraryPopup = [[NSPopUpButton alloc]
-        initWithFrame:NSMakeRect(430.0, 724.0, 126.0, 30.0)
+        initWithFrame:NSMakeRect(14.0, 466.0, 232.0, 32.0)
             pullsDown:NO];
     _circuitLibraryPopup.target = self;
     _circuitLibraryPopup.action = @selector(circuitLibraryChanged:);
-    [content addSubview:_circuitLibraryPopup];
+    stylePopup(_circuitLibraryPopup);
+    [leftPanel addSubview:_circuitLibraryPopup];
 
-    _builtinButton = makeButton(@"Use Distortion+",
-                                NSMakeRect(566.0, 724.0, 130.0, 30.0),
+    _builtinButton = makeButton(@"Use Built-in Distortion+",
+                                NSMakeRect(16.0, 424.0, 228.0, 32.0),
                                 self,
                                 @selector(useBuiltin:));
-    [content addSubview:_builtinButton];
+    [leftPanel addSubview:_builtinButton];
 
-    [content addSubview:makeLabel(@"Audio Device", NSMakeRect(24.0, 682.0, 110.0, 22.0))];
+    [leftPanel addSubview:makeSectionLabel(@"AUDIO I/O", NSMakeRect(16.0, 374.0, 220.0, 20.0))];
+    [leftPanel addSubview:makeLabel(@"Device", NSMakeRect(16.0, 348.0, 100.0, 18.0), 11.0, NSFontWeightMedium, mutedTextColor())];
     _devicePopup = [[NSPopUpButton alloc]
-        initWithFrame:NSMakeRect(140.0, 678.0, 556.0, 28.0)
+        initWithFrame:NSMakeRect(14.0, 314.0, 232.0, 30.0)
             pullsDown:NO];
     _devicePopup.target = self;
     _devicePopup.action = @selector(deviceChanged:);
-    [content addSubview:_devicePopup];
+    stylePopup(_devicePopup);
+    [leftPanel addSubview:_devicePopup];
 
-    [content addSubview:makeLabel(@"Input Channel", NSMakeRect(24.0, 640.0, 110.0, 22.0))];
+    [leftPanel addSubview:makeLabel(@"Input Channel", NSMakeRect(16.0, 286.0, 120.0, 18.0), 11.0, NSFontWeightMedium, mutedTextColor())];
     _channelPopup = [[NSPopUpButton alloc]
-        initWithFrame:NSMakeRect(140.0, 636.0, 200.0, 28.0)
+        initWithFrame:NSMakeRect(14.0, 252.0, 232.0, 30.0)
             pullsDown:NO];
-    [content addSubview:_channelPopup];
+    stylePopup(_channelPopup);
+    [leftPanel addSubview:_channelPopup];
 
-    [content addSubview:makeLabel(@"Buffer Size", NSMakeRect(376.0, 640.0, 90.0, 22.0))];
+    [leftPanel addSubview:makeLabel(@"Buffer", NSMakeRect(16.0, 224.0, 90.0, 18.0), 11.0, NSFontWeightMedium, mutedTextColor())];
     _bufferPopup = [[NSPopUpButton alloc]
-        initWithFrame:NSMakeRect(470.0, 636.0, 226.0, 28.0)
+        initWithFrame:NSMakeRect(14.0, 190.0, 232.0, 30.0)
             pullsDown:NO];
-    [_bufferPopup addItemsWithTitles:@[ @"64", @"128", @"256" ]];
-    [_bufferPopup selectItemWithTitle:@"64"];
-    [content addSubview:_bufferPopup];
+    [_bufferPopup addItemsWithTitles:@[ @"64 samples", @"128 samples", @"256 samples" ]];
+    [_bufferPopup selectItemAtIndex:0];
+    stylePopup(_bufferPopup);
+    [leftPanel addSubview:_bufferPopup];
 
-    _startButton = makeButton(@"Start Audio",
-                              NSMakeRect(190.0, 586.0, 150.0, 32.0),
+    _startButton = makeButton(@"START AUDIO",
+                              NSMakeRect(16.0, 132.0, 108.0, 38.0),
                               self,
                               @selector(startAudio:));
-    _stopButton = makeButton(@"Stop Audio",
-                             NSMakeRect(380.0, 586.0, 150.0, 32.0),
+    _startButton.contentTintColor = liveColor();
+    _stopButton = makeButton(@"STOP",
+                             NSMakeRect(136.0, 132.0, 108.0, 38.0),
                              self,
                              @selector(stopAudio:));
-    [content addSubview:_startButton];
-    [content addSubview:_stopButton];
+    [leftPanel addSubview:_startButton];
+    [leftPanel addSubview:_stopButton];
 
-    _diodeLabel = makeLabel(@"Clipping Diodes", NSMakeRect(24.0, 538.0, 110.0, 22.0));
-    [content addSubview:_diodeLabel];
+    NSTextField* warning = makeLabel(@"Start with interface / amp volume low.",
+                                     NSMakeRect(16.0, 82.0, 228.0, 34.0),
+                                     10.5,
+                                     NSFontWeightRegular,
+                                     cpColor(0.88, 0.46, 0.32));
+    warning.usesSingleLineMode = NO;
+    [leftPanel addSubview:warning];
+
+    CircuitPedalPanelView* centerPanel = [[CircuitPedalPanelView alloc]
+        initWithFrame:NSMakeRect(290.0, 90.0, 580.0, 596.0)];
+    [content addSubview:centerPanel];
+
+    _pedalTitle = makeLabel(@"Built-in Distortion+",
+                            NSMakeRect(28.0, 548.0, 524.0, 28.0),
+                            21.0,
+                            NSFontWeightSemibold);
+    _pedalTitle.alignment = NSTextAlignmentCenter;
+    [centerPanel addSubview:_pedalTitle];
+    _pedalSubtitle = makeLabel(@"REFERENCE DISTORTION MODEL",
+                               NSMakeRect(28.0, 529.0, 524.0, 16.0),
+                               9.5,
+                               NSFontWeightMedium,
+                               mutedTextColor());
+    _pedalSubtitle.alignment = NSTextAlignmentCenter;
+    _pedalSubtitle.font = [NSFont monospacedSystemFontOfSize:9.5 weight:NSFontWeightMedium];
+    [centerPanel addSubview:_pedalSubtitle];
+
+    CircuitPedalFaceView* pedalFace = [[CircuitPedalFaceView alloc]
+        initWithFrame:NSMakeRect(20.0, 20.0, 540.0, 496.0)];
+    [centerPanel addSubview:pedalFace];
+
+    _diodeLabel = makeSectionLabel(@"CLIPPING DIODES", NSMakeRect(36.0, 428.0, 150.0, 18.0));
+    [pedalFace addSubview:_diodeLabel];
     _diodePopup = [[NSPopUpButton alloc]
-        initWithFrame:NSMakeRect(140.0, 534.0, 556.0, 28.0)
+        initWithFrame:NSMakeRect(32.0, 392.0, 476.0, 30.0)
             pullsDown:NO];
     [_diodePopup addItemsWithTitles:@[
         @"Reference germanium (V0.2)",
@@ -188,120 +483,184 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         @"No clipping diodes"
     ]];
     [_diodePopup selectItemAtIndex:0];
-    [content addSubview:_diodePopup];
+    stylePopup(_diodePopup);
+    [pedalFace addSubview:_diodePopup];
 
-    _distortionLabel = makeLabel(@"Distortion", NSMakeRect(24.0, 492.0, 100.0, 22.0));
-    [content addSubview:_distortionLabel];
-    _distortionSlider = [NSSlider sliderWithValue:65.0
-                                            minValue:0.0
-                                            maxValue:100.0
-                                               target:self
-                                               action:@selector(distortionSliderChanged:)];
-    _distortionSlider.frame = NSMakeRect(140.0, 488.0, 470.0, 28.0);
-    _distortionSlider.continuous = YES;
-    [content addSubview:_distortionSlider];
-    _distortionValue = makeLabel(@"65%", NSMakeRect(626.0, 492.0, 70.0, 22.0));
-    _distortionValue.alignment = NSTextAlignmentRight;
-    [content addSubview:_distortionValue];
+    _distortionLabel = makeLabel(@"DISTORTION",
+                                 NSMakeRect(92.0, 338.0, 130.0, 20.0),
+                                 11.0,
+                                 NSFontWeightSemibold,
+                                 textColor());
+    _distortionLabel.alignment = NSTextAlignmentCenter;
+    [pedalFace addSubview:_distortionLabel];
 
-    _outputControlLabel = makeLabel(@"Output", NSMakeRect(24.0, 450.0, 100.0, 22.0));
-    [content addSubview:_outputControlLabel];
-    _outputSlider = [NSSlider sliderWithValue:70.0
-                                    minValue:0.0
-                                    maxValue:100.0
-                                       target:self
-                                       action:@selector(outputSliderChanged:)];
-    _outputSlider.frame = NSMakeRect(140.0, 446.0, 470.0, 28.0);
-    _outputSlider.continuous = YES;
-    [content addSubview:_outputSlider];
-    _outputValue = makeLabel(@"70%", NSMakeRect(626.0, 450.0, 70.0, 22.0));
-    _outputValue.alignment = NSTextAlignmentRight;
-    [content addSubview:_outputValue];
+    _distortionSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(96.0, 205.0, 122.0, 122.0)];
+    _distortionSlider.doubleValue = 65.0;
+    _distortionSlider.target = self;
+    _distortionSlider.action = @selector(distortionSliderChanged:);
+    styleRotarySlider(_distortionSlider);
+    [pedalFace addSubview:_distortionSlider];
+    _distortionValue = makeLabel(@"65%",
+                                 NSMakeRect(92.0, 180.0, 130.0, 22.0),
+                                 14.0,
+                                 NSFontWeightMedium,
+                                 accentColor());
+    _distortionValue.alignment = NSTextAlignmentCenter;
+    [pedalFace addSubview:_distortionValue];
+
+    _outputControlLabel = makeLabel(@"OUTPUT",
+                                    NSMakeRect(318.0, 338.0, 130.0, 20.0),
+                                    11.0,
+                                    NSFontWeightSemibold,
+                                    textColor());
+    _outputControlLabel.alignment = NSTextAlignmentCenter;
+    [pedalFace addSubview:_outputControlLabel];
+    _outputSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(322.0, 205.0, 122.0, 122.0)];
+    _outputSlider.doubleValue = 70.0;
+    _outputSlider.target = self;
+    _outputSlider.action = @selector(outputSliderChanged:);
+    styleRotarySlider(_outputSlider);
+    [pedalFace addSubview:_outputSlider];
+    _outputValue = makeLabel(@"70%",
+                             NSMakeRect(318.0, 180.0, 130.0, 22.0),
+                             14.0,
+                             NSFontWeightMedium,
+                             accentColor());
+    _outputValue.alignment = NSTextAlignmentCenter;
+    [pedalFace addSubview:_outputValue];
 
     _circuitScrollView = [[NSScrollView alloc]
-        initWithFrame:NSMakeRect(24.0, 404.0, 672.0, 166.0)];
+        initWithFrame:NSMakeRect(22.0, 110.0, 496.0, 320.0)];
     _circuitScrollView.hasVerticalScroller = YES;
     _circuitScrollView.hasHorizontalScroller = NO;
     _circuitScrollView.autohidesScrollers = YES;
-    _circuitScrollView.borderType = NSBezelBorder;
+    _circuitScrollView.borderType = NSNoBorder;
+    _circuitScrollView.drawsBackground = NO;
 
     _circuitDocumentView = [[CircuitPedalFlippedView alloc]
-        initWithFrame:NSMakeRect(0.0, 0.0, 650.0, 166.0)];
+        initWithFrame:NSMakeRect(0.0, 0.0, 476.0, 320.0)];
     _circuitScrollView.documentView = _circuitDocumentView;
-    [content addSubview:_circuitScrollView];
+    [pedalFace addSubview:_circuitScrollView];
 
     for (NSInteger i = 0; i < 16; ++i)
     {
-        const double y = 8.0 + static_cast<double>(i) * 38.0;
-        _circuitLabels[i] = makeLabel(@"Control",
-                                      NSMakeRect(8.0, y + 4.0, 105.0, 22.0));
+        const NSInteger column = i % 4;
+        const NSInteger row = i / 4;
+        const double x = 6.0 + static_cast<double>(column) * 118.0;
+        const double y = 8.0 + static_cast<double>(row) * 132.0;
+
+        _circuitLabels[i] = makeLabel(@"CONTROL",
+                                      NSMakeRect(x, y, 110.0, 18.0),
+                                      10.0,
+                                      NSFontWeightSemibold,
+                                      textColor());
+        _circuitLabels[i].alignment = NSTextAlignmentCenter;
         [_circuitDocumentView addSubview:_circuitLabels[i]];
 
-        _circuitSliders[i] = [NSSlider sliderWithValue:50.0
-                                              minValue:0.0
-                                              maxValue:100.0
-                                                 target:self
-                                                 action:@selector(circuitSliderChanged:)];
-        _circuitSliders[i].frame = NSMakeRect(114.0, y, 455.0, 28.0);
-        _circuitSliders[i].continuous = YES;
+        _circuitSliders[i] = [[NSSlider alloc]
+            initWithFrame:NSMakeRect(x + 18.0, y + 24.0, 74.0, 74.0)];
+        _circuitSliders[i].doubleValue = 50.0;
+        _circuitSliders[i].target = self;
+        _circuitSliders[i].action = @selector(circuitSliderChanged:);
         _circuitSliders[i].tag = i;
+        styleRotarySlider(_circuitSliders[i]);
         [_circuitDocumentView addSubview:_circuitSliders[i]];
 
         _circuitSwitchPopups[i] = [[NSPopUpButton alloc]
-            initWithFrame:NSMakeRect(114.0, y, 455.0, 28.0)
+            initWithFrame:NSMakeRect(x, y + 46.0, 110.0, 30.0)
                 pullsDown:NO];
         _circuitSwitchPopups[i].target = self;
         _circuitSwitchPopups[i].action = @selector(circuitSwitchChanged:);
         _circuitSwitchPopups[i].tag = i;
+        stylePopup(_circuitSwitchPopups[i]);
         _circuitSwitchPopups[i].hidden = YES;
         [_circuitDocumentView addSubview:_circuitSwitchPopups[i]];
 
         _circuitValues[i] = makeLabel(@"50%",
-                                      NSMakeRect(574.0, y + 4.0, 58.0, 22.0));
-        _circuitValues[i].alignment = NSTextAlignmentRight;
+                                      NSMakeRect(x, y + 101.0, 110.0, 18.0),
+                                      11.0,
+                                      NSFontWeightMedium,
+                                      accentColor());
+        _circuitValues[i].alignment = NSTextAlignmentCenter;
         [_circuitDocumentView addSubview:_circuitValues[i]];
     }
 
-    _bypassButton = [NSButton checkboxWithTitle:@"Bypass"
-                                         target:self
-                                         action:@selector(bypassChanged:)];
-    _bypassButton.frame = NSMakeRect(140.0, 374.0, 150.0, 28.0);
-    [content addSubview:_bypassButton];
+    _bypassButton = makeButton(@"ACTIVE",
+                               NSMakeRect(170.0, 54.0, 200.0, 48.0),
+                               self,
+                               @selector(bypassChanged:));
+    _bypassButton.buttonType = NSButtonTypePushOnPushOff;
+    _bypassButton.contentTintColor = liveColor();
+    [pedalFace addSubview:_bypassButton];
+    NSTextField* bypassCaption = makeSectionLabel(@"FOOTSWITCH / BYPASS",
+                                                  NSMakeRect(170.0, 30.0, 200.0, 18.0));
+    bypassCaption.alignment = NSTextAlignmentCenter;
+    [pedalFace addSubview:bypassCaption];
 
-    [content addSubview:makeLabel(@"Input Level", NSMakeRect(24.0, 330.0, 100.0, 22.0))];
-    _inputMeter = [[NSProgressIndicator alloc]
-        initWithFrame:NSMakeRect(140.0, 332.0, 556.0, 16.0)];
-    _inputMeter.indeterminate = NO;
-    _inputMeter.style = NSProgressIndicatorStyleBar;
-    _inputMeter.minValue = 0.0;
-    _inputMeter.maxValue = 1.0;
-    [content addSubview:_inputMeter];
+    CircuitPedalPanelView* rightPanel = [[CircuitPedalPanelView alloc]
+        initWithFrame:NSMakeRect(884.0, 90.0, 280.0, 596.0)];
+    [content addSubview:rightPanel];
 
-    [content addSubview:makeLabel(@"Output Level", NSMakeRect(24.0, 296.0, 100.0, 22.0))];
-    _outputMeter = [[NSProgressIndicator alloc]
-        initWithFrame:NSMakeRect(140.0, 298.0, 556.0, 16.0)];
-    _outputMeter.indeterminate = NO;
-    _outputMeter.style = NSProgressIndicatorStyleBar;
-    _outputMeter.minValue = 0.0;
-    _outputMeter.maxValue = 1.0;
-    [content addSubview:_outputMeter];
+    [rightPanel addSubview:makeSectionLabel(@"SIGNAL", NSMakeRect(16.0, 552.0, 120.0, 20.0))];
+    [rightPanel addSubview:makeLabel(@"INPUT", NSMakeRect(16.0, 516.0, 70.0, 18.0), 10.5, NSFontWeightSemibold, mutedTextColor())];
+    _inputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(178.0, 516.0, 84.0, 18.0), 10.5, NSFontWeightMedium, textColor());
+    _inputDbLabel.alignment = NSTextAlignmentRight;
+    [rightPanel addSubview:_inputDbLabel];
+    _inputMeter = [[CircuitPedalMeterView alloc]
+        initWithFrame:NSMakeRect(16.0, 490.0, 246.0, 18.0)];
+    [rightPanel addSubview:_inputMeter];
 
-    _statusLabel = makeLabel(@"Audio Stopped",
-                             NSMakeRect(24.0, 112.0, 672.0, 166.0));
-    _statusLabel.font =
-        [NSFont monospacedSystemFontOfSize:12.0 weight:NSFontWeightRegular];
+    [rightPanel addSubview:makeLabel(@"OUTPUT", NSMakeRect(16.0, 452.0, 70.0, 18.0), 10.5, NSFontWeightSemibold, mutedTextColor())];
+    _outputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(178.0, 452.0, 84.0, 18.0), 10.5, NSFontWeightMedium, textColor());
+    _outputDbLabel.alignment = NSTextAlignmentRight;
+    [rightPanel addSubview:_outputDbLabel];
+    _outputMeter = [[CircuitPedalMeterView alloc]
+        initWithFrame:NSMakeRect(16.0, 426.0, 246.0, 18.0)];
+    [rightPanel addSubview:_outputMeter];
+
+    [rightPanel addSubview:makeSectionLabel(@"ENGINE STATUS", NSMakeRect(16.0, 374.0, 180.0, 20.0))];
+    _statusLabel = makeLabel(@"Audio stopped.\n\nChoose a model and audio device, then press Start Audio.",
+                             NSMakeRect(16.0, 132.0, 246.0, 232.0),
+                             11.0,
+                             NSFontWeightRegular,
+                             cpColor(0.72, 0.75, 0.78));
+    _statusLabel.font = [NSFont monospacedSystemFontOfSize:11.0 weight:NSFontWeightRegular];
     _statusLabel.usesSingleLineMode = NO;
-    [content addSubview:_statusLabel];
+    _statusLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    [rightPanel addSubview:_statusLabel];
 
-    _errorLabel = makeLabel(@"", NSMakeRect(24.0, 28.0, 672.0, 76.0));
-    _errorLabel.textColor = [NSColor systemRedColor];
+    NSTextField* stablePath = makeLabel(@"LIVE GENERIC PATH",
+                                        NSMakeRect(16.0, 82.0, 130.0, 18.0),
+                                        9.5,
+                                        NSFontWeightSemibold,
+                                        mutedTextColor());
+    stablePath.font = [NSFont monospacedSystemFontOfSize:9.5 weight:NSFontWeightSemibold];
+    [rightPanel addSubview:stablePath];
+    NSTextField* stableValue = makeLabel(@"1×  •  STABLE",
+                                         NSMakeRect(146.0, 82.0, 116.0, 18.0),
+                                         10.5,
+                                         NSFontWeightSemibold,
+                                         liveColor());
+    stableValue.alignment = NSTextAlignmentRight;
+    [rightPanel addSubview:stableValue];
+
+    CircuitPedalPanelView* footer = [[CircuitPedalPanelView alloc]
+        initWithFrame:NSMakeRect(16.0, 16.0, 1148.0, 58.0)];
+    [content addSubview:footer];
+    _errorLabel = makeLabel(@"Ready.",
+                            NSMakeRect(16.0, 12.0, 1116.0, 34.0),
+                            11.0,
+                            NSFontWeightRegular,
+                            mutedTextColor());
     _errorLabel.usesSingleLineMode = NO;
-    [content addSubview:_errorLabel];
+    _errorLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    [footer addSubview:_errorLabel];
 
     [self populateCircuitLibrary];
     [self populateDevices];
     [self refreshModelControls];
     [self setRunningControls:NO];
+    [self refreshBypassAppearance];
 
     _meterTimer = [NSTimer scheduledTimerWithTimeInterval:0.05
                                                    target:self
@@ -376,8 +735,6 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     }
 
     [_circuitLibraryPopup.menu addItem:[NSMenuItem separatorItem]];
-    // NSPopUpButton selection indices include separator menu items, so keep a
-    // placeholder entry to preserve one-to-one index mapping.
     _circuitLibraryPaths.emplace_back();
     [_circuitLibraryPopup addItemWithTitle:@"Load External…"];
     _circuitLibraryPaths.emplace_back("__external__");
@@ -394,8 +751,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     if (row < 0 || static_cast<std::size_t>(row) >= _circuitLibraryPaths.size())
         return;
 
-    const std::string path =
-        _circuitLibraryPaths[static_cast<std::size_t>(row)];
+    const std::string path = _circuitLibraryPaths[static_cast<std::size_t>(row)];
     if (path.empty())
         return;
 
@@ -409,6 +765,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     std::string error;
     if (!_engine->loadCircuitFile(path, error))
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue = nsString(error);
         [_circuitLibraryPopup selectItemAtIndex:0];
         NSBeep();
@@ -416,12 +773,13 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     }
 
     _bypassButton.state = NSControlStateValueOff;
-    _errorLabel.stringValue = @"";
+    _errorLabel.textColor = mutedTextColor();
+    _errorLabel.stringValue = @"Circuit selected. Start Audio when ready.";
     _statusLabel.stringValue =
-        @"Circuit selected from the built-in library. Start Audio to compile "
-         "its operating point and begin real-time processing.";
+        @"Circuit selected from the built-in library.\n\nStart Audio to compile its operating point and begin real-time processing.";
     [self refreshModelControls];
     [self setRunningControls:NO];
+    [self refreshBypassAppearance];
 }
 
 - (void)populateDevices
@@ -448,13 +806,14 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 
     if (!error.empty())
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue = nsString(error);
     }
     else if (_devices.empty())
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue =
-            @"No duplex audio device was found. Connect an interface with both input "
-             "and output, then relaunch CircuitPedal.";
+            @"No duplex audio device was found. Connect an interface with both input and output, then relaunch CircuitPedal.";
     }
     else
     {
@@ -471,7 +830,8 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
             ? 0
             : static_cast<NSInteger>(std::distance(_devices.begin(), preferred));
         [_devicePopup selectItemAtIndex:row];
-        _errorLabel.stringValue = @"";
+        _errorLabel.textColor = mutedTextColor();
+        _errorLabel.stringValue = @"Ready. Select a model and start audio.";
     }
 
     [self updateInputChannels];
@@ -504,7 +864,12 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 - (void)refreshModelControls
 {
     const BOOL generic = _engine->usingCircuitFile();
-    _modelValue.stringValue = nsString(_engine->activeModelName());
+    NSString* activeName = nsString(_engine->activeModelName());
+    _modelValue.stringValue = activeName;
+    _pedalTitle.stringValue = activeName;
+    _pedalSubtitle.stringValue = generic
+        ? @"GENERIC CIRCUIT MODEL  •  1× LIVE PATH"
+        : @"REFERENCE DISTORTION MODEL";
 
     _diodeLabel.hidden = generic;
     _diodePopup.hidden = generic;
@@ -520,10 +885,11 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 
     const std::size_t visibleControlCount =
         std::min<std::size_t>(_circuitControls.size(), 16);
+    const std::size_t rows = (visibleControlCount + 3U) / 4U;
     const double documentHeight =
-        std::max(166.0, 16.0 + 38.0 * static_cast<double>(visibleControlCount));
+        std::max(320.0, 12.0 + 132.0 * static_cast<double>(rows));
     _circuitDocumentView.frame =
-        NSMakeRect(0.0, 0.0, 650.0, documentHeight);
+        NSMakeRect(0.0, 0.0, 476.0, documentHeight);
 
     for (std::size_t i = 0; i < 16; ++i)
     {
@@ -547,8 +913,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 
             const std::uint32_t count =
                 std::max<std::uint32_t>(2U, control.switchPositionCount);
-            const double normalized =
-                static_cast<double>(_engine->circuitControl(i));
+            const double normalized = static_cast<double>(_engine->circuitControl(i));
             const NSInteger position = static_cast<NSInteger>(
                 std::llround(normalized * static_cast<double>(count - 1U)));
             if (_circuitSwitchPopups[i].numberOfItems > 0)
@@ -562,11 +927,9 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         }
         else
         {
-            const double value =
-                100.0 * static_cast<double>(_engine->circuitControl(i));
+            const double value = 100.0 * static_cast<double>(_engine->circuitControl(i));
             _circuitSliders[i].doubleValue = value;
-            _circuitValues[i].stringValue =
-                [NSString stringWithFormat:@"%.0f%%", value];
+            _circuitValues[i].stringValue = [NSString stringWithFormat:@"%.0f%%", value];
             _circuitSliders[i].hidden = NO;
             _circuitValues[i].hidden = NO;
         }
@@ -597,6 +960,16 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     _startButton.enabled =
         !running && !_devices.empty() && _channelPopup.numberOfItems > 0;
     _stopButton.enabled = running;
+    _liveDot.active = running;
+    _liveText.stringValue = running ? @"LIVE AUDIO" : @"AUDIO STOPPED";
+    _liveText.textColor = running ? liveColor() : mutedTextColor();
+}
+
+- (void)refreshBypassAppearance
+{
+    const BOOL bypassed = _bypassButton.state == NSControlStateValueOn;
+    _bypassButton.title = bypassed ? @"BYPASSED" : @"ACTIVE";
+    _bypassButton.contentTintColor = bypassed ? accentColor() : liveColor();
 }
 
 - (void)loadCircuit:(id)sender
@@ -618,6 +991,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     const char* utf8Path = panel.URL.path.UTF8String;
     if (utf8Path == nullptr)
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue = @"Could not read the selected file path.";
         return;
     }
@@ -625,6 +999,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     std::string error;
     if (!_engine->loadCircuitFile(utf8Path, error))
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue = nsString(error);
         NSBeep();
         return;
@@ -632,12 +1007,13 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 
     [_circuitLibraryPopup selectItemAtIndex:0];
     _bypassButton.state = NSControlStateValueOff;
-    _errorLabel.stringValue = @"";
+    _errorLabel.textColor = mutedTextColor();
+    _errorLabel.stringValue = @"External circuit loaded. Start Audio when ready.";
     _statusLabel.stringValue =
-        @"External circuit loaded. Start Audio to compile its DC operating point and "
-         "begin real-time processing.";
+        @"External circuit loaded.\n\nStart Audio to compile its DC operating point and begin real-time processing.";
     [self refreshModelControls];
     [self setRunningControls:NO];
+    [self refreshBypassAppearance];
 }
 
 - (void)useBuiltin:(id)sender
@@ -649,10 +1025,12 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     [_circuitLibraryPopup selectItemAtIndex:0];
     _bypassButton.state =
         _engine->bypassed() ? NSControlStateValueOn : NSControlStateValueOff;
-    _errorLabel.stringValue = @"";
-    _statusLabel.stringValue = @"Built-in Distortion+ selected.";
+    _errorLabel.textColor = mutedTextColor();
+    _errorLabel.stringValue = @"Built-in Distortion+ selected.";
+    _statusLabel.stringValue = @"Built-in Distortion+ selected.\n\nStart Audio when ready.";
     [self refreshModelControls];
     [self setRunningControls:NO];
+    [self refreshBypassAppearance];
 }
 
 - (void)startAudio:(id)sender
@@ -664,28 +1042,26 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         || static_cast<std::size_t>(deviceRow) >= _devices.size()
         || channelRow < 0)
     {
-        _errorLabel.stringValue =
-            @"Select a duplex device and an input channel before starting.";
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
+        _errorLabel.stringValue = @"Select a duplex device and an input channel before starting.";
         return;
     }
 
     circuitpedal::AudioStartConfiguration configuration;
-    configuration.deviceId =
-        _devices[static_cast<std::size_t>(deviceRow)].id;
+    configuration.deviceId = _devices[static_cast<std::size_t>(deviceRow)].id;
     configuration.inputChannel = static_cast<std::uint32_t>(channelRow);
+    const NSInteger bufferIndex = std::max<NSInteger>(0, _bufferPopup.indexOfSelectedItem);
+    const std::uint32_t bufferValues[] = { 64U, 128U, 256U };
     configuration.requestedBufferFrames =
-        static_cast<std::uint32_t>(_bufferPopup.titleOfSelectedItem.intValue);
+        bufferValues[std::min<NSInteger>(bufferIndex, 2)];
 
     if (!_engine->usingCircuitFile())
     {
-        _engine->setDistortion(
-            static_cast<float>(_distortionSlider.doubleValue / 100.0));
-        _engine->setOutput(
-            static_cast<float>(_outputSlider.doubleValue / 100.0));
+        _engine->setDistortion(static_cast<float>(_distortionSlider.doubleValue / 100.0));
+        _engine->setOutput(static_cast<float>(_outputSlider.doubleValue / 100.0));
         const NSInteger diodeRow = _diodePopup.indexOfSelectedItem;
-        const auto diodePreset =
-            static_cast<circuitpedal::ClippingDiodePreset>(
-                diodeRow >= 0 ? static_cast<std::uint32_t>(diodeRow) : 0U);
+        const auto diodePreset = static_cast<circuitpedal::ClippingDiodePreset>(
+            diodeRow >= 0 ? static_cast<std::uint32_t>(diodeRow) : 0U);
         _engine->setClippingDiodePreset(diodePreset);
     }
     _engine->setBypass(_bypassButton.state == NSControlStateValueOn);
@@ -693,14 +1069,16 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     std::string error;
     if (!_engine->start(configuration, error))
     {
+        _errorLabel.textColor = cpColor(0.95, 0.38, 0.32);
         _errorLabel.stringValue = nsString(error);
-        _statusLabel.stringValue = @"Audio Stopped";
+        _statusLabel.stringValue = @"Audio stopped.";
         [self setRunningControls:NO];
         NSBeep();
         return;
     }
 
-    _errorLabel.stringValue = @"";
+    _errorLabel.textColor = mutedTextColor();
+    _errorLabel.stringValue = @"Live audio running.";
     [self setRunningControls:YES];
     [self updateRunningStatus];
 }
@@ -709,10 +1087,13 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 {
     (void)sender;
     _engine->stop();
-    _inputMeter.doubleValue = 0.0;
-    _outputMeter.doubleValue = 0.0;
-    _statusLabel.stringValue = @"Audio Stopped";
-    _errorLabel.stringValue = @"";
+    _inputMeter.level = 0.0;
+    _outputMeter.level = 0.0;
+    _inputDbLabel.stringValue = @"−∞ dB";
+    _outputDbLabel.stringValue = @"−∞ dB";
+    _statusLabel.stringValue = @"Audio stopped.\n\nSettings are unlocked.";
+    _errorLabel.textColor = mutedTextColor();
+    _errorLabel.stringValue = @"Audio stopped.";
     [self refreshModelControls];
     [self setRunningControls:NO];
 }
@@ -721,8 +1102,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 {
     (void)sender;
     const double value = _distortionSlider.doubleValue;
-    _distortionValue.stringValue =
-        [NSString stringWithFormat:@"%.0f%%", value];
+    _distortionValue.stringValue = [NSString stringWithFormat:@"%.0f%%", value];
     _engine->setDistortion(static_cast<float>(value / 100.0));
 }
 
@@ -730,8 +1110,7 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
 {
     (void)sender;
     const double value = _outputSlider.doubleValue;
-    _outputValue.stringValue =
-        [NSString stringWithFormat:@"%.0f%%", value];
+    _outputValue.stringValue = [NSString stringWithFormat:@"%.0f%%", value];
     _engine->setOutput(static_cast<float>(value / 100.0));
 }
 
@@ -743,11 +1122,9 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
         return;
 
     const double value = slider.doubleValue;
-    _circuitValues[index].stringValue =
-        [NSString stringWithFormat:@"%.0f%%", value];
-    (void)_engine->setCircuitControl(
-        static_cast<std::size_t>(index),
-        static_cast<float>(value / 100.0));
+    _circuitValues[index].stringValue = [NSString stringWithFormat:@"%.0f%%", value];
+    (void)_engine->setCircuitControl(static_cast<std::size_t>(index),
+                                     static_cast<float>(value / 100.0));
 }
 
 - (void)circuitSwitchChanged:(id)sender
@@ -762,23 +1139,21 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     }
 
     const auto& control = _circuitControls[static_cast<std::size_t>(index)];
-    const std::uint32_t count =
-        std::max<std::uint32_t>(2U, control.switchPositionCount);
+    const std::uint32_t count = std::max<std::uint32_t>(2U, control.switchPositionCount);
     const NSInteger selected = popup.indexOfSelectedItem;
     if (selected < 0)
         return;
 
-    const float normalized =
-        static_cast<float>(selected)
+    const float normalized = static_cast<float>(selected)
         / static_cast<float>(count - 1U);
-    (void)_engine->setCircuitControl(
-        static_cast<std::size_t>(index), normalized);
+    (void)_engine->setCircuitControl(static_cast<std::size_t>(index), normalized);
 }
 
 - (void)bypassChanged:(id)sender
 {
     (void)sender;
     _engine->setBypass(_bypassButton.state == NSControlStateValueOn);
+    [self refreshBypassAppearance];
 }
 
 - (void)updateMeters:(NSTimer*)timer
@@ -787,10 +1162,12 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     if (!_engine->isRunning())
         return;
 
-    _inputMeter.doubleValue =
-        std::clamp(static_cast<double>(_engine->inputPeak()), 0.0, 1.0);
-    _outputMeter.doubleValue =
-        std::clamp(static_cast<double>(_engine->outputPeak()), 0.0, 1.0);
+    const double input = std::clamp(static_cast<double>(_engine->inputPeak()), 0.0, 1.0);
+    const double output = std::clamp(static_cast<double>(_engine->outputPeak()), 0.0, 1.0);
+    _inputMeter.level = input;
+    _outputMeter.level = output;
+    _inputDbLabel.stringValue = dbText(input);
+    _outputDbLabel.stringValue = dbText(output);
 }
 
 - (void)updateRunningStatus
@@ -799,44 +1176,31 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
     if (_engine->usingCircuitFile())
     {
         _statusLabel.stringValue = [NSString stringWithFormat:
-            @"Audio Running @ %.1f kHz\n"
-             "Model: %@ (.cpedal generic MNA)\n"
-             "Requested buffer: %u | Actual: %u (%.2f ms)\n"
-             "Input latency: %u + %u safety frames\n"
-             "Output latency: %u + %u safety frames\n"
-             "DSP FIR delay: %u frames | Reported component sum: %.2f ms\n"
-             "Generic circuit oversampling: 4x nonlinear solve + FIR resampling",
-            info.sampleRate / 1000.0,
+            @"LIVE AUDIO\n\n%@\n\n"
+             "Sample rate   %.1f kHz\n"
+             "Buffer        %u frames\n"
+             "Buffer time   %.2f ms\n"
+             "Latency sum   %.2f ms\n\n"
+             "Circuit path  1× stable live",
             nsString(_engine->activeModelName()),
-            info.requestedBufferFrames,
+            info.sampleRate / 1000.0,
             info.actualBufferFrames,
             info.bufferDurationMilliseconds(),
-            info.inputLatencyFrames,
-            info.inputSafetyOffsetFrames,
-            info.outputLatencyFrames,
-            info.outputSafetyOffsetFrames,
-            info.dspDelayFrames,
             info.reportedLatencyMilliseconds()];
     }
     else
     {
         _statusLabel.stringValue = [NSString stringWithFormat:
-            @"Audio Running @ %.1f kHz\n"
-             "Model: Built-in Distortion+\n"
-             "Diodes: %s\n"
-             "Requested buffer: %u | Actual: %u (%.2f ms)\n"
-             "Input latency: %u + %u safety frames | Output: %u + %u safety frames\n"
-             "DSP FIR delay: %u frames | Reported component sum: %.2f ms",
-            info.sampleRate / 1000.0,
+            @"LIVE AUDIO\n\nBuilt-in Distortion+\n\n"
+             "Diodes        %s\n"
+             "Sample rate   %.1f kHz\n"
+             "Buffer        %u frames\n"
+             "Buffer time   %.2f ms\n"
+             "Latency sum   %.2f ms",
             circuitpedal::clippingDiodePresetName(_engine->clippingDiodePreset()),
-            info.requestedBufferFrames,
+            info.sampleRate / 1000.0,
             info.actualBufferFrames,
             info.bufferDurationMilliseconds(),
-            info.inputLatencyFrames,
-            info.inputSafetyOffsetFrames,
-            info.outputLatencyFrames,
-            info.outputSafetyOffsetFrames,
-            info.dspDelayFrames,
             info.reportedLatencyMilliseconds()];
     }
 }
