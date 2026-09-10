@@ -2,7 +2,7 @@ CPEDAL 1
 NAME "Fuzz Factory Reference"
 
 # Classic five-knob Fuzz Factory topology, cross-checked against the supplied
-# Effects Layouts drawing and the Tayda/Implex public schematic.
+# Effects Layouts drawing and the Aion/verified public schematic.
 #
 # Q2/Q3 use separate compact AC128 gain bins (about 70 and 110 hFE) because
 # matched low/high germanium devices are part of the characteristic topology.
@@ -24,9 +24,11 @@ Q Q1 Q1C Q1B 0 2N3904
 POT STAB VCC VCC STAB_RAIL 5k LIN 1.0
 R R2 STAB_RAIL Q1C 10k
 
-# Q2: lower-gain PNP germanium stage.
+# Q2: lower-gain PNP germanium stage. The characteristic 47k feedback/bias
+# resistor returns from Q2 base to the Q3-emitter / COMP-DRIVE node; it does
+# not return directly to the STAB rail.
 C C2 Q1C Q2B 100n
-R R4 STAB_RAIL Q2B 47k
+R R4 Q3E Q2B 47k
 PNP Q2 Q2C Q2B STAB_RAIL AC128_LOW
 
 # GATE varies Q2 collector loading. Physical lugs 1+2 are grounded, so a
