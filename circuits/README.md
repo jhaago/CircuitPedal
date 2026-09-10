@@ -18,6 +18,9 @@ The `circuits/` folder contains human-readable `.cpedal` models used by the gene
   output booster, Pulse Width/Volume controls and a live Passive/Active pickup selector.
 - `ts10_reference_draft.cpedal` is the first dual-op-amp library target and
   models the engaged TS10 clipping, tone, level and transistor-buffer signal path.
+- `animato_reference_draft.cpedal` reconstructs the Human Gear Animato signal
+  path with NTE102/NTE103 germanium front end, 2SC2240 Muff-derived stages,
+  dual-gang Distortion and linked Bias switching.
 - `two_transistor_fuzz_demo.cpedal` remains a generic solver demonstration.
 
 The Woolly file is deliberately labelled **Reference Draft**. CircuitPedal's

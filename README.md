@@ -1,14 +1,14 @@
-# CircuitPedal V0.14
+# CircuitPedal V0.15
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.14 upgrades the generic op-amp from a static high-gain controlled source to a **time-dependent compact model with finite gain-bandwidth and slew rate**. DC operating points still use the full nonlinear open-loop/rail equation, while transient processing advances a dominant-pole output state at the circuit's 4x sample rate and applies explicit slew and output-rail limits.
+V0.15 adds **mechanically linked multi-pole switches** and the first Human Gear Animato reference model. `SWITCH_LINK` lets a single GUI control operate multiple electrical switch poles, complementing the existing `POT_LINK` support for dual-gang potentiometers.
 
-The built-in NJM/JRC4558 alias now uses a 3 MHz gain-bandwidth product and 1 V/us nominal slew rate, while CA3130 uses 15 MHz and 30 V/us. The TS10 acceptance circuit remains stable through the new dynamic op-amp path on both macOS and Ubuntu, so the extra fidelity is now exercised by a complete dual-op-amp pedal rather than only by a synthetic unit test.
+The Animato reference draft uses the supplied layout plus an independent schematic cross-check to model its complementary NTE102/NTE103 germanium front end, five 2SC2240 silicon stages, dual-gang Distortion control, linked Bias switch, Big-Muff-derived clipping/tone stages and output buffer. The complete model now passes the 4x nonlinear suite on macOS and Ubuntu.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.14 Circuit Lab Test
+## V0.15 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,18 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft and TS10 Tube Screamer Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft and Human Gear Animato Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Animato and linked-switch milestone introduced in V0.15
+
+- Adds `SWITCH_LINK` so DPDT and larger mechanically linked switches can be represented without duplicating GUI controls.
+- Applies linked switch poles both before the DC bias solve and live while audio is running.
+- Adds compact NTE102/NTE103 germanium and 2SC2240 device aliases.
+- Adds a Human Gear Animato reference draft with linked dual-gang Distortion and linked two-pole Bias controls.
+- Exercises Bias, Distortion and Tone changes while the full Animato circuit runs through the 4x nonlinear solver.
+- Keeps the Animato labelled as a reference draft pending measured-device/SPICE comparison, especially for the germanium input pair.
 
 ## Dynamic generic op-amp model introduced in V0.14
 
@@ -250,6 +259,8 @@ The automated suite currently checks:
 - live SPST/SPDT/on-off-on circuit switching;
 - Fat Fuzz Factory across all Fat-switch positions;
 - Fuzzolo across Passive/Active pickup selection and live Pulse Width changes;
-- TS10 Tube Screamer engaged path with two op-amp sections and live Drive/Tone changes.
+- TS10 Tube Screamer engaged path with two op-amp sections and live Drive/Tone changes;
+- linked multi-pole switch parsing and live state changes;
+- Human Gear Animato with linked Bias and dual-gang Distortion sweeps.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.

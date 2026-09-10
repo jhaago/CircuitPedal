@@ -3,7 +3,7 @@ set -e
 cd "$(dirname "$0")"
 
 echo "========================================"
-echo " CircuitPedal V0.14 - Mac terminal build + run"
+echo " CircuitPedal V0.15 - Mac terminal build + run"
 echo "========================================"
 echo
 
