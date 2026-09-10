@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.20
+## Component support in V0.21
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -28,7 +28,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.20
+## Named model aliases in V0.21
 
 NPN BJTs currently include compact aliases for:
 
@@ -38,6 +38,7 @@ NPN BJTs currently include compact aliases for:
 - 2SC2240 / C2240
 - 2N2222 / 2N2222A
 - 2N5088
+- 2N5089
 - 2N5133
 - BC239 / BC239C
 - BC550 / BC550C
@@ -50,6 +51,7 @@ PNP BJTs include:
 - AC128 / generic germanium PNP
 - AC128_LOW / AC128_HIGH (Fuzz Factory matching bins)
 - 2N1308
+- 2N3906
 
 N-channel JFETs include:
 
@@ -96,6 +98,7 @@ Diodes include:
 - Lovepedal Kalamazoo Reference Draft
 - BearFoot Blueberry Bass Overdrive Reference Draft
 - Woolly Mammoth Reference Draft
+- EQD Tentacle Reference Draft
 - generic two-transistor fuzz demo
 
 These files are parsed from disk, compiled through the generic circuit engine and
@@ -120,6 +123,9 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
 - Human Gear Animato — converted and CI-validated with linked Distortion and Bias controls; germanium-device validation remains.
+- EQD Tentacle — converted from the supplied PCB artwork and cross-checked
+  against the PedalPCB Squidward schematic/BOM; SPICE and physical-pedal
+  validation remain.
 
 ## Conversion rule
 

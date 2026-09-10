@@ -437,6 +437,49 @@ void testBigMuffRepositoryModels()
 #endif
 }
 
+void testTentacleRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Tentacle validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/eqd_tentacle_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Tentacle reference .cpedal did not load: " + error);
+    expect(document.controls.empty(),
+           "Tentacle reference unexpectedly exposed a live control");
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Tentacle reference did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    int failureCount = 0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        const float input = static_cast<float>(
+            0.45 * std::sin(2.0 * pi * 110.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Tentacle produced non-finite audio");
+        if (!circuit.lastSolveConverged())
+            ++failureCount;
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+
+    expect(failureCount == 0,
+           "Tentacle nonlinear solve failed during transient validation");
+    expect(peak > 1.0e-6, "Tentacle produced no meaningful audio");
+#endif
+}
+
 void testNagaViperRepositoryModel()
 {
 #ifndef CIRCUITPEDAL_SOURCE_DIR
@@ -1024,6 +1067,14 @@ void testBuiltInModels()
     const auto c2240 = circuitpedal::builtInNpnModel("2SC2240", ok);
     expect(ok && c2240.forwardBeta >= 200.0,
            "2SC2240 high-gain NPN model was unavailable");
+
+    const auto n5089 = circuitpedal::builtInNpnModel("2N5089", ok);
+    expect(ok && n5089.forwardBeta > 500.0,
+           "2N5089 high-gain NPN model was unavailable");
+
+    const auto p3906 = circuitpedal::builtInPnpModel("2N3906", ok);
+    expect(ok && p3906.forwardBeta >= 100.0,
+           "2N3906 silicon PNP model was unavailable");
 }
 
 } // namespace
@@ -1037,6 +1088,7 @@ int main()
     testLinkedSwitchParsing();
     testParserFailures();
     testRepositoryWoollyReference();
+    testTentacleRepositoryModel();
     testBigMuffRepositoryModels();
     testNagaViperRepositoryModel();
     testFuzzFactoryRepositoryModel();

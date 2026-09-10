@@ -1,0 +1,52 @@
+CPEDAL 1
+NAME "EQD Tentacle Reference Draft"
+
+# Engaged audio-path reconstruction of the three-transistor analog octave-up
+# circuit shown in the supplied PCB artwork and cross-checked against the
+# PedalPCB Squidward schematic/BOM (revision 04.04.20). The protection diode
+# follows the supplied layout's 1N4001 marking; indicator LED/bypass wiring is
+# omitted because it is outside the processed audio path.
+#
+# Q1/Q3 use compact 2N5089 aliases and Q2 a compact 2N3906 alias. These are
+# Ebers-Moll approximations rather than manufacturer-specific device models,
+# so this remains a Reference Draft pending SPICE and physical-pedal checks.
+
+V SUPPLY RAW_VCC 0 9
+D D_POWER RAW_VCC VCC 1N4001
+C C_POWER VCC 0 100u
+
+AUDIO GUITAR INPUT 0 0.20
+R R_INPUT_PULLDOWN INPUT 0 2M2
+C C_RF INPUT 0 100p
+C C_INPUT INPUT Q1_BASE 47n
+
+# Q1 input amplifier.
+R R_Q1_BIAS_TOP VCC Q1_BASE 560k
+R R_Q1_BIAS_BOTTOM Q1_BASE 0 160k
+R R_Q1_COLLECTOR VCC Q1_COLLECTOR 18k
+R R_Q1_EMITTER Q1_EMITTER 0 6k2
+Q Q1 Q1_COLLECTOR Q1_BASE Q1_EMITTER 2N5089
+
+# Q2 PNP phase splitter: emitter is the upper phase and collector the lower.
+R R_Q2_EMITTER VCC Q2_EMITTER 10k
+R R_Q2_COLLECTOR Q2_COLLECTOR 0 10k
+PNP Q2 Q2_COLLECTOR Q1_COLLECTOR Q2_EMITTER 2N3906
+C C_UPPER_PHASE Q2_EMITTER RECT_UPPER 47n
+C C_LOWER_PHASE Q2_COLLECTOR RECT_LOWER 47n
+
+# Balanced full-wave rectifier. The two 68k resistors feed a half-supply
+# reference; the diode cathodes combine both phases at the Q3 base.
+R R_RECT_UPPER RECT_UPPER RECT_BIAS 68k
+R R_RECT_LOWER RECT_LOWER RECT_BIAS 68k
+R R_RECT_BIAS_TOP VCC RECT_BIAS 22k
+R R_RECT_BIAS_BOTTOM RECT_BIAS 0 22k
+D D_RECT_UPPER RECT_UPPER Q3_BASE 1N4148
+D D_RECT_LOWER RECT_LOWER Q3_BASE 1N4148
+
+# Q3 emitter-follower output buffer.
+Q Q3 VCC Q3_BASE Q3_EMITTER 2N5089
+R R_Q3_EMITTER Q3_EMITTER 0 10k
+C C_OUTPUT Q3_EMITTER OUT 100n
+R R_OUTPUT_LOAD OUT 0 4k7
+
+OUTPUT OUT 1

@@ -306,11 +306,15 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
-    if (normalized == "2N5088")
+    if (normalized == "2N5088" || normalized == "2N5089")
     {
         GenericNpnBjtModel model;
+        // The 2N5088/89 are the same high-gain, low-noise silicon family.
+        // Keep one deliberately compact approximation until a nominated
+        // manufacturer SPICE model is introduced; physical device spread is
+        // not represented by this Ebers-Moll alias.
         model.saturationCurrentAmps = 3.0e-14;
-        model.forwardBeta = 520.0;
+        model.forwardBeta = normalized == "2N5089" ? 650.0 : 520.0;
         model.reverseBeta = 4.0;
         ok = true;
         return model;
@@ -411,6 +415,17 @@ GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept
         model.forwardBeta = 80.0;
         model.reverseBeta = 2.0;
         model.emissionCoefficient = 1.4;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2N3906")
+    {
+        // General-purpose silicon PNP approximation. This exposes the named
+        // phase-splitter part used by the Tentacle while retaining the same
+        // compact-model limitations as the NPN aliases.
+        model.saturationCurrentAmps = 1.4e-15;
+        model.forwardBeta = 180.0;
+        model.reverseBeta = 4.0;
         ok = true;
         return model;
     }

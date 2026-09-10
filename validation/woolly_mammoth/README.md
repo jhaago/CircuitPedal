@@ -110,7 +110,7 @@ state window with:
 ./build/circuitpedal_validate render \
   circuits/woolly_mammoth_reference_draft.cpedal \
   build/validation/woolly/circuitpedal.csv \
-  --sample-rate 192000 --seconds 1 --warmup 0.05 \
+  --sample-rate 192000 --seconds 1 \
   --signal sine --frequency 110 --amplitude 0.25 \
   --control WOOL=0.75 --control PINCH=0.35 \
   --control EQ=0.50 --control OUTPUT=0.70 \
@@ -129,3 +129,22 @@ not established here. Before permanent fidelity thresholds are introduced,
 replace or corroborate it with a versioned manufacturer model and record its
 source URL, retrieval date, licence and SHA-256 checksum, or nominate and
 measure a physical transistor lot.
+
+### Multi-state transient campaign
+
+`run_candidate_comparison.sh` renders both simulators at 192 kHz for the
+nominal, all-maximum and restrained control states. It reports output plus four
+transistor-node comparisons over the steady 0.25-0.75 s window and retains the
+effective ngspice netlist, raw/normalized traces and metric report for each
+case:
+
+```bash
+validation/woolly_mammoth/run_candidate_comparison.sh \
+  build/circuitpedal_validate \
+  build/validation/woolly-campaign
+```
+
+No fidelity threshold is attached to this exploratory campaign yet. CI proves
+the two independent render paths execute and makes their disagreement visible;
+promotion thresholds will follow only after the candidate transistor model is
+given reliable provenance or replaced with physical reference measurements.

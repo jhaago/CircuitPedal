@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.20.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.21.0 LANGUAGES CXX)
 
 include(CTest)
 

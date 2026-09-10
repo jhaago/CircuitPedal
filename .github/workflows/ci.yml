@@ -42,6 +42,7 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/eqd_tentacle_reference_draft.cpedal
 
   sanitizer-test:
     runs-on: ubuntu-latest
@@ -70,10 +71,9 @@ jobs:
         run: |
           cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel --target circuitpedal_validate
-      - name: Render Woolly Mammoth reference candidate
-        run: validation/woolly_mammoth/run_ngspice.sh build/validation/woolly
       - name: Validate normalized reference columns
         run: |
+          validation/woolly_mammoth/run_ngspice.sh build/validation/woolly
           build/circuitpedal_validate compare \
             build/validation/woolly/woolly_mammoth_ngspice.csv \
             build/validation/woolly/woolly_mammoth_ngspice.csv \
@@ -83,3 +83,13 @@ jobs:
             --max-nrms 0.000001 --max-peak 0.000001 \
             --min-correlation 0.999999 --max-gain-db 0.000001 \
             --max-thd-db 0.000001
+      - name: Compare Woolly candidate across control states
+        run: |
+          validation/woolly_mammoth/run_candidate_comparison.sh \
+            build/circuitpedal_validate \
+            build/validation/woolly-campaign
+      - name: Upload Woolly comparison artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: woolly-candidate-comparison
+          path: build/validation/woolly-campaign

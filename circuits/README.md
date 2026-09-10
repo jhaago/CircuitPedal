@@ -28,6 +28,9 @@ The `circuits/` folder contains human-readable `.cpedal` models used by the gene
   Blueberry Bass Overdrive with a CA3130EZ voltage-amplifier stage, red-LED
   feedback clipping, 1N4007 post-stage clamping, a 2N5457 output stage and
   live Drive, Tone and Volume controls.
+- `eqd_tentacle_reference_draft.cpedal` reconstructs the zero-control,
+  three-transistor analog octave-up path with its complementary phase splitter
+  and dual-diode full-wave rectifier.
 
 Files labelled **Reference Draft** have passed CircuitPedal's parser/solver and
 end-to-end stability checks but have not yet been fitted against measured hardware
