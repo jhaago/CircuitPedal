@@ -84,7 +84,6 @@ void styleRotarySlider(NSSlider* slider)
     slider.minValue = 0.0;
     slider.maxValue = 100.0;
     slider.continuous = YES;
-    slider.contentTintColor = accentColor();
 }
 
 NSString* dbText(double peak)
@@ -181,7 +180,7 @@ NSString* dbText(double peak)
 @end
 
 @interface CircuitPedalMeterView : NSView
-@property double level;
+@property(nonatomic) double level;
 @end
 
 @implementation CircuitPedalMeterView
@@ -224,7 +223,10 @@ NSString* dbText(double peak)
                 color = liveColor();
         }
 
-        NSRect segment = NSMakeRect(i * (width + gap), 1.0, width, NSHeight(self.bounds) - 2.0);
+        NSRect segment = NSMakeRect(static_cast<CGFloat>(i) * (width + gap),
+                                    1.0,
+                                    width,
+                                    NSHeight(self.bounds) - 2.0);
         NSBezierPath* path = [NSBezierPath bezierPathWithRoundedRect:segment
                                                             xRadius:2.0
                                                             yRadius:2.0];
@@ -236,7 +238,7 @@ NSString* dbText(double peak)
 @end
 
 @interface CircuitPedalStatusDotView : NSView
-@property BOOL active;
+@property(nonatomic) BOOL active;
 @end
 
 @implementation CircuitPedalStatusDotView
