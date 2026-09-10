@@ -856,6 +856,80 @@ void testAnimatoRepositoryModel()
 #endif
 }
 
+void testKalamazooRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Kalamazoo validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/kalamazoo_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Kalamazoo model did not load: " + error);
+    expect(document.controls.size() == 4,
+           "Kalamazoo did not expose Drive, Tone, Glass and Level");
+
+    std::size_t drive = document.controls.size();
+    std::size_t tone = document.controls.size();
+    std::size_t glass = document.controls.size();
+    std::size_t level = document.controls.size();
+    for (std::size_t i = 0; i < document.controls.size(); ++i)
+    {
+        const auto& name = document.controls[i].name;
+        if (name == "DRIVE") drive = i;
+        else if (name == "TONE") tone = i;
+        else if (name == "GLASS") glass = i;
+        else if (name == "LEVEL") level = i;
+    }
+
+    expect(drive < document.controls.size(), "Kalamazoo Drive control missing");
+    expect(tone < document.controls.size(), "Kalamazoo Tone control missing");
+    expect(glass < document.controls.size(), "Kalamazoo Glass control missing");
+    expect(level < document.controls.size(), "Kalamazoo Level control missing");
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Kalamazoo did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    int failureCount = 0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        if (n == 6000 && drive < document.controls.size())
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[drive].potentiometerIndex, 0.92),
+                   "Kalamazoo Drive could not move live");
+        if (n == 12000 && tone < document.controls.size())
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[tone].potentiometerIndex, 0.90),
+                   "Kalamazoo Tone could not move live");
+        if (n == 18000 && glass < document.controls.size())
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[glass].potentiometerIndex, 0.90),
+                   "Kalamazoo Glass could not move live");
+
+        const float input = static_cast<float>(
+            0.30 * std::sin(2.0 * pi * 196.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Kalamazoo produced non-finite audio");
+        if (!circuit.lastSolveConverged())
+            ++failureCount;
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+
+    expect(failureCount == 0,
+           "Kalamazoo nonlinear solve failed during live-control sweep");
+    expect(peak > 1.0e-6, "Kalamazoo produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -900,6 +974,7 @@ int main()
     testFuzzoloRepositoryModel();
     testTs10RepositoryModel();
     testAnimatoRepositoryModel();
+    testKalamazooRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)

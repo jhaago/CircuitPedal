@@ -1,0 +1,71 @@
+CPEDAL 1
+NAME "Lovepedal Kalamazoo Reference Draft"
+
+# Reconstructed from the user's verified Effects Layouts drawing and the
+# WhiteKeyHole trace published by La Revolution Deux / later clone layouts.
+# This models the engaged signal path only. D5 polarity protection and LED /
+# true-bypass wiring are intentionally omitted from the audio path.
+#
+# The first 4558 section is a non-inverting soft clipper with two silicon
+# diodes in series in each feedback direction. The second section implements
+# the separate Tone (treble softening) and Glass (high-frequency boost)
+# behaviour described by Lovepedal.
+#
+# Cx across the first op-amp is optional on the Effects Layouts drawing and is
+# omitted here. It can be introduced later as a component-variation control.
+
+V VRAW VRAW 0 9
+R R_SUPPLY VRAW VCC 100
+C C_SUPPLY VCC 0 100n
+C C_SUPPLY_BULK VCC 0 47u
+AUDIO GUITAR INPUT 0 0.20
+
+# Half-supply reference.
+R R_VREF_TOP VCC VREF 10k
+R R_VREF_BOTTOM VREF 0 10k
+C C_VREF VREF 0 47u
+
+# Input coupling / bias shown in the trace.
+R R_INPUT_PD INPUT 0 1M
+C C_IN INPUT CLIP_PLUS 47n
+R R_INPUT_BIAS CLIP_PLUS VREF 1M
+
+# First half of JRC4558: soft-clipping overdrive.
+OPAMP U1A CLIP_PLUS CLIP_MINUS CLIP_OUT VCC 0 JRC4558
+
+# Frequency-dependent non-inverting gain. Increasing DRIVE raises the feedback
+# resistance and therefore the overdrive gain.
+R R_GAIN_MIN GAIN_LOW VREF 3k3
+C C_GAIN CLIP_MINUS GAIN_LOW 100n
+POT DRIVE CLIP_OUT CLIP_MINUS CLIP_MINUS 500k LOG 0.58
+
+# Two 1N914/1N4148 junctions in series for each feedback polarity.
+D D1 CLIP_MINUS D12 1N914
+D D2 D12 CLIP_OUT 1N914
+D D3 CLIP_OUT D34 1N914
+D D4 D34 CLIP_MINUS 1N914
+
+# Passive Tone stage. The traced 5k control acts as a variable series
+# resistance shunting the fixed 2.74k path; the 150n capacitor creates the
+# treble roll-off. Higher GUI TONE intentionally means more treble softening,
+# matching Lovepedal's published control description.
+R R_POST_CLIP CLIP_OUT TONE_IN 1k
+R R_TONE_FIXED TONE_IN TONE_NODE 2k74
+POT TONE TONE_IN TONE_NODE TONE_NODE 5k LIN 0.45
+C C_TONE TONE_NODE VREF 150n
+
+# Second 4558 section. GLASS increases high-frequency closed-loop gain without
+# removing low-frequency content: at low frequencies C_GLASS is effectively
+# open, while at high frequencies it establishes the inverting-leg impedance.
+OPAMP U1B TONE_NODE GLASS_MINUS AMP_OUT VCC 0 JRC4558
+R R_GLASS_FB AMP_OUT GLASS_FB 1k
+POT GLASS GLASS_FB GLASS_MINUS GLASS_MINUS 5k LIN 0.45
+C C_GLASS GLASS_MINUS GLASS_RC 220n
+R R_GLASS_SHUNT GLASS_RC VREF 332
+
+# Output coupling and level.
+C C_OUT AMP_OUT LEVEL_TOP 10u
+POT LEVEL 0 OUT LEVEL_TOP 100k LIN 0.55
+R R_OUT_LOAD OUT 0 1M
+
+OUTPUT OUT 0.5
