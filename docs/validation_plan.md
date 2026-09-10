@@ -13,6 +13,7 @@ The V0.19 validation stage extends it with:
 - explicit named-column comparison for CircuitPedal and simulator exports;
 - DC operating-point inspection;
 - machine-readable per-node DC reference tables and pass/fail tolerances;
+- validation-only named fixed-voltage-source overrides so reference conditions can match measurements without changing live models;
 - the first committed external-reference dataset for the Woolly Mammoth;
 - visible Woolly DC reference reporting in CI.
 
@@ -20,7 +21,7 @@ The current implementation can therefore:
 
 - generate deterministic sine, step, impulse, dual-tone and logarithmic-sweep stimuli;
 - render a `.cpedal` model directly at an electrical solver rate up to 384 kHz;
-- apply named potentiometer and switch states before the DC operating-point solve;
+- apply named potentiometer, switch and validation-only fixed-source states before the DC operating-point solve;
 - export the raw declared output-node voltage, calibrated CircuitPedal output and requested internal-node voltages to CSV;
 - load normalized CircuitPedal/SPICE waveform CSV files and select arbitrary value columns;
 - search a bounded integer-sample lag for alignment;
@@ -61,10 +62,11 @@ Every comparison must report time alignment, amplitude calibration, RMS error,
 peak error and harmonic-amplitude error. Store tolerances beside each trusted
 golden dataset rather than relying on visual inspection.
 
-V0.19 covers arbitrary-node capture and named-column comparison. The main
-remaining framework work before broad automated SPICE acceptance is
-reference-data resampling/interpolation, richer spectral metrics and committed
-reference metadata describing simulator/model versions and circuit state.
+V0.19 covers arbitrary-node capture, named-column comparison, machine-readable
+DC gates and exact reference supply matching. The main remaining framework work
+before broad automated SPICE acceptance is reference-data
+resampling/interpolation, richer spectral metrics and committed reference
+metadata describing simulator/model versions and circuit state.
 
 ## Physical measurements
 
@@ -107,26 +109,25 @@ The source suggests working builds should be around 10% from those readings.
 The machine-readable data and provenance notes live under
 `validation/woolly_mammoth/`.
 
-The current `.cpedal` reference file uses a fixed 9.0 V supply. To maintain
-continuity with the existing V0.8 sanity test, the machine-readable gate carries
-9.0/9.33-scaled comparison values while preserving the original 9.33 V measured
-readings in the same dataset.
+V0.19 evaluates the normal 9.0 V Woolly `.cpedal` topology at the source
+measurement's actual 9.33 V condition using the validation-only
+`--source VCCSRC=9.33` override. The override exists only inside the offline
+validator: it does not edit the circuit file and does not affect GUI/live audio.
 
-This simple linear scaling is **not** claimed to model the real supply-voltage
-response of the transistor circuit. The present 35% tolerance is deliberately
-broad because the CircuitPedal 2N3904 remains a compact Ebers-Moll approximation,
-the supply does not yet match the measurement, and the published readings come
-from one physical build.
+The present 35% tolerance is deliberately broad because the CircuitPedal 2N3904
+remains a compact Ebers-Moll approximation and the published readings come from
+one physical build. It is a regression/sanity gate, not the final acceptance
+limit.
 
-CI now runs the generic `dc-check` path against that table, so regression output
-shows the expected voltage, actual voltage, signed error and allowed error for
-each Woolly transistor node.
+CI runs the generic `dc-check` path against the table, so regression output shows
+the expected voltage, actual voltage, signed error and allowed error for each
+Woolly transistor node.
 
 ### Fidelity target
 
 For a stronger Woolly Mammoth claim:
 
-1. Run the circuit at the same 9.33 V reference supply and all-controls-maxed state used by the published measurements.
+1. Quantify and reduce the exact 9.33 V DC errors, especially at the collector nodes, without blindly changing topology or overfitting one physical build.
 2. Bring the DC node voltages to approximately ±10% of the working-board reference without tuning the model to an obviously unphysical device.
 3. Cross-check the result against at least one established 2N3904 SPICE model.
 4. Compare transient waveforms at `B1`, `C1_NODE`, `E2`, `C2_NODE`, tone-network nodes and `OUT` at multiple control settings using V0.19 internal-node capture.
