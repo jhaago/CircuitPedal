@@ -1,0 +1,5 @@
+node,expected_v,relative_tolerance_percent,absolute_tolerance_v,measured_v_at_9_33,source_supply_v
+B1,0.5594855305466238,35,0,0.58,9.33
+C1_NODE,1.157556270096463,35,0,1.20,9.33
+E2,0.8488745980707396,35,0,0.88,9.33
+C2_NODE,2.2186495176848875,35,0,2.30,9.33
