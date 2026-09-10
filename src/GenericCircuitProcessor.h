@@ -10,9 +10,23 @@
 
 namespace circuitpedal {
 
-// Four-times oversampled wrapper for arbitrary nonlinear circuits. The circuit
-// itself is solved at 4x the host rate so capacitor companions and nonlinear
-// junctions see the oversampled timestep rather than a post-effect resampler.
+enum class GenericProcessingMode : std::uint8_t {
+    OneX = 1,
+    FourX = 4
+};
+
+// Selects the mode used by subsequently compiled generic processors. The core
+// defaults to FourX so the existing oversampling validation remains available;
+// the macOS live-audio target explicitly selects OneX at startup because that
+// is the physically validated realtime path. Change mode only while audio is
+// stopped, before compiling a circuit.
+void setGenericProcessingMode(GenericProcessingMode mode) noexcept;
+GenericProcessingMode genericProcessingMode() noexcept;
+
+// Generic nonlinear circuit wrapper. FourX remains available for engineering
+// work, but the live macOS app currently selects OneX. The class name is kept
+// for source compatibility with the existing audio engine while oversampling is
+// being treated as experimental rather than production-ready.
 class OversampledGenericCircuit {
 public:
     static constexpr int factor = Oversampler4x::factor;
@@ -63,11 +77,13 @@ public:
 
     double hostSampleRate() const noexcept { return hostSampleRate_; }
     double circuitSampleRate() const noexcept { return circuit_.sampleRate(); }
+    GenericProcessingMode activeProcessingMode() const noexcept { return activeMode_; }
 
 private:
     GenericCircuit circuit_;
     Oversampler4x oversampler_;
     double hostSampleRate_ = 48000.0;
+    GenericProcessingMode activeMode_ = GenericProcessingMode::FourX;
     bool compiled_ = false;
     bool lastSolveConverged_ = false;
 };
