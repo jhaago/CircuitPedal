@@ -46,13 +46,32 @@ struct Waveform {
     double sampleRate = 0.0;
 };
 
-// Loads a comparison waveform from CSV. The file must contain a time column
-// named time_s or time and a value column. output_v is preferred, followed by
-// output_volts, output, value and v(out). This keeps CircuitPedal's renderer
-// directly compatible with a small normalized export from SPICE tools.
+// Loads a comparison waveform from CSV. The default overload looks for
+// output_v first, followed by output_volts, output, value and v(out). The named
+// overload selects an exact column case-insensitively, which allows internal
+// node traces exported by CircuitPedal or SPICE to be compared directly.
 bool loadWaveformCsv(const std::string& path,
                      Waveform& waveform,
                      std::string& error);
+
+bool loadWaveformCsv(const std::string& path,
+                     const std::string& valueColumnName,
+                     Waveform& waveform,
+                     std::string& error);
+
+struct DcReferencePoint {
+    std::string nodeName;
+    double expectedVolts = 0.0;
+    double relativeTolerancePercent = 0.0;
+    double absoluteToleranceVolts = 0.0;
+};
+
+// Loads a machine-readable operating-point reference table. Required columns
+// are node and expected_v. At least one non-zero tolerance must be supplied by
+// relative_tolerance_percent/tolerance_percent or absolute_tolerance_v.
+bool loadDcReferenceCsv(const std::string& path,
+                        std::vector<DcReferencePoint>& points,
+                        std::string& error);
 
 struct ComparisonOptions {
     int maxLagSamples = 0;
