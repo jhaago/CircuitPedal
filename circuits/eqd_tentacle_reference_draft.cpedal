@@ -47,8 +47,10 @@ D D_RECT_LOWER RECT_LOWER Q3_BASE 1N4148
 Q Q3 VCC Q3_BASE Q3_EMITTER 2N5089
 R R_Q3_EMITTER Q3_EMITTER 0 10k
 C C_OUTPUT Q3_EMITTER OUT 100n
-# PedalPCB Squidward reference uses 47k here. The previous 4k7 value loaded
-# the AC-coupled output ten times more heavily than the traced/reference circuit.
 R R_OUTPUT_LOAD OUT 0 47k
 
-OUTPUT OUT 1
+# The physical circuit is near unity/slightly above unity voltage gain at the
+# nominal guitar stimulus, but the previous digital calibration made the wet
+# path about 12 dB quieter than bypass. This value changes interface scaling
+# only; it does not change the simulated circuit voltages or octave generation.
+OUTPUT OUT 4
