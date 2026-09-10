@@ -24,6 +24,7 @@ jobs:
           ./build/circuitpedal_validate dc-check \
             circuits/woolly_mammoth_reference_draft.cpedal \
             validation/woolly_mammoth/working_board_dc.csv \
+            --source VCCSRC=9.33 \
             --control WOOL=1 \
             --control PINCH=1 \
             --control EQ=1 \
