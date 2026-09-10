@@ -1293,39 +1293,38 @@ void GenericCircuit::stampNonlinear(bool dcMode) noexcept
             continue;
         }
 
-        // Single-dominant-pole large-signal model. GBW/AOL gives the open-loop
-        // dominant pole; closed-loop bandwidth emerges from feedback. A tanh
-        // limiter makes the state derivative approach the configured slew rate
-        // smoothly, which keeps the Newton Jacobian continuous.
+        // Backward-compatible dominant-pole large-signal step. GBW/AOL gives
+        // the open-loop pole and feedback determines the closed-loop response.
+        // We advance the internal output target by one exact one-pole step, then
+        // bound that step by the configured slew rate. Keeping the op-amp branch
+        // equation algebraic in each Newton iteration is substantially more
+        // robust when feedback diodes and multiple op-amps interact.
         constexpr double twoPi = 6.28318530717958647692;
         const double dominantPoleHz =
             opAmp.model.gainBandwidthHz / opAmp.model.openLoopGain;
-        const double omegaPole = twoPi * dominantPoleHz;
-        const double outputError = target - voltage(opAmp.output);
-        const double linearRate = omegaPole * outputError;
-        const double slew = opAmp.model.slewRateVoltsPerSecond;
-        const double slewX = linearRate / slew;
-        const double slewTanh = std::tanh(slewX);
-        const double slewSechSquared =
-            std::max(0.0, 1.0 - slewTanh * slewTanh);
-        const double rate = slew * slewTanh;
-        const double dRate_dError = omegaPole * slewSechSquared;
-        const double transientScale = timestep_ * dRate_dError;
+        const double alpha =
+            1.0 - std::exp(-twoPi * dominantPoleHz * timestep_);
+        const double previous = runtimeOpAmp.previousOutputVoltage;
+        const double unlimited = previous + alpha * (target - previous);
+        const double maximumStep =
+            opAmp.model.slewRateVoltsPerSecond * timestep_;
+        const double rawStep = unlimited - previous;
+        const bool slewLimited = std::abs(rawStep) > maximumStep;
+        const double limitedStep =
+            std::clamp(rawStep, -maximumStep, maximumStep);
+        const double dynamicTarget = previous + limitedStep;
+        const double targetDerivativeScale = slewLimited ? 0.0 : alpha;
 
-        residual_[branchIndex] +=
-            voltage(opAmp.output)
-            - runtimeOpAmp.previousOutputVoltage
-            - timestep_ * rate;
-
-        stampEquationNode(opAmp.output, 1.0 + transientScale);
+        residual_[branchIndex] += voltage(opAmp.output) - dynamicTarget;
+        stampEquationNode(opAmp.output, 1.0);
         stampEquationNode(opAmp.nonInverting,
-                          -transientScale * dTarget_dDifferential);
+                          -targetDerivativeScale * dTarget_dDifferential);
         stampEquationNode(opAmp.inverting,
-                          transientScale * dTarget_dDifferential);
+                          targetDerivativeScale * dTarget_dDifferential);
         stampEquationNode(opAmp.positiveRail,
-                          -transientScale * dTarget_dPositiveRail);
+                          -targetDerivativeScale * dTarget_dPositiveRail);
         stampEquationNode(opAmp.negativeRail,
-                          -transientScale * dTarget_dNegativeRail);
+                          -targetDerivativeScale * dTarget_dNegativeRail);
     }
 }
 
