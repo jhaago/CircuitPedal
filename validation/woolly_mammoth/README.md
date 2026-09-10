@@ -22,14 +22,10 @@ The author suggests working builds should be around 10% from those readings.
 
 ## Current machine-readable gate
 
-`working_board_dc.csv` keeps the original measured values in
-`measured_v_at_9_33` and provides an `expected_v` scaled by `9.0 / 9.33` because
-the current `.cpedal` reference file has a fixed 9.0 V supply.
-
-That linear voltage scaling is only a pragmatic continuity step for the existing
-V0.8 sanity check. A transistor circuit does not generally scale linearly with
-supply voltage, so these scaled values must not be described as a substitute for
-a measurement or SPICE run at the same supply voltage.
+`working_board_dc.csv` retains the published voltages directly. V0.19 adds the
+validation-only `--source NAME=VOLTS` option, so the normal 9.0 V Woolly circuit
+file can be evaluated at the source measurement's actual 9.33 V condition
+without changing the live model or duplicating its topology.
 
 The current CI tolerance remains 35%, matching the intentionally broad legacy
 sanity gate. This checks that the compact Ebers-Moll model stays in the same
@@ -41,11 +37,16 @@ Run the current gate with:
 ./build/circuitpedal_validate dc-check \
   circuits/woolly_mammoth_reference_draft.cpedal \
   validation/woolly_mammoth/working_board_dc.csv \
+  --source VCCSRC=9.33 \
   --control WOOL=1 \
   --control PINCH=1 \
   --control EQ=1 \
   --control OUTPUT=1
 ```
+
+`--source` is validation-only. It rewrites the named fixed `V` source in memory
+before the circuit file is parsed; it does not edit the `.cpedal` file and it
+does not affect normal GUI/live-audio operation.
 
 ## V0.19 node-trace campaign
 
@@ -57,6 +58,7 @@ bias/clipping nodes directly:
 ./build/circuitpedal_validate render \
   circuits/woolly_mammoth_reference_draft.cpedal \
   build/woolly_nodes.csv \
+  --source VCCSRC=9.33 \
   --sample-rate 192000 \
   --seconds 1 \
   --signal sine \
@@ -78,9 +80,10 @@ and `--actual-column`.
 ## Promotion criteria
 
 The Woolly Mammoth must remain a **Reference Draft** until stronger evidence is
-available. The next confidence steps are:
+available. V0.19 removes the supply-voltage mismatch from the existing DC
+comparison, but the next confidence steps are still substantial:
 
-1. compare at the same 9.33 V supply rather than applying linear scaling;
+1. quantify the exact 9.33 V DC errors and investigate the collector-node mismatch;
 2. achieve approximately the published ±10% working-board DC range without
    obviously unphysical parameter fitting;
 3. cross-check the two 2N3904 devices against an established SPICE model;
