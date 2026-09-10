@@ -1293,38 +1293,67 @@ void GenericCircuit::stampNonlinear(bool dcMode) noexcept
             continue;
         }
 
-        // Backward-compatible dominant-pole large-signal step. GBW/AOL gives
-        // the open-loop pole and feedback determines the closed-loop response.
-        // We advance the internal output target by one exact one-pole step, then
-        // bound that step by the configured slew rate. Keeping the op-amp branch
-        // equation algebraic in each Newton iteration is substantially more
-        // robust when feedback diodes and multiple op-amps interact.
+        // Dominant-pole transient model. Use the unsaturated open-loop command
+        // here and let the finite pole reduce its effective gain before applying
+        // slew and rail limits. This avoids feeding an almost-discontinuous
+        // rail-selected target into feedback loops while preserving the DC
+        // rail-limited equation above.
         constexpr double twoPi = 6.28318530717958647692;
         const double dominantPoleHz =
             opAmp.model.gainBandwidthHz / opAmp.model.openLoopGain;
         const double alpha =
             1.0 - std::exp(-twoPi * dominantPoleHz * timestep_);
         const double previous = runtimeOpAmp.previousOutputVoltage;
-        const double unlimited = previous + alpha * (target - previous);
+        const double openLoopCommand =
+            midpoint + opAmp.model.openLoopGain * differential;
+        const double poleAdvanced =
+            previous + alpha * (openLoopCommand - previous);
+
         const double maximumStep =
             opAmp.model.slewRateVoltsPerSecond * timestep_;
-        const double rawStep = unlimited - previous;
+        const double rawStep = poleAdvanced - previous;
         const bool slewLimited = std::abs(rawStep) > maximumStep;
-        const double limitedStep =
-            std::clamp(rawStep, -maximumStep, maximumStep);
-        const double dynamicTarget = previous + limitedStep;
-        const double targetDerivativeScale = slewLimited ? 0.0 : alpha;
+        const double slewLimitedTarget =
+            previous + std::clamp(rawStep, -maximumStep, maximumStep);
+
+        const double lowerRail = midpoint - halfSpan;
+        const double upperRail = midpoint + halfSpan;
+        const bool railLow = slewLimitedTarget < lowerRail;
+        const bool railHigh = slewLimitedTarget > upperRail;
+        const double dynamicTarget =
+            std::clamp(slewLimitedTarget, lowerRail, upperRail);
 
         residual_[branchIndex] += voltage(opAmp.output) - dynamicTarget;
         stampEquationNode(opAmp.output, 1.0);
-        stampEquationNode(opAmp.nonInverting,
-                          -targetDerivativeScale * dTarget_dDifferential);
-        stampEquationNode(opAmp.inverting,
-                          targetDerivativeScale * dTarget_dDifferential);
-        stampEquationNode(opAmp.positiveRail,
-                          -targetDerivativeScale * dTarget_dPositiveRail);
-        stampEquationNode(opAmp.negativeRail,
-                          -targetDerivativeScale * dTarget_dNegativeRail);
+
+        if (railLow)
+        {
+            if (spanIsActive)
+                stampEquationNode(opAmp.negativeRail, -1.0);
+            else
+            {
+                stampEquationNode(opAmp.positiveRail, -0.5);
+                stampEquationNode(opAmp.negativeRail, -0.5);
+            }
+        }
+        else if (railHigh)
+        {
+            if (spanIsActive)
+                stampEquationNode(opAmp.positiveRail, -1.0);
+            else
+            {
+                stampEquationNode(opAmp.positiveRail, -0.5);
+                stampEquationNode(opAmp.negativeRail, -0.5);
+            }
+        }
+        else if (!slewLimited)
+        {
+            const double differentialGain = alpha * opAmp.model.openLoopGain;
+            stampEquationNode(opAmp.nonInverting, -differentialGain);
+            stampEquationNode(opAmp.inverting, differentialGain);
+            stampEquationNode(opAmp.positiveRail, -0.5 * alpha);
+            stampEquationNode(opAmp.negativeRail, -0.5 * alpha);
+        }
     }
 }
 
