@@ -1,4 +1,4 @@
-# CircuitPedal .cpedal format — V0.10
+# CircuitPedal .cpedal format — V0.11
 
 The circuit file is intentionally small and human-readable. It is designed
 so a reviewed schematic can be translated into a circuit definition without
@@ -38,6 +38,10 @@ OPAMP <id> <plus> <minus> <out> <positive-rail> <negative-rail> <model>
 POT <name> <terminal1> <wiper> <terminal3> <resistance> <taper> <initial>
 POT_LINK <existing-control-name> <terminal1> <wiper> <terminal3> <resistance> <taper>
 
+SWITCH <name> SPST <a> <b> <initial> [<off-label> <on-label>]
+SWITCH <name> SPDT <common> <throw-a> <throw-b> <initial> [<a-label> <b-label>]
+SWITCH <name> ONOFFON <common> <throw-a> <throw-b> <initial> [<a-label> <off-label> <b-label>]
+
 OUTPUT <node> [digital-full-scale-per-volt]
 ```
 
@@ -75,6 +79,20 @@ with `POT`, then add the other electrical section(s) with `POT_LINK` using the
 same control name. The linked section inherits the primary control's initial
 position and moves from the same live GUI control. This is intended for circuits
 such as the ST9 Super Tube Screamer's dual-gang Mids control.
+
+## Switches
+
+V0.11 supports three live switch forms:
+
+- `SPST`: position 0 / `OFF` is open; position 1 / `ON` is closed.
+- `SPDT`: position 0 / `A` selects throw A; position 1 / `B` selects throw B.
+- `ONOFFON`: position 0 / `A` selects throw A, position 1 / `OFF` or `CENTER`
+  disconnects both throws, and position 2 / `B` selects throw B.
+
+Optional quoted labels become the choices shown in the macOS control panel. The
+switch remains in the MNA topology at every position: closed contacts use a very
+low resistance and open contacts use a finite very-high resistance. That avoids
+rebuilding or allocating a new circuit topology in the real-time callback.
 
 ## Built-in device models
 
