@@ -930,6 +930,67 @@ void testKalamazooRepositoryModel()
 #endif
 }
 
+void testBlueberryRepositoryModel()
+{
+#ifndef CIRCUITPEDAL_SOURCE_DIR
+    expect(false, "CIRCUITPEDAL_SOURCE_DIR was not defined for Blueberry validation");
+#else
+    const std::string path =
+        std::string(CIRCUITPEDAL_SOURCE_DIR)
+        + "/circuits/blueberry_bass_overdrive_reference_draft.cpedal";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::loadCircuitFile(path, document, error),
+           "Blueberry model did not load: " + error);
+    expect(document.controls.size() == 3,
+           "Blueberry did not expose Drive, Tone and Volume");
+    if (document.controls.size() == 3)
+    {
+        expect(document.controls[0].name == "DRIVE",
+               "Blueberry Drive control missing");
+        expect(document.controls[1].name == "TONE",
+               "Blueberry Tone control missing");
+        expect(document.controls[2].name == "VOLUME",
+               "Blueberry Volume control missing");
+    }
+
+    circuitpedal::OversampledGenericCircuit circuit;
+    const bool compiled = circuit.compile(document.definition, 48000.0, error);
+    expect(compiled, "Blueberry did not compile at 4x: " + error);
+    if (!compiled)
+        return;
+
+    constexpr double pi = 3.14159265358979323846;
+    double peak = 0.0;
+    int failureCount = 0;
+    for (int n = 0; n < 24000; ++n)
+    {
+        if (n == 8000)
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[0].potentiometerIndex, 0.92),
+                   "Blueberry Drive could not move live");
+        if (n == 16000)
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[1].potentiometerIndex, 0.85),
+                   "Blueberry Tone could not move live");
+
+        const float input = static_cast<float>(
+            0.30 * std::sin(2.0 * pi * 82.0
+                * static_cast<double>(n) / 48000.0));
+        const float output = circuit.processSample(input);
+        expect(std::isfinite(output), "Blueberry produced non-finite audio");
+        if (!circuit.lastSolveConverged())
+            ++failureCount;
+        peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+
+    expect(failureCount == 0,
+           "Blueberry nonlinear solve failed during live-control sweep");
+    expect(peak > 1.0e-6, "Blueberry produced no meaningful audio");
+#endif
+}
+
 void testBuiltInModels()
 {
     bool ok = false;
@@ -940,6 +1001,15 @@ void testBuiltInModels()
     const auto germanium = circuitpedal::builtInDiodeModel("1N34A", ok);
     expect(ok && germanium.saturationCurrentAmps > 0.0,
            "1N34A built-in diode model was unavailable");
+
+    const auto redLed = circuitpedal::builtInDiodeModel("LED_RED", ok);
+    expect(ok && redLed.saturationCurrentAmps < 1.0e-12
+              && redLed.idealityFactor >= 1.8,
+           "red LED clipping model was unavailable");
+
+    const auto rectifier = circuitpedal::builtInDiodeModel("1N4007", ok);
+    expect(ok && rectifier.saturationCurrentAmps > 0.0,
+           "1N4007 diode model was unavailable");
 
     const auto nte103 = circuitpedal::builtInNpnModel("NTE103", ok);
     expect(ok && nte103.forwardBeta >= 80.0
@@ -975,6 +1045,7 @@ int main()
     testTs10RepositoryModel();
     testAnimatoRepositoryModel();
     testKalamazooRepositoryModel();
+    testBlueberryRepositoryModel();
     testBuiltInModels();
 
     if (failures != 0)

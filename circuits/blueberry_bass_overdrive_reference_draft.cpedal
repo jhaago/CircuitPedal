@@ -1,0 +1,86 @@
+CPEDAL 1
+NAME "BearFoot Blueberry Bass Overdrive Reference Draft"
+
+# Reconstructed from the supplied verified Effects Layouts BearFoot BBOD board
+# and cross-checked against Aion's Procyon V2 schematic/variant annotations.
+# The supplied layout uses CA3130EZ, 2N5457, A250k Drive, A50k Tone and B50k
+# Volume, so those values are retained even where BJFe-era units differ.
+#
+# The circuit uses several frequency-dependent feedback paths rather than a
+# generic distortion block. Red LEDs provide the first soft-clipping limit,
+# 1N4007s provide a later hard clamp, and a JFET buffers/drives the output.
+#
+# The original CA3130 external compensation capacitor is absorbed into the
+# compact CA3130 dynamic model for now because the generic op-amp primitive
+# does not expose the device's compensation pins.
+
+V VRAW VRAW 0 9
+R R_SUPPLY VRAW VA 51
+C C_SUPPLY_1 VA 0 100n
+C C_SUPPLY_2 VA 0 100u
+C C_SUPPLY_3 VA 0 470n
+AUDIO GUITAR INPUT 0 0.20
+
+# Mid-supply reference. The Blueberry substitutions use equal 47k legs.
+R R_VB_TOP VA VB 47k
+R R_VB_BOTTOM VB 0 47k
+C C_VB VB 0 22u
+
+# Input coupling/bias.
+R RPD INPUT 0 2M2
+C C1 INPUT INPUT_BIAS 22n
+R R1 VB INPUT_BIAS 360k
+R R2 INPUT_BIAS OP_PLUS 14k7
+
+# CA3130 voltage-amplifier stage.
+OPAMP U1 OP_PLUS OP_MINUS OP_OUT VA 0 CA3130EZ
+
+# Main soft-clipping feedback. Increasing DRIVE increases closed-loop gain.
+D D1 OP_MINUS OP_OUT LED_RED
+D D2 OP_OUT OP_MINUS LED_RED
+R R3 OP_MINUS DRIVE_LOW 3k
+POT DRIVE DRIVE_LOW OP_OUT OP_OUT 250k LOG 0.55
+
+# Base low-frequency leg of the inverting network.
+R R4 OP_MINUS LOW_FB 1k
+C C3 LOW_FB 0 220n
+
+# Post-op-amp dynamic hard clipping and stepped filtering.
+R R5 OP_OUT POST_COUPLE 1k
+C C7 POST_COUPLE CLAMP_A 1u
+D D3 CLAMP_A 0 1N4007
+D D4 0 CLAMP_A 1N4007
+
+# First frequency-dependent feedback entry point.
+C C8 CLAMP_A FB_A 22n
+R R6 FB_A OP_MINUS 27k
+
+# Low-pass step and second feedback entry point.
+R R7 CLAMP_A CLAMP_B 10k
+C C10 CLAMP_B 0 22n
+C C9 CLAMP_B FB_B 4n7
+R R8 FB_B OP_MINUS 147k
+
+# JFET isolation/output stage. Blueberry-specific C11/R12/R14 values are used.
+C C11 CLAMP_B Q1G 47n
+R R9 Q1G 0 1M
+JFET Q1 Q1D Q1G Q1S 2N5457
+R R10 VA Q1D 5k6
+R R11 Q1S 0 2k6
+
+# The three-terminal Tone control is intentionally used with its wiper grounded.
+# One end varies source bypass/bass reinforcement; the other varies the final
+# high-cut. This preserves the unusual interactive control topology rather than
+# reducing it to a single EQ filter.
+R R12 Q1S TONE_BASS 2k
+C C12 TONE_BASS TONE_1 22n
+POT TONE TONE_1 0 TONE_3 50k LOG 0.50
+
+# Drain output, Blueberry coupling/filter values, and level.
+C C13 Q1D OUTPUT_PRE 1u
+R R14 OUTPUT_PRE LEVEL_TOP 27k
+C C15 LEVEL_TOP TONE_3 2n2
+POT VOLUME 0 OUT LEVEL_TOP 50k LIN 0.55
+R R_OUT_LOAD OUT 0 1M
+
+OUTPUT OUT 0.5

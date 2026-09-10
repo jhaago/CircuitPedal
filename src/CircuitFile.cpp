@@ -548,6 +548,26 @@ GenericDiodeModel builtInDiodeModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
+    if (normalized == "1N4001"
+        || normalized == "1N4007"
+        || normalized == "RECTIFIER")
+    {
+        model.saturationCurrentAmps = 5.0e-9;
+        model.idealityFactor = 1.9;
+        ok = true;
+        return model;
+    }
+    if (normalized == "LED_RED"
+        || normalized == "RED_LED"
+        || normalized == "LED")
+    {
+        // Compact low-current red-LED junction. Chosen to give roughly
+        // 1.6-1.8 V forward drop over pedal-scale clipping currents.
+        model.saturationCurrentAmps = 1.0e-18;
+        model.idealityFactor = 2.0;
+        ok = true;
+        return model;
+    }
     if (normalized == "1N34A" || normalized == "GERMANIUM")
     {
         model.saturationCurrentAmps = 1.0e-6;
