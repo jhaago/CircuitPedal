@@ -32,8 +32,10 @@ part is already a manufacturer-accurate model.
 
 NPN BJTs currently include compact aliases for:
 
+- NTE103 germanium
 - 2N3904
 - 2SC1815 / 2SC1815BL
+- 2SC2240 / C2240
 - 2N2222 / 2N2222A
 - 2N5088
 - 2N5133
@@ -43,6 +45,7 @@ NPN BJTs currently include compact aliases for:
 
 PNP BJTs include:
 
+- NTE102 germanium
 - generic PNP
 - AC128 / generic germanium PNP
 - AC128_LOW / AC128_HIGH (Fuzz Factory matching bins)
@@ -113,7 +116,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Fuzzolo — converted and CI-validated with Pulse Width, Volume and a live Passive/Active pickup selector.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
-- Human Gear Animato — newly supplied reference; dual-gang Distortion and DPDT Bias controls are now representable. NTE102/NTE103 germanium and 2SC2240 model aliases are the next device-library step before netlist conversion.
+- Human Gear Animato — newly supplied reference; dual-gang Distortion, DPDT Bias, NTE102/NTE103 germanium and 2SC2240 device aliases are now representable. Explicit schematic-to-netlist conversion is next.
 
 ## Conversion rule
 

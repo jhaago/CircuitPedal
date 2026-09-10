@@ -247,6 +247,20 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return {};
     }
+    if (normalized == "NTE103")
+    {
+        GenericNpnBjtModel model;
+        // NTE103 is the NPN half of the complementary NTE102/103 germanium
+        // pair used by the Animato input booster. Datasheet hFE is typically
+        // around 80-90 at tens of milliamps. Leakage/temperature dependence is
+        // not yet represented by this compact Ebers-Moll model.
+        model.saturationCurrentAmps = 5.0e-8;
+        model.forwardBeta = 85.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.5;
+        ok = true;
+        return model;
+    }
     if (normalized == "2N3904")
     {
         GenericNpnBjtModel model;
@@ -276,6 +290,18 @@ GenericNpnBjtModel builtInNpnModel(const std::string& name, bool& ok) noexcept
         // BL is the high-gain rank commonly found in Tube Screamer buffers.
         model.saturationCurrentAmps = 2.0e-14;
         model.forwardBeta = normalized == "2SC1815BL" ? 500.0 : 300.0;
+        model.reverseBeta = 4.0;
+        ok = true;
+        return model;
+    }
+    if (normalized == "2SC2240" || normalized == "C2240")
+    {
+        GenericNpnBjtModel model;
+        // Toshiba 2SC2240 is a low-noise high-gain silicon NPN. The datasheet
+        // spans hFE 200-700 (GR/BL ranks); use a mid-high compact value until
+        // a particular physical transistor rank is nominated.
+        model.saturationCurrentAmps = 3.0e-14;
+        model.forwardBeta = 420.0;
         model.reverseBeta = 4.0;
         ok = true;
         return model;
@@ -336,6 +362,18 @@ GenericPnpBjtModel builtInPnpModel(const std::string& name, bool& ok) noexcept
 
     if (normalized == "GENERIC_PNP" || normalized == "PNP")
     {
+        ok = true;
+        return model;
+    }
+    if (normalized == "NTE102")
+    {
+        GenericPnpBjtModel model;
+        // PNP complement to NTE103. Keep the compact pair intentionally
+        // symmetric until leakage/temperature measurements are available.
+        model.saturationCurrentAmps = 5.0e-8;
+        model.forwardBeta = 85.0;
+        model.reverseBeta = 2.0;
+        model.emissionCoefficient = 1.5;
         ok = true;
         return model;
     }

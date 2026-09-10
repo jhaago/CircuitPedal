@@ -763,6 +763,20 @@ void testBuiltInModels()
     const auto germanium = circuitpedal::builtInDiodeModel("1N34A", ok);
     expect(ok && germanium.saturationCurrentAmps > 0.0,
            "1N34A built-in diode model was unavailable");
+
+    const auto nte103 = circuitpedal::builtInNpnModel("NTE103", ok);
+    expect(ok && nte103.forwardBeta >= 80.0
+              && nte103.saturationCurrentAmps > 1.0e-10,
+           "NTE103 germanium NPN model was unavailable");
+
+    const auto nte102 = circuitpedal::builtInPnpModel("NTE102", ok);
+    expect(ok && nte102.forwardBeta >= 80.0
+              && nte102.saturationCurrentAmps > 1.0e-10,
+           "NTE102 germanium PNP model was unavailable");
+
+    const auto c2240 = circuitpedal::builtInNpnModel("2SC2240", ok);
+    expect(ok && c2240.forwardBeta >= 200.0,
+           "2SC2240 high-gain NPN model was unavailable");
 }
 
 } // namespace

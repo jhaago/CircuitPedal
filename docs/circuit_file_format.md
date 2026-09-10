@@ -107,9 +107,9 @@ intended for circuits such as the Human Gear Animato's DPDT Bias switch.
 
 The current format includes compact named aliases for common pedal parts.
 
-- NPN: `2N3904`, `2SC1815`, `2N2222A`, `2N5088`, `2N5133`, `BC239C`,
-  `BC550C`, `KT3102E`
-- PNP: `AC128`, `2N1308`, `GENERIC_PNP`
+- NPN: `NTE103` (germanium), `2N3904`, `2SC1815`, `2SC2240` / `C2240`,
+  `2N2222A`, `2N5088`, `2N5133`, `BC239C`, `BC550C`, `KT3102E`
+- PNP: `NTE102` (germanium), `AC128`, `2N1308`, `GENERIC_PNP`
 - N-JFET: `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
 - N-MOSFET: `BS170`
 - op-amp: `JRC4558` / `4558`, `CA3130`
