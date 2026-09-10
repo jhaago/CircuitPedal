@@ -1,0 +1,47 @@
+CPEDAL 1
+NAME "Fat Fuzz Factory Reference"
+
+# Fuzz Factory signal path plus a three-position Fat switch. The centre position
+# leaves the stock 100n interstage capacitor alone. The outer positions add
+# 470n or 3.3u in parallel, matching the common verified DIY Fat Fuzz Factory
+# implementation and the supplied Effects Layouts reference.
+#
+# Q2/Q3 use separate compact AC128 gain bins (about 70 and 110 hFE).
+# Power-protection and indicator-LED parts are omitted from the audio model.
+
+V VCCSRC VCC 0 9
+AUDIO GUITAR INPUT 0 0.20
+
+R R_IN_PD INPUT 0 1M
+C C1 INPUT Q1B 10u
+
+R R1 Q1C Q1B 220k
+Q Q1 Q1C Q1B 0 2N3904
+
+POT STAB VCC VCC STAB_RAIL 5k LIN 1.0
+R R2 STAB_RAIL Q1C 10k
+
+# Stock coupling capacitor plus switchable parallel Fat capacitors.
+C C2 Q1C Q2B 100n
+C C_FAT Q1C FAT_A 470n
+C C_SUPER_FAT Q1C FAT_B 3.3u
+SWITCH FAT ONOFFON Q2B FAT_A FAT_B CENTER "Fat" "Normal" "Super Fat"
+
+R R4 STAB_RAIL Q2B 47k
+PNP Q2 Q2C Q2B STAB_RAIL AC128_LOW
+
+R R3 Q2C GATE_TOP 470
+POT GATE 0 0 GATE_TOP 10k LIN 0.0
+
+POT COMP Q3E Q3E STAB_RAIL 10k LIN 0.2
+POT DRIVE STAB_RAIL DRIVE_W Q3E 10k LIN 0.5
+C C3 DRIVE_W STAB_RAIL 10u
+
+PNP Q3 Q3C Q2C Q3E AC128_HIGH
+
+R R5 Q3C VOL_TOP 5k1
+POT VOLUME 0 VOL_W VOL_TOP 5k LIN 0.3
+C C4 VOL_W OUT 10u
+R R6 OUT 0 220k
+
+OUTPUT OUT 1
