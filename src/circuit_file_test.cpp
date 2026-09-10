@@ -175,6 +175,53 @@ OUTPUT OUT 1
            "linked-pot circuit did not compile: " + error);
 }
 
+void testSwitchParsing()
+{
+    const char* switchCircuit = R"CPEDAL(
+CPEDAL 1
+NAME "Switch Parser Test"
+V V1 A 0 1
+V V2 B 0 0.25
+R RLOAD OUT 0 10k
+SWITCH MODE ONOFFON OUT A B CENTER "Bright" "Off" "Fat"
+OUTPUT OUT 1
+)CPEDAL";
+
+    circuitpedal::CircuitFileDocument document;
+    std::string error;
+    expect(circuitpedal::parseCircuitFileText(switchCircuit, document, error),
+           "switch circuit did not parse: " + error);
+    expect(document.controls.size() == 1,
+           "switch circuit did not expose one control");
+    expect(document.definition.switchCount() == 1,
+           "switch directive did not create a switch");
+    if (document.controls.size() == 1)
+    {
+        const auto& control = document.controls[0];
+        expect(control.kind == circuitpedal::CircuitFileControlKind::Switch,
+               "switch control kind was not retained");
+        expect(control.switchPositionCount == 3,
+               "on-off-on switch did not report three positions");
+        expect(control.initialSwitchPosition == 1,
+               "CENTER did not map to the middle switch position");
+        expect(control.switchPositionNames.size() == 3,
+               "switch labels were not retained");
+        if (control.switchPositionNames.size() == 3)
+        {
+            expect(control.switchPositionNames[0] == "Bright",
+                   "switch A label mismatch");
+            expect(control.switchPositionNames[1] == "Off",
+                   "switch center label mismatch");
+            expect(control.switchPositionNames[2] == "Fat",
+                   "switch B label mismatch");
+        }
+    }
+
+    circuitpedal::GenericCircuit circuit;
+    expect(circuit.compile(document.definition, 48000.0, error),
+           "parsed switch circuit did not compile: " + error);
+}
+
 void testParserFailures()
 {
     circuitpedal::CircuitFileDocument document;
@@ -201,6 +248,12 @@ void testParserFailures()
                document,
                error),
            "POT_LINK to an unknown control was accepted");
+
+    expect(!circuitpedal::parseCircuitFileText(
+               "CPEDAL 1\nSWITCH S ONOFFON C A B 7\nOUTPUT C\n",
+               document,
+               error),
+           "out-of-range switch position was accepted");
 }
 
 void testRepositoryWoollyReference()
@@ -444,6 +497,7 @@ int main()
     testEngineeringValues();
     testParseAndCompile();
     testLinkedPotentiometerParsing();
+    testSwitchParsing();
     testParserFailures();
     testRepositoryWoollyReference();
     testBigMuffRepositoryModels();
@@ -457,6 +511,6 @@ int main()
         return 1;
     }
 
-    std::cout << "PASS: CircuitPedal V0.10 circuit-file validation suite\n";
+    std::cout << "PASS: CircuitPedal V0.11 circuit-file validation suite\n";
     return 0;
 }
