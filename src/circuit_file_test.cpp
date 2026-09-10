@@ -661,6 +661,8 @@ void testTs10RepositoryModel()
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
+    int firstFailure = -1;
+    int failureCount = 0;
     for (int n = 0; n < 18000; ++n)
     {
         if (n == 6000)
@@ -677,9 +679,19 @@ void testTs10RepositoryModel()
                 * static_cast<double>(n) / 48000.0));
         const float output = circuit.processSample(input);
         expect(std::isfinite(output), "TS10 produced non-finite audio");
-        expect(circuit.lastSolveConverged(),
-               "TS10 nonlinear solve failed");
+        if (!circuit.lastSolveConverged())
+        {
+            if (firstFailure < 0)
+                firstFailure = n;
+            ++failureCount;
+        }
         peak = std::max(peak, std::abs(static_cast<double>(output)));
+    }
+    if (failureCount != 0)
+    {
+        std::cerr << "TS10 first failed host sample: " << firstFailure
+                  << ", failed host samples: " << failureCount << '\n';
+        expect(false, "TS10 nonlinear solve failed");
     }
     expect(peak > 1.0e-6, "TS10 produced no meaningful audio");
 #endif
