@@ -1,16 +1,16 @@
-# CircuitPedal V0.17
+# CircuitPedal V0.18
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.17 expands the built-in library with a **BearFoot Blueberry Bass Overdrive Reference Draft**. The reconstruction follows the supplied verified Effects Layouts board and cross-checks the topology against the Aion Procyon V2 schematic/variant notes, retaining the Blueberry-specific CA3130EZ, 2N5457, 250k Drive, 50k Tone and 50k Volume values.
+V0.18 introduces the first **offline electrical reference-validation framework**. `circuitpedal_validate` can now render a `.cpedal` circuit deterministically at a chosen solver rate, record the raw output-node voltage, and compare that waveform with a normalized SPICE or measurement CSV using alignment, RMS/peak/DC/gain error and optional harmonic-amplitude metrics.
 
-The model keeps the circuit's frequency-dependent feedback and tone interactions in the generic solver, adds compact red-LED and 1N4001/1N4007 rectifier-diode aliases, and passes the 4x nonlinear live-control validation suite on both macOS and Ubuntu. It remains a reference draft rather than a hardware-accuracy claim: the CA3130 external compensation pins are not yet represented explicitly, and exact device/component fitting still belongs to the SPICE/measurement phase.
+This milestone deliberately does **not** promote any existing pedal from Reference Draft to component-accurate reproduction. It provides the tooling needed to make that promotion evidence-based. The first intended validation campaign is the Woolly Mammoth, followed by other representative models such as Animato, TS10 and Blueberry.
 
-See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
+See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format, [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture, and [`docs/validation_tool.md`](docs/validation_tool.md) for the new offline validation workflow.
 
-## V0.17 Circuit Lab Test
+## V0.18 Circuit Lab and validation test
 
-This is a functional test interface, not the final CircuitPedal visual design.
+The native macOS Circuit Lab remains the functional live-audio test interface rather than the final CircuitPedal visual design.
 
 On a Mac, double-click `build_and_run_gui.command`. It checks for CMake and Apple Command Line Tools, builds the project, runs the complete automated validation suite, and only launches `CircuitPedalGUI.app` if validation passes. The equivalent manual commands are:
 
@@ -35,6 +35,36 @@ In the GUI:
 The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft, Lovepedal Kalamazoo Reference Draft and BearFoot Blueberry Bass Overdrive Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+The new validation tool is built on macOS and Linux. For example:
+
+```bash
+./build/circuitpedal_validate render \
+  circuits/woolly_mammoth_reference_draft.cpedal \
+  build/woolly_110hz.csv \
+  --sample-rate 192000 \
+  --seconds 1 \
+  --signal sine \
+  --frequency 110 \
+  --amplitude 0.25
+```
+
+See `docs/validation_tool.md` for SPICE CSV comparison, control overrides, harmonic reporting and threshold-based CI gates.
+
+## Offline reference validation introduced in V0.18
+
+- Adds deterministic sine, step, impulse, dual-tone and logarithmic-sweep validation stimuli.
+- Adds a raw electrical renderer for `.cpedal` circuits at solver rates from 8 kHz to 384 kHz.
+- Applies named pot and switch states before the DC operating-point solve, including linked pot sections and switch poles.
+- Exports `time_s`, normalized input, raw declared output-node volts, calibrated full-scale output and nonlinear-solver convergence state.
+- Adds normalized CSV import intended for CircuitPedal, ngspice/LTspice and physical-measurement interchange.
+- Adds bounded integer-sample alignment and correlation.
+- Reports RMS error, normalized RMS error, peak absolute error, DC error and RMS gain error.
+- Adds optional harmonic-amplitude comparison at a specified fundamental.
+- Adds `--max-nrms` and `--max-peak` failure thresholds so future trusted golden datasets can gate CI.
+- Adds pure metric tests plus an end-to-end `.cpedal` render/self-compare CTest smoke gate.
+- Keeps electrical-solver comparison separate from the host 4x FIR/downsampling path so circuit-model error and resampling-path error can be measured independently.
+- Does not claim SPICE/physical agreement until external reference datasets actually pass defined tolerances.
 
 ## Blueberry Bass Overdrive library expansion introduced in V0.17
 
@@ -193,7 +223,7 @@ cmake --build build --parallel
 ctest --test-dir build --output-on-failure
 ```
 
-On non-Apple platforms this builds and tests the circuit core only.
+On non-Apple platforms this builds and tests the circuit core and offline validation targets; live audio remains macOS-only.
 
 To run with AddressSanitizer and UndefinedBehaviorSanitizer:
 
@@ -284,6 +314,9 @@ The automated suite currently checks:
 - linked multi-pole switch parsing and live state changes;
 - Human Gear Animato with linked Bias and dual-gang Distortion sweeps;
 - Lovepedal Kalamazoo with dynamic dual-4558 processing and live Drive/Tone/Glass sweeps;
-- BearFoot Blueberry Bass Overdrive with dynamic CA3130 processing, LED/rectifier clipping and live Drive/Tone sweeps.
+- BearFoot Blueberry Bass Overdrive with dynamic CA3130 processing, LED/rectifier clipping and live Drive/Tone sweeps;
+- deterministic validation stimulus generation and waveform metric correctness;
+- offline `.cpedal` electrical rendering with convergence reporting;
+- end-to-end validation CSV render and self-comparison.
 
-The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
+The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until trusted external reference data has passed the defined comparison tolerances.

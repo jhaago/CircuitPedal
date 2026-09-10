@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(CircuitPedal VERSION 0.17.0 LANGUAGES CXX)
+project(CircuitPedal VERSION 0.18.0 LANGUAGES CXX)
 
 include(CTest)
 
@@ -34,6 +34,12 @@ add_library(circuit_core
 target_include_directories(circuit_core PUBLIC src)
 circuitpedal_target_defaults(circuit_core)
 
+add_library(circuit_validation
+    src/Validation.cpp
+)
+target_include_directories(circuit_validation PUBLIC src)
+circuitpedal_target_defaults(circuit_validation)
+
 add_executable(circuit_core_test
     src/core_test.cpp
 )
@@ -55,10 +61,45 @@ target_compile_definitions(circuit_file_test PRIVATE
 )
 circuitpedal_target_defaults(circuit_file_test)
 
+add_executable(validation_test
+    src/validation_test.cpp
+)
+target_link_libraries(validation_test PRIVATE circuit_validation)
+circuitpedal_target_defaults(validation_test)
+
+add_executable(circuitpedal_validate
+    src/validation_cli.cpp
+)
+target_link_libraries(circuitpedal_validate PRIVATE circuit_core circuit_validation)
+circuitpedal_target_defaults(circuitpedal_validate)
+
 if(BUILD_TESTING)
     add_test(NAME circuit_core_validation COMMAND circuit_core_test)
     add_test(NAME generic_circuit_validation COMMAND generic_circuit_test)
     add_test(NAME circuit_file_validation COMMAND circuit_file_test)
+    add_test(NAME validation_framework COMMAND validation_test)
+
+    add_test(NAME validation_cli_render
+        COMMAND circuitpedal_validate render
+            "${CMAKE_CURRENT_SOURCE_DIR}/circuits/two_transistor_fuzz_demo.cpedal"
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_smoke.csv"
+            --sample-rate 48000
+            --seconds 0.02
+            --signal sine
+            --frequency 110
+            --amplitude 0.1
+    )
+    add_test(NAME validation_cli_compare_self
+        COMMAND circuitpedal_validate compare
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_smoke.csv"
+            "${CMAKE_CURRENT_BINARY_DIR}/validation_smoke.csv"
+            --max-lag 8
+            --max-nrms 0.000001
+            --max-peak 0.000001
+    )
+    set_tests_properties(validation_cli_compare_self PROPERTIES
+        DEPENDS validation_cli_render
+    )
 endif()
 
 if(APPLE)
