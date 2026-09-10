@@ -32,12 +32,14 @@ Q Q1 Q1C Q1B 0 2N3904
 R R8 VCC Q2C 20k
 Q Q2 Q2C Q1C Q2E 2N3904
 
-# Pulse Width network. The supplied colour routing shows all three pot lugs in
-# use: lug 3 returns to Q1 base through 100k, wiper reaches ground through 2k2,
-# and lug 1 is Q2 emitter. Q2 emitter is AC-bypassed by 100u.
+# Pulse Width network. In the verified trace Q2 emitter is directly returned
+# to ground through 2k2 and AC-bypassed by 100u. The B500k PW control is a
+# rheostat in the 100k feedback path from Q1 base to Q2 emitter (wiper tied to
+# the emitter-side end). The previous model incorrectly put the 2k2 resistor
+# on the pot wiper as a separate node, leaving Q2 almost unbiased/off.
 R R3 Q1B PW3 100k
-POT PULSE_WIDTH Q2E PW2 PW3 500k LIN 0.50
-R R7 PW2 0 2k2
+POT PULSE_WIDTH Q2E Q2E PW3 500k LIN 0.50
+R R7 Q2E 0 2k2
 C C3 Q2E 0 100u
 
 # AC-load the Q2 stage before the SHO-derived output booster.

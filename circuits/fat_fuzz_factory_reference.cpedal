@@ -27,7 +27,9 @@ C C_FAT Q1C FAT_A 470n
 C C_SUPER_FAT Q1C FAT_B 3.3u
 SWITCH FAT ONOFFON Q2B FAT_A FAT_B CENTER "Fat" "Normal" "Super Fat"
 
-R R4 STAB_RAIL Q2B 47k
+# The 47k feedback/bias resistor returns from Q2 base to the shared
+# Q3-emitter / COMP-DRIVE node, matching the stock Fuzz Factory core.
+R R4 Q3E Q2B 47k
 PNP Q2 Q2C Q2B STAB_RAIL AC128_LOW
 
 R R3 Q2C GATE_TOP 470

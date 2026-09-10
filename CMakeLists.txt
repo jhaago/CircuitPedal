@@ -171,6 +171,7 @@ if(APPLE)
 
     add_executable(circuitpedal
         src/main_mac.cpp
+        src/LiveGeneric1x.cpp
     )
     target_link_libraries(circuitpedal PRIVATE circuit_mac_audio)
     circuitpedal_target_defaults(circuitpedal)
@@ -179,8 +180,18 @@ if(APPLE)
         "${CMAKE_CURRENT_SOURCE_DIR}/circuits/*.cpedal"
     )
 
+    # Keep models that have not yet passed physical listening checks in source
+    # for continued engineering work, but do not present them in the stable app.
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/animato_reference_draft\\.cpedal$")
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/blueberry_bass_overdrive_reference_draft\\.cpedal$")
+    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
+        "/eqd_tentacle_reference_draft\\.cpedal$")
+
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
     )
     set_source_files_properties(${CIRCUITPEDAL_CIRCUIT_FILES} PROPERTIES

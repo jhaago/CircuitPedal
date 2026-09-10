@@ -1,9 +1,35 @@
 #include "GenericCircuitProcessor.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 
 namespace circuitpedal {
+namespace {
+
+std::atomic<std::uint32_t> requestedModeRaw {
+    static_cast<std::uint32_t>(GenericProcessingMode::FourX)
+};
+
+GenericProcessingMode decodeMode(std::uint32_t raw) noexcept
+{
+    return raw == static_cast<std::uint32_t>(GenericProcessingMode::OneX)
+        ? GenericProcessingMode::OneX
+        : GenericProcessingMode::FourX;
+}
+
+} // namespace
+
+void setGenericProcessingMode(GenericProcessingMode mode) noexcept
+{
+    requestedModeRaw.store(static_cast<std::uint32_t>(mode),
+                           std::memory_order_relaxed);
+}
+
+GenericProcessingMode genericProcessingMode() noexcept
+{
+    return decodeMode(requestedModeRaw.load(std::memory_order_relaxed));
+}
 
 bool OversampledGenericCircuit::compile(const CircuitDefinition& definition,
                                         double hostSampleRate,
@@ -17,14 +43,17 @@ bool OversampledGenericCircuit::compile(const CircuitDefinition& definition,
         || hostSampleRate < 8000.0
         || hostSampleRate > 96000.0)
     {
-        error = "4x generic oversampling supports host sample rates from 8 kHz to 96 kHz.";
+        error = "Generic processing supports host sample rates from 8 kHz to 96 kHz.";
         return false;
     }
 
     hostSampleRate_ = hostSampleRate;
-    const double oversampledRate =
-        hostSampleRate_ * static_cast<double>(factor);
-    if (!circuit_.compile(definition, oversampledRate, error))
+    activeMode_ = genericProcessingMode();
+
+    const double circuitRate = activeMode_ == GenericProcessingMode::FourX
+        ? hostSampleRate_ * static_cast<double>(factor)
+        : hostSampleRate_;
+    if (!circuit_.compile(definition, circuitRate, error))
         return false;
 
     oversampler_.prepare();
@@ -47,6 +76,13 @@ float OversampledGenericCircuit::processSample(float input) noexcept
 {
     if (!compiled_ || !std::isfinite(input))
         return 0.0f;
+
+    if (activeMode_ == GenericProcessingMode::OneX)
+    {
+        const float output = circuit_.processSample(input);
+        lastSolveConverged_ = circuit_.lastSolveConverged();
+        return output;
+    }
 
     std::array<double, factor> oversampledInput {};
     oversampler_.upsample(static_cast<double>(input), oversampledInput);
