@@ -158,7 +158,6 @@ if(APPLE)
 
     add_library(circuit_mac_audio
         src/MacAudioEngine.cpp
-        src/LiveGeneric1x.cpp
     )
     target_include_directories(circuit_mac_audio PUBLIC src)
     target_link_libraries(circuit_mac_audio PUBLIC
@@ -172,6 +171,7 @@ if(APPLE)
 
     add_executable(circuitpedal
         src/main_mac.cpp
+        src/LiveGeneric1x.cpp
     )
     target_link_libraries(circuitpedal PRIVATE circuit_mac_audio)
     circuitpedal_target_defaults(circuitpedal)
@@ -191,6 +191,7 @@ if(APPLE)
 
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
     )
     set_source_files_properties(${CIRCUITPEDAL_CIRCUIT_FILES} PROPERTIES
