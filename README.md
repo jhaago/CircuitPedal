@@ -1,14 +1,14 @@
-# CircuitPedal V0.16
+# CircuitPedal V0.17
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.16 expands the built-in library with a **Lovepedal Kalamazoo Reference Draft**, using the dynamic JRC4558 model introduced in V0.14. The reconstruction follows the supplied verified layout and an independent WhiteKeyHole trace: series-pair silicon feedback clipping, 500k Drive, separate Tone treble-softening network, separate Glass high-frequency boost stage, and Level control.
+V0.17 expands the built-in library with a **BearFoot Blueberry Bass Overdrive Reference Draft**. The reconstruction follows the supplied verified Effects Layouts board and cross-checks the topology against the Aion Procyon V2 schematic/variant notes, retaining the Blueberry-specific CA3130EZ, 2N5457, 250k Drive, 50k Tone and 50k Volume values.
 
-The new model passes the full 4x nonlinear audio/control-sweep suite on both macOS and Ubuntu. It remains a reference draft rather than a hardware-accuracy claim: the optional Cx compensation capacitor is deliberately omitted, and exact component/device fitting still belongs to the SPICE/measurement phase.
+The model keeps the circuit's frequency-dependent feedback and tone interactions in the generic solver, adds compact red-LED and 1N4001/1N4007 rectifier-diode aliases, and passes the 4x nonlinear live-control validation suite on both macOS and Ubuntu. It remains a reference draft rather than a hardware-accuracy claim: the CA3130 external compensation pins are not yet represented explicitly, and exact device/component fitting still belongs to the SPICE/measurement phase.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.16 Circuit Lab Test
+## V0.17 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,20 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft and Lovepedal Kalamazoo Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft, Lovepedal Kalamazoo Reference Draft and BearFoot Blueberry Bass Overdrive Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Blueberry Bass Overdrive library expansion introduced in V0.17
+
+- Adds a BearFoot Blueberry Bass Overdrive reference draft reconstructed from the supplied verified Effects Layouts board and cross-checked against the Aion Procyon V2 topology/variant notes.
+- Retains the Blueberry-specific CA3130EZ op-amp, 2N5457 JFET and 250k Drive / 50k Tone / 50k Volume control values.
+- Adds compact red-LED clipping and 1N4001/1N4007 rectifier-diode aliases rather than collapsing the two clipping regions into generic saturation blocks.
+- Preserves the unusual three-terminal Tone control interaction between source bypass/bass reinforcement and the final high-cut network.
+- Exposes Drive, Tone and Volume as live circuit controls.
+- Keeps the CA3130 external compensation capacitor absorbed into the current compact dynamic model because the generic op-amp primitive does not yet expose compensation pins.
+- Passes end-to-end 4x nonlinear validation while Drive and Tone are changed live.
+- Remains explicitly labelled a reference draft pending SPICE and physical-pedal comparison.
 
 ## Kalamazoo library expansion introduced in V0.16
 
@@ -272,6 +283,7 @@ The automated suite currently checks:
 - TS10 Tube Screamer engaged path with two op-amp sections and live Drive/Tone changes;
 - linked multi-pole switch parsing and live state changes;
 - Human Gear Animato with linked Bias and dual-gang Distortion sweeps;
-- Lovepedal Kalamazoo with dynamic dual-4558 processing and live Drive/Tone/Glass sweeps.
+- Lovepedal Kalamazoo with dynamic dual-4558 processing and live Drive/Tone/Glass sweeps;
+- BearFoot Blueberry Bass Overdrive with dynamic CA3130 processing, LED/rectifier clipping and live Drive/Tone sweeps.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
