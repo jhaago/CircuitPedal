@@ -3,7 +3,7 @@
 This file tracks what the generic `.cpedal` engine can represent and which
 real pedal circuits have reached each validation stage.
 
-## Component support in V0.11
+## Component support in V0.12
 
 | Component/device | Status | Current model scope |
 | --- | --- | --- |
@@ -27,7 +27,7 @@ The word **Working** means the component has automated numerical validation and
 can be used by the generic MNA engine. It does not mean every named physical
 part is already a manufacturer-accurate model.
 
-## Named model aliases in V0.11
+## Named model aliases in V0.12
 
 NPN BJTs currently include compact aliases for:
 
@@ -85,6 +85,7 @@ Diodes include:
 - Naga Viper / Hydra Treble Booster
 - Fuzz Factory Reference
 - Fat Fuzz Factory Reference
+- Fuzzolo Reference Draft
 - Woolly Mammoth Reference Draft
 - generic two-transistor fuzz demo
 
@@ -106,7 +107,7 @@ The supplied colour-coded layouts are being used as the model backlog:
 - Pink Purple Fuzz — JFET + NPN + germanium PNP; engine devices now exist.
 - Fuzz Factory — converted and CI-validated; five-control GUI support is now available.
 - Fat Fuzz Factory — converted and CI-validated with a three-position Fat switch.
-- Fuzzolo — NPN + BS170; engine devices now exist, plus input-mode switch if both modes are exposed.
+- Fuzzolo — converted and CI-validated with Pulse Width, Volume and a live Passive/Active pickup selector.
 - Galileo Mk II — multiple MPF4393 stages plus NPN; engine devices now exist.
 - Dirty Little Secret Mk III — large multi-JFET topology and supply section; engine devices now exist for the audio stages, but it is intentionally later in the queue.
 

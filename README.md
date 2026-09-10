@@ -1,14 +1,14 @@
-# CircuitPedal V0.11
+# CircuitPedal V0.12
 
 CircuitPedal is a proof-of-concept digital guitar pedal whose processing is driven by electronic-circuit equations rather than a chain of generic distortion blocks.
 
-V0.11 adds **live circuit switches** to the generic engine and `.cpedal` format. SPST, SPDT and three-position on-off-on switches are represented electrically inside the MNA solver and can be changed from the macOS control panel while audio is running.
+V0.12 expands the built-in compatibility library with a **Fuzzolo Reference Draft**. It combines the two-transistor fuzz core with a BS170 output stage, exposes Pulse Width and Volume, and turns the production internal Passive/Active pickup jumper into a live two-position circuit switch for testing.
 
-That unlocks the first switch-dependent model: **Fat Fuzz Factory Reference**, which keeps the stock Fuzz Factory path and uses a three-position Fat switch to select the normal coupling network or add larger parallel capacitors for progressively lower-frequency behaviour. The existing built-in pedal library, sixteen-control GUI, linked/multi-gang potentiometers and 4x generic oversampling remain in place.
+The V0.11 live-switch architecture, linked pots, sixteen-control GUI, bundled circuit library and 4x generic oversampling remain in place. Fuzzolo is deliberately labelled a reference draft because the current BS170 and BJT models are compact real-time approximations and the early published trace contains component-value ambiguity that should ultimately be settled against measured hardware.
 
 See [`docs/circuit_file_format.md`](docs/circuit_file_format.md) for the circuit-file format and [`docs/generic_circuit_engine.md`](docs/generic_circuit_engine.md) for the solver architecture.
 
-## V0.11 Circuit Lab Test
+## V0.12 Circuit Lab Test
 
 This is a functional test interface, not the final CircuitPedal visual design.
 
@@ -32,9 +32,17 @@ In the GUI:
 7. **Bypass** works for both the built-in and generic circuit paths.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference and Fat Fuzz Factory Reference. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference and Fuzzolo Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+
+## Fuzzolo library expansion introduced in V0.12
+
+- Adds a Fuzzolo reference draft using two 2N3904 stages followed by a BS170 output booster.
+- Exposes Pulse Width and Volume as live circuit pots.
+- Exposes the internal Passive/Active pickup-level jumper as a live SPDT control.
+- Uses the later widely reported 5k1 SHO drain value rather than silently treating the ambiguous early 51k trace as authoritative.
+- Adds end-to-end 4x oversampled validation across pickup-mode and Pulse Width changes.
 
 ## Live-switch changes introduced in V0.11
 
@@ -219,6 +227,9 @@ The automated suite currently checks:
 - four Big Muff circuit files end-to-end;
 - Naga Viper end-to-end;
 - five-control Fuzz Factory reference end-to-end;
-- linked/multi-gang potentiometer parsing.
+- linked/multi-gang potentiometer parsing;
+- live SPST/SPDT/on-off-on circuit switching;
+- Fat Fuzz Factory across all Fat-switch positions;
+- Fuzzolo across Passive/Active pickup selection and live Pulse Width changes.
 
 The remaining SPICE and physical-pedal comparison work is specified in [`docs/validation_plan.md`](docs/validation_plan.md). CircuitPedal should not claim component-accurate reproduction of a physical unit until that plan has produced passing reference data.
