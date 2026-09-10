@@ -129,6 +129,7 @@ if(BUILD_TESTING)
     add_test(NAME validation_cli_dc_smoke
         COMMAND circuitpedal_validate dc
             "${CMAKE_CURRENT_SOURCE_DIR}/circuits/woolly_mammoth_reference_draft.cpedal"
+            --source VCCSRC=9.33
             --control WOOL=1
             --control PINCH=1
             --node B1
@@ -141,6 +142,7 @@ if(BUILD_TESTING)
         COMMAND circuitpedal_validate dc-check
             "${CMAKE_CURRENT_SOURCE_DIR}/circuits/woolly_mammoth_reference_draft.cpedal"
             "${CMAKE_CURRENT_SOURCE_DIR}/validation/woolly_mammoth/working_board_dc.csv"
+            --source VCCSRC=9.33
             --control WOOL=1
             --control PINCH=1
             --control EQ=1
