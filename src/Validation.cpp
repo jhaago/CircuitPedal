@@ -6,7 +6,6 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -73,6 +72,27 @@ bool parseDouble(const std::string& text, double& value)
     {
         return false;
     }
+}
+
+std::vector<std::string> normalizedHeaders(const std::vector<std::string>& headers)
+{
+    std::vector<std::string> normalized;
+    normalized.reserve(headers.size());
+    for (const auto& header : headers)
+        normalized.push_back(lower(trim(header)));
+    return normalized;
+}
+
+std::size_t findHeader(const std::vector<std::string>& headers,
+                       const std::vector<std::string>& candidates) noexcept
+{
+    for (const auto& candidate : candidates)
+    {
+        const auto found = std::find(headers.begin(), headers.end(), candidate);
+        if (found != headers.end())
+            return static_cast<std::size_t>(std::distance(headers.begin(), found));
+    }
+    return headers.size();
 }
 
 struct AlignedRange {
@@ -274,6 +294,14 @@ bool loadWaveformCsv(const std::string& path,
                      Waveform& waveform,
                      std::string& error)
 {
+    return loadWaveformCsv(path, std::string {}, waveform, error);
+}
+
+bool loadWaveformCsv(const std::string& path,
+                     const std::string& valueColumnName,
+                     Waveform& waveform,
+                     std::string& error)
+{
     error.clear();
     waveform = {};
 
@@ -292,40 +320,34 @@ bool loadWaveformCsv(const std::string& path,
     }
 
     const auto headers = splitCsvLine(line);
-    std::vector<std::string> normalizedHeaders;
-    normalizedHeaders.reserve(headers.size());
-    for (const auto& header : headers)
-        normalizedHeaders.push_back(lower(trim(header)));
-
-    std::size_t timeColumn = headers.size();
-    for (std::size_t i = 0; i < normalizedHeaders.size(); ++i)
-    {
-        if (normalizedHeaders[i] == "time_s" || normalizedHeaders[i] == "time")
-        {
-            timeColumn = i;
-            break;
-        }
-    }
+    const auto normalized = normalizedHeaders(headers);
+    const std::size_t timeColumn = findHeader(normalized, { "time_s", "time" });
 
     std::size_t valueColumn = headers.size();
-    const std::vector<std::string> valueNames {
-        "output_v", "output_volts", "output", "value", "v(out)"
-    };
-    for (const auto& preferredName : valueNames)
+    if (!trim(valueColumnName).empty())
     {
-        const auto found = std::find(
-            normalizedHeaders.begin(), normalizedHeaders.end(), preferredName);
-        if (found != normalizedHeaders.end())
-        {
-            valueColumn = static_cast<std::size_t>(
-                std::distance(normalizedHeaders.begin(), found));
-            break;
-        }
+        const std::string requested = lower(trim(valueColumnName));
+        const auto found = std::find(normalized.begin(), normalized.end(), requested);
+        if (found != normalized.end())
+            valueColumn = static_cast<std::size_t>(std::distance(normalized.begin(), found));
+    }
+    else
+    {
+        valueColumn = findHeader(
+            normalized, { "output_v", "output_volts", "output", "value", "v(out)" });
     }
 
-    if (timeColumn == headers.size() || valueColumn == headers.size())
+    if (timeColumn == headers.size())
     {
-        error = "Waveform CSV needs a time_s/time column and an output_v/output/value column.";
+        error = "Waveform CSV needs a time_s or time column.";
+        return false;
+    }
+    if (valueColumn == headers.size())
+    {
+        if (!trim(valueColumnName).empty())
+            error = "Waveform CSV does not contain requested value column: " + valueColumnName;
+        else
+            error = "Waveform CSV needs an output_v/output/value column.";
         return false;
     }
 
@@ -377,6 +399,117 @@ bool loadWaveformCsv(const std::string& path,
     }
     const double averageDelta = deltaSum / static_cast<double>(deltaCount);
     waveform.sampleRate = 1.0 / averageDelta;
+    return true;
+}
+
+bool loadDcReferenceCsv(const std::string& path,
+                        std::vector<DcReferencePoint>& points,
+                        std::string& error)
+{
+    error.clear();
+    points.clear();
+
+    std::ifstream input(path);
+    if (!input)
+    {
+        error = "Could not open DC reference CSV: " + path;
+        return false;
+    }
+
+    std::string line;
+    if (!std::getline(input, line))
+    {
+        error = "DC reference CSV is empty: " + path;
+        return false;
+    }
+
+    const auto headers = splitCsvLine(line);
+    const auto normalized = normalizedHeaders(headers);
+    const std::size_t nodeColumn = findHeader(normalized, { "node", "node_name" });
+    const std::size_t expectedColumn = findHeader(
+        normalized, { "expected_v", "expected_volts" });
+    const std::size_t relativeColumn = findHeader(
+        normalized, { "relative_tolerance_percent", "tolerance_percent" });
+    const std::size_t absoluteColumn = findHeader(
+        normalized, { "absolute_tolerance_v", "absolute_tolerance_volts" });
+
+    if (nodeColumn == headers.size() || expectedColumn == headers.size())
+    {
+        error = "DC reference CSV needs node and expected_v columns.";
+        return false;
+    }
+    if (relativeColumn == headers.size() && absoluteColumn == headers.size())
+    {
+        error = "DC reference CSV needs a relative or absolute tolerance column.";
+        return false;
+    }
+
+    std::size_t lineNumber = 1U;
+    while (std::getline(input, line))
+    {
+        ++lineNumber;
+        if (trim(line).empty())
+            continue;
+        const auto fields = splitCsvLine(line);
+        const std::size_t requiredMax = std::max(nodeColumn, expectedColumn);
+        if (requiredMax >= fields.size())
+        {
+            error = "Malformed DC reference row at line " + std::to_string(lineNumber) + '.';
+            return false;
+        }
+
+        DcReferencePoint point;
+        point.nodeName = trim(fields[nodeColumn]);
+        if (point.nodeName.empty()
+            || !parseDouble(fields[expectedColumn], point.expectedVolts))
+        {
+            error = "Invalid DC reference node/value at line " + std::to_string(lineNumber) + '.';
+            return false;
+        }
+
+        if (relativeColumn < fields.size() && !trim(fields[relativeColumn]).empty())
+        {
+            if (!parseDouble(fields[relativeColumn], point.relativeTolerancePercent)
+                || point.relativeTolerancePercent < 0.0)
+            {
+                error = "Invalid relative DC tolerance at line " + std::to_string(lineNumber) + '.';
+                return false;
+            }
+        }
+        if (absoluteColumn < fields.size() && !trim(fields[absoluteColumn]).empty())
+        {
+            if (!parseDouble(fields[absoluteColumn], point.absoluteToleranceVolts)
+                || point.absoluteToleranceVolts < 0.0)
+            {
+                error = "Invalid absolute DC tolerance at line " + std::to_string(lineNumber) + '.';
+                return false;
+            }
+        }
+        if (point.relativeTolerancePercent <= 0.0
+            && point.absoluteToleranceVolts <= 0.0)
+        {
+            error = "DC reference row has no positive tolerance at line "
+                + std::to_string(lineNumber) + '.';
+            return false;
+        }
+
+        const std::string normalizedName = lower(point.nodeName);
+        for (const auto& existing : points)
+        {
+            if (lower(existing.nodeName) == normalizedName)
+            {
+                error = "Duplicate DC reference node: " + point.nodeName;
+                return false;
+            }
+        }
+        points.push_back(point);
+    }
+
+    if (points.empty())
+    {
+        error = "DC reference CSV contains no reference points.";
+        return false;
+    }
     return true;
 }
 
