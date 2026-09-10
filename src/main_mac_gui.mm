@@ -108,11 +108,11 @@ NSButton* makeButton(NSString* title, NSRect frame, id target, SEL action)
                                           styleMask:style
                                             backing:NSBackingStoreBuffered
                                               defer:NO];
-    _window.title = @"CircuitPedal V0.17";
+    _window.title = @"CircuitPedal V0.18";
     _window.releasedWhenClosed = NO;
     NSView* content = _window.contentView;
 
-    NSTextField* title = makeLabel(@"CircuitPedal V0.17 — Circuit File Lab",
+    NSTextField* title = makeLabel(@"CircuitPedal V0.18 — Circuit File Lab",
                                    NSMakeRect(24.0, 796.0, 672.0, 28.0));
     title.font = [NSFont systemFontOfSize:20.0 weight:NSFontWeightSemibold];
     [content addSubview:title];
