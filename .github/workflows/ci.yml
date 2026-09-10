@@ -29,6 +29,39 @@ jobs:
             --control PINCH=1 \
             --control EQ=1 \
             --control OUTPUT=1
+      - name: Broken-model DC diagnostics
+        run: |
+          echo "=== Fuzz Factory ==="
+          ./build/circuitpedal_validate dc \
+            circuits/fuzz_factory_reference.cpedal \
+            --sample-rate 48000 \
+            --control STAB=1 --control GATE=0 --control COMP=0.2 \
+            --control DRIVE=0.5 --control VOLUME=0.3 \
+            --node Q1B --node Q1C --node Q2B --node Q2C \
+            --node Q3E --node Q3C --node OUT
+          echo "=== Fuzzolo ==="
+          ./build/circuitpedal_validate dc \
+            circuits/fuzzolo_reference_draft.cpedal \
+            --sample-rate 48000 \
+            --control PULSE_WIDTH=0.5 --control VOLUME=0.55 \
+            --switch PICKUPS=0 \
+            --node Q1B --node Q1C --node Q2C --node Q2E \
+            --node Q3G --node Q3D --node Q3S --node OUT
+          echo "=== EQD Tentacle ==="
+          ./build/circuitpedal_validate dc \
+            circuits/eqd_tentacle_reference_draft.cpedal \
+            --sample-rate 48000 \
+            --node Q1_BASE --node Q1_COLLECTOR \
+            --node Q2_EMITTER --node Q2_COLLECTOR --node RECT_BIAS \
+            --node Q3_BASE --node Q3_EMITTER --node OUT
+          echo "=== Animato ==="
+          ./build/circuitpedal_validate dc \
+            circuits/animato_reference_draft.cpedal \
+            --sample-rate 48000 \
+            --control BOOST=0.65 --control DISTORTION=0.65 \
+            --control TONE=0.5 --control VOLUME=0.55 \
+            --node Q1B --node PAIR_E --node PAIR_C \
+            --node Q3C --node Q4C --node Q5C --node Q6C --node Q7E --node OUT
       - name: Confirm macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
