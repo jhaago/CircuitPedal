@@ -38,7 +38,7 @@ The cross-checked audio-path values are:
 | Q3/output | 2N5089, 10k emitter, 100n coupling, 47k output load |
 | Supply | 1N4001 series protection, 100u filtering |
 
-## Physical validation finding — 2026-09-11
+## Physical validation findings — 2026-09-11
 
 The first live test required the audio-interface input to be driven nearly to
 maximum before the octave path became audible. Review against the PedalPCB
@@ -46,17 +46,43 @@ Squidward BOM found that the model had incorrectly used `4k7` for the final
 output load. The reference value is `R13 = 47k`; the separate `R100 = 4k7`
 belongs to the utility/supply section rather than this audio-path load.
 
-The model has therefore been corrected to `R_OUTPUT_LOAD = 47k`. This correction
-requires a repeat physical listening test before the Tentacle can be promoted
-from Reference Draft.
+After correcting the load to 47k, the repeat physical test produced no meaningful
+level improvement. This showed that the output-load transcription was real but
+was not the cause of the severe live level loss.
+
+## Signal-level campaign
+
+`run_signal_campaign.py` renders the model at 48 kHz with a 440 Hz sine at
+approximately 20 mVpk, 50 mVpk and 100 mVpk circuit-input levels and records the
+major internal nodes. The campaign shows:
+
+- zero nonlinear-solver failures at all three levels;
+- healthy gain through Q1 and complementary phase signals around Q2;
+- full-wave rectification into Q3 with the 880 Hz second harmonic strongly
+  dominating the original 440 Hz fundamental;
+- approximately 36 mV RMS analogue output for a 50 mV peak input, so the
+  analogue circuit is not suffering the roughly fivefold level loss heard in
+  the live app.
+
+The draft declares `AUDIO ... 0.20`, meaning one digital full-scale input maps
+to 0.20 V at the circuit. With the old `OUTPUT OUT 1`, one output volt mapped to
+only one digital full-scale unit. A roughly unity-voltage-gain analogue effect
+was therefore made about five times quieter purely by mismatched I/O conversion.
+
+The validation candidate uses `OUTPUT OUT 5`, the reciprocal of 0.20 V/FS. At
+50 mV input the resulting digital output is approximately 0.181 RMS versus about
+0.177 RMS for the input sine. At 100 mV input the output remains below full-scale
+peak in the automated campaign. This is the candidate for the next physical
+listening test; it is not yet an accepted production calibration.
 
 ## Validation status
 
 The file parses, compiles and completes automated transient tests without
-nonlinear-solver failure. With a 110 Hz sine input, the current compact model
-produces a dominant 220 Hz component, which confirms that the intended
-octave-generating signal path is active numerically.
+nonlinear-solver failure. The signal campaign confirms that the intended octave
+path is active and that the severe live level loss is primarily an I/O-scaling
+problem rather than a dead analogue topology.
 
 This is still a **Reference Draft**. The 2N5089 and 2N3906 aliases are compact
 Ebers-Moll approximations; no manufacturer-quality SPICE comparison or accepted
-physical Tentacle match has yet been completed.
+physical Tentacle match has yet been completed. The `OUTPUT OUT 5` calibration
+must pass physical listening before promotion to `main`.
