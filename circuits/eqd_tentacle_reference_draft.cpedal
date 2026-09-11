@@ -50,4 +50,8 @@ R R_Q3_EMITTER Q3_EMITTER 0 10k
 C C_OUTPUT Q3_EMITTER OUT 100n
 R R_OUTPUT_LOAD OUT 0 47k
 
-OUTPUT OUT 1
+# The circuit input calibration is 0.20 V per digital full-scale. The Tentacle
+# itself is approximately unity-voltage-gain at normal guitar levels, so use the
+# reciprocal output conversion (5 digital full-scale per volt) to avoid an
+# artificial ~14 dB level drop caused purely by mismatched model I/O scaling.
+OUTPUT OUT 5
