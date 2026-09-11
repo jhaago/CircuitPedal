@@ -10,26 +10,44 @@ The current locked layout direction is:
 
 - compact application/status header;
 - narrow Presets / Pedals / Favorites browser on the left;
-- editable physical-pedal-style signal chain above the hero area;
+- compact signal-chain overview above the hero area;
 - large central selected-pedal hero with controls directly on the enclosure and an atmospheric pedal-specific background;
 - permanent right inspector with Parameters / Circuit / EQ / Settings tabs;
-- minimal bottom strip with input/output metering, signal-path summary and global bypass.
+- minimal bottom strip with master input/output controls, level meters, signal-path summary and global bypass.
 
-The selected pedal remains the dominant visual object, while deeper editing stays available without permanently filling the screen with analysis panels.
+The selected pedal remains the dominant visual object during normal use. Deeper signal-routing work is moved into a dedicated editor rather than permanently occupying the main pedal view.
 
-## Signal-chain interaction prototype
+## Signal-chain editor prototype
 
-The chain is now treated as a future routing workspace rather than a static visual strip. The browser prototype currently demonstrates:
+The compact chain strip is now an overview. `Edit Signal Chain` transforms the whole centre workspace into a freeform routing canvas while keeping the pedal library on the left and the contextual inspector on the right.
 
-- adding pedals from the Pedals library;
-- removing pedals from the chain;
-- touch/mouse drag reordering;
-- series routing;
-- a simple Parallel A / B routing mode;
-- moving pedals between parallel path A and B;
-- selecting a chain pedal to edit it in the hero and inspector.
+The browser prototype currently demonstrates:
 
-This is only a UX simulation. No multi-effect DSP routing has been implemented in the native engine yet.
+- placing/removing pedals from the Pedals library;
+- freely dragging pedal nodes around the canvas;
+- drawing routing cables by tapping an output port and then an input port;
+- splitting one output to multiple downstream pedals;
+- recombining multiple paths into a downstream stage;
+- deleting individual cables by tapping them;
+- selecting a routing node to edit that pedal in the right inspector;
+- resetting the graph to a simple serial path;
+- clearing all cables without removing the pedals.
+
+The initial example graph intentionally demonstrates a split/recombine topology so parallel routing is visible without a separate Parallel mode.
+
+This is only a UX simulation. No multi-effect routing graph has been implemented in the native DSP engine yet.
+
+## Master I/O controls
+
+The bottom strip now includes:
+
+- `Input Trim` beside the input meter, simulated from -18 dB to +18 dB;
+- `Output Level` beside the output meter, simulated from -18 dB to +6 dB;
+- global bypass;
+- current pedal/preset context;
+- a compact routing summary.
+
+The master controls currently affect only the simulated browser metering. They do not control the physical audio-interface preamp or the native audio engine.
 
 ## Implemented prototype interactions
 
@@ -37,12 +55,13 @@ The canonical prototype currently simulates:
 
 - preset selection, next/previous navigation and favorites;
 - Presets / Pedals / Favorites browser tabs and search;
-- signal-chain editing and routing as described above;
+- compact signal-chain overview plus the freeform routing editor described above;
 - hero pedal changes based on the selected effect;
 - touch/mouse rotary controls;
 - synchronization between hero-pedal and inspector knob values;
 - Parameters / Circuit / EQ / Settings inspector tabs;
 - bypass from both the pedal footswitch and global bypass control;
+- master Input Trim and Output Level controls;
 - animated input/output meters;
 - device selectors, audio-active status and simulated performance information;
 - Save / Save As and related preset actions inside the burger menu;
@@ -76,7 +95,7 @@ This prototype does not change or validate:
 - circuit models;
 - pedal fidelity;
 - live audio latency;
-- real multi-effect serial/parallel routing;
+- real multi-effect serial/parallel/freeform routing;
 - package loading in the native app;
 - native macOS GUI behaviour.
 
