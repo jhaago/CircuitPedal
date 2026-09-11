@@ -2,7 +2,7 @@ name: CircuitPedal CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, validation/tentacle-signal-level]
   pull_request:
 
 jobs:
@@ -23,6 +23,18 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Tentacle signal-level campaign
+        if: runner.os == 'Linux'
+        run: |
+          python3 validation/eqd_tentacle/run_signal_campaign.py \
+            build/circuitpedal_validate \
+            build/validation/tentacle-signal
+      - name: Upload Tentacle signal-level report
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tentacle-signal-level
+          path: build/validation/tentacle-signal
       - name: Woolly working-board DC report
         run: |
           ./build/circuitpedal_validate dc-check \
