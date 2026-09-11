@@ -48,6 +48,7 @@ Use for focused validation work that may produce measurements, comparison toolin
 Examples:
 
 - `validation/woolly-mammoth`
+- `validation/live-runtime`
 - `validation/fuzz-factory`
 
 Validation branches should be short-lived. Important validation tooling that is useful project-wide should be merged into `main`; historical milestones should be preserved with tags/releases rather than permanent version-number branches.
@@ -86,25 +87,20 @@ As of 2026-09-11, use these workstreams as the canonical directions for new Circ
 - `feature/pedal-packages` — pedal package format, metadata/presets and related UI architecture
 - `feature/reverb-engine` — Boing/BTDR-2 reverb implementation work
 - `fix/oversampling-regression` — focused generic-circuit oversampling regression work
-- `validation/woolly-mammoth` — next focused Woolly Mammoth validation work, based from current `main`
+- `validation/woolly-mammoth` — focused Woolly Mammoth validation work based from current `main`
+- `validation/live-runtime` — realtime solve/timing instrumentation and engineering A/B diagnostics based from current `main`
 
 ## Legacy branches
 
-The following older branches contain useful history but should not be used as starting points for new unrelated work:
+The following older branches have been superseded and should not be used for new development:
 
-- `diagnostic/generic-runtime`
-- `feature/boing-reverb`
-- `feature/boing-reverb-clean`
-- `feature/pedal-packages-v0.1`
-- `feature/pedal-packages-v0.1-ci`
-- `feature/ui-aesthetic-pass`
-- `fix/generic-oversampling-regression`
-- `fix/restore-1x-live-generic`
-- `integration/stable-1x`
-- `v0.18-validation-framework`
-- `v0.19-woolly-validation`
+- `diagnostic/generic-runtime` — useful runtime diagnostics were extracted to `validation/live-runtime`
+- `feature/boing-reverb` — detailed reference material was preserved on `feature/reverb-engine`; the old mixed implementation is superseded
+- `integration/stable-1x` — its final state is already preserved by the stable `main` history
+- `v0.18-validation-framework` — its validation framework is already preserved in later project history
+- `v0.19-woolly-validation` — its Woolly validation work is already preserved in later project history; new work belongs on `validation/woolly-mammoth`
 
-These branches should be retained only until any unique work worth preserving has been reconciled into a canonical branch or intentionally archived. They are not parallel release lines.
+These legacy branches are safe to retire once no local work depends on them.
 
 ## Merge discipline
 
