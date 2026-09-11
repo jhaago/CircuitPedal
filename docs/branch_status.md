@@ -6,16 +6,26 @@ This file records the canonical active branches and the branches that are safe t
 
 | Branch | Purpose | Status |
 | --- | --- | --- |
-| `main` | Stable/physically accepted 48 kHz / 1x baseline plus reusable validation infrastructure | Authoritative project baseline |
-| `feature/pedal-packages` | Pedal package metadata, presets and related UI architecture | Active feature workstream |
+| `main` | Stable/physically accepted 48 kHz / 1x baseline, reusable validation infrastructure, and tested pedal-package foundation | Authoritative project baseline |
 | `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Active feature workstream |
-| `validation/fuzz-factory` | Focused Fuzz Factory validation using the Woolly acceptance process as the template | Current validation workstream |
+| `feature/circuit-lab-ui` | Circuit Lab visual redesign preserved separately from package-core work | Active UI workstream; not yet promoted |
+| `validation/fuzz-factory` | Focused Fuzz Factory validation using the Woolly acceptance process as the template | Next validation workstream; rebased to current `main` |
+
+## Pedal package status
+
+The package **foundation** has been promoted to `main` after Linux, macOS, sanitizer and ngspice CI passed. `main` now contains the package parser/schema, Woolly package manifest, default preset data, bundle copying, repository-wide package validation, and macOS bundle-path checks.
+
+The package layer does not alter the accepted DSP path. The native Circuit Lab still discovers selectable effects from `.cpedal` files rather than using `pedal.json` as its user-facing library source. Package-aware browsing/preset UI is therefore a separate follow-on implementation phase.
 
 ## Processing decision
 
 The accepted live generic-circuit path is currently **48 kHz / 1x**. Physical A/B testing found the 4x path still sounded materially wrong even though the observed test produced no host solve failures or failed oversampled sub-solves. Oversampling is therefore deferred rather than merged. See `docs/processing_decisions.md`.
 
 ## Branches safe to retire
+
+### `feature/pedal-packages`
+
+The focused package foundation has been squash-merged into `main` after clean branch and pull-request CI. The older unrelated Circuit Lab visual redesign was preserved separately on `feature/circuit-lab-ui`, so this merged package branch no longer needs to remain active.
 
 ### `validation/woolly-mammoth`
 
