@@ -58,6 +58,15 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
 
+          # Pedal packages preserve their directory structure in Resources so
+          # manifests can resolve circuit, artwork and preset paths consistently.
+          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/pedal.json
+          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/presets/default.json
+          (
+            cd build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth
+            test -f ../../circuits/woolly_mammoth_reference_draft.cpedal
+          )
+
           # These models remain source drafts but are deliberately withheld from
           # the stable app until physical listening checks accept them.
           test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal

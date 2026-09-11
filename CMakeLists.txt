@@ -30,6 +30,7 @@ add_library(circuit_core
     src/GenericCircuit.cpp
     src/GenericCircuitProcessor.cpp
     src/CircuitFile.cpp
+    src/PedalPackage.cpp
 )
 target_include_directories(circuit_core PUBLIC src)
 circuitpedal_target_defaults(circuit_core)
@@ -61,6 +62,15 @@ target_compile_definitions(circuit_file_test PRIVATE
 )
 circuitpedal_target_defaults(circuit_file_test)
 
+add_executable(pedal_package_test
+    src/pedal_package_test.cpp
+)
+target_link_libraries(pedal_package_test PRIVATE circuit_core)
+target_compile_definitions(pedal_package_test PRIVATE
+    CIRCUITPEDAL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+)
+circuitpedal_target_defaults(pedal_package_test)
+
 add_executable(validation_test
     src/validation_test.cpp
 )
@@ -77,6 +87,7 @@ if(BUILD_TESTING)
     add_test(NAME circuit_core_validation COMMAND circuit_core_test)
     add_test(NAME generic_circuit_validation COMMAND generic_circuit_test)
     add_test(NAME circuit_file_validation COMMAND circuit_file_test)
+    add_test(NAME pedal_package_validation COMMAND pedal_package_test)
     add_test(NAME validation_framework COMMAND validation_test)
 
     add_test(NAME validation_cli_render
@@ -209,6 +220,18 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/cmake/Info.plist.in"
     )
+
+    # Pedal packages are copied as directories so their manifests, artwork and
+    # preset subfolders keep stable relative paths inside the application bundle.
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/pedals")
+        add_custom_command(TARGET CircuitPedalGUI POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${CMAKE_CURRENT_SOURCE_DIR}/pedals"
+                "$<TARGET_BUNDLE_DIR:CircuitPedalGUI>/Contents/Resources/pedals"
+            COMMENT "Bundling CircuitPedal pedal packages"
+        )
+    endif()
+
     circuitpedal_target_defaults(CircuitPedalGUI)
 else()
     message(STATUS "Live audio target is macOS-only. Building circuit validation targets only.")
