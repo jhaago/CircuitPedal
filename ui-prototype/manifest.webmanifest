@@ -2,7 +2,7 @@
   "name": "CircuitPedal UI Sandbox",
   "short_name": "CircuitPedal",
   "description": "Interactive visual and UX prototype for the CircuitPedal guitar effects platform.",
-  "start_url": "./index.html",
+  "start_url": "./launch.html",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
