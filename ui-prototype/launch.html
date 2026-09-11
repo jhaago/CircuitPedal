@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#080c11" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="circuitpedal-ui.svg" type="image/svg+xml" />
+<title>CircuitPedal UI Sandbox</title>
+<style>html,body{margin:0;width:100%;height:100%;background:#06090d;color:#8b97a3;font-family:system-ui,sans-serif;display:grid;place-items:center}small{letter-spacing:1.2px}</style>
+</head>
+<body><small>Opening CircuitPedal…</small>
+<script>
+const openApp=()=>location.replace('./app.html');
+if('serviceWorker' in navigator){navigator.serviceWorker.register('./sw.js').catch(()=>{}).finally(openApp)}else{openApp()}
+</script>
+</body>
+</html>

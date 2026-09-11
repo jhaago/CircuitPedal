@@ -1,0 +1,19 @@
+{
+  "name": "CircuitPedal UI Sandbox",
+  "short_name": "CircuitPedal",
+  "description": "Interactive visual and UX prototype for the CircuitPedal guitar effects platform.",
+  "start_url": "./launch.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#07090c",
+  "theme_color": "#0a0d11",
+  "icons": [
+    {
+      "src": "circuitpedal-ui.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
