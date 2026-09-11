@@ -2,49 +2,65 @@
 
 This folder is an isolated visual/UX prototype for CircuitPedal. It does not run the C++ DSP engine and must not be treated as an audio-validation build.
 
-## Purpose
+## Canonical direction
 
-Use the sandbox to iterate quickly on the visual language and interaction model for:
+`app.html` is now the canonical CircuitPedal UI prototype. `launch.html` registers the offline service worker and redirects directly to `app.html` rather than embedding the UI in an iframe.
 
-- the future CircuitPedal desktop UI;
-- the eventual phone/tablet companion app;
-- pedal/package presentation and control layouts;
-- signal-chain and live-performance workflows.
+The locked layout direction is:
 
-## Current direction
+- compact application/status header;
+- narrow Presets / Pedals / Favorites browser on the left;
+- compact physical-pedal-style signal chain above the hero area;
+- large central selected-pedal hero with controls directly on the enclosure;
+- permanent right inspector with Parameters / Circuit / EQ / Settings tabs;
+- compact bottom live-performance strip with meters, monitor, scenes, bypass and save controls.
 
-`launch.html` now opens `balanced.html` by default.
+The selected pedal remains the dominant visual object, while the surrounding UI provides context and deeper editing without turning the screen into a generic engineering dashboard.
 
-The balanced prototype is intentionally between the two earlier extremes:
+## Implemented prototype interactions
 
-- the pedal remains the dominant visual element;
-- the left pedal/preset browser is narrow and secondary;
-- the right side contains one contextual panel with Circuit / Analysis / Info tabs rather than permanent technical panels;
-- the signal chain is a separate view opened only when needed;
-- the bottom strip is kept thin and limited to audio I/O, level meters, bypass and latency;
-- the main editable controls remain directly on the pedal.
+The canonical prototype currently simulates:
 
-Earlier visual experiments are retained for comparison:
+- preset selection, next/previous navigation and favorites;
+- Presets / Pedals / Favorites browser tabs and search;
+- signal-chain pedal selection;
+- hero pedal changes based on the selected chain effect;
+- touch/mouse rotary controls;
+- synchronization between hero-pedal and inspector knob values;
+- Parameters / Circuit / EQ / Settings inspector tabs;
+- scene A/B/C/D selection;
+- bypass from both the pedal footswitch and global performance control;
+- animated input/output meters and live monitor;
+- device selectors, audio-active status and simulated performance information;
+- browser fullscreen plus an internal immersive fallback.
+
+All audio, circuit and analysis values are visual prototype data only.
+
+## Historical comparison prototypes
+
+These older experiments remain available for comparison but should not be evolved in parallel with the canonical page:
 
 - `index.html` — original dashboard-heavy pass;
 - `focus.html` — stripped-back pedal-dominant pass;
 - `match.html` — richer workstation/reference-matched pass;
-- `balanced.html` — current preferred middle-ground direction.
+- `balanced.html` — middle-ground exploration;
+- `app.html` — canonical locked-layout direction.
 
 ## Android / PWA path
 
-`launch.html`, `manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` make the sandbox PWA-ready when the folder is served over HTTPS.
+`launch.html`, `manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` keep the sandbox PWA-ready when the folder is served over HTTPS.
 
 Once hosted, Android Chrome can install it to the home screen and run it fullscreen in landscape orientation.
 
 ## Important boundary
 
-This prototype is visual only. It does not change or validate:
+This prototype does not change or validate:
 
 - the 48 kHz / 1x DSP path;
 - circuit models;
 - pedal fidelity;
 - live audio latency;
-- package loading in the native app.
+- package loading in the native app;
+- native macOS GUI behaviour.
 
-Approved visual ideas should be ported deliberately into the native macOS UI and eventual companion app rather than merging browser code into the audio engine.
+Approved visual ideas should be ported deliberately into the native UI and eventual companion app rather than merging browser code into the audio engine.
