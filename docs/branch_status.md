@@ -1,40 +1,34 @@
 # CircuitPedal Branch Status
 
-This file records the canonical active branches and the legacy branches that are safe to retire after reconciliation.
+This file records the canonical active branches and the branches that are safe to retire.
 
 ## Canonical active branches
 
-| Branch | Purpose | Origin |
+| Branch | Purpose | Status |
 | --- | --- | --- |
-| `main` | Stable/physically accepted baseline | Authoritative project baseline |
-| `feature/pedal-packages` | Pedal package metadata, presets and related UI architecture | Canonical package/UI workstream |
-| `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Canonical reverb workstream; detailed Boing reference material preserved from the old branch |
-| `fix/oversampling-regression` | Focused generic-circuit oversampling regression work | Canonical DSP-fix workstream |
-| `validation/woolly-mammoth` | Focused Woolly Mammoth validation based from current `main` | Canonical model-validation workstream |
-| `validation/live-runtime` | Realtime solve/timing instrumentation and 1x/4x A/B diagnostics | Extracted cleanly from `diagnostic/generic-runtime` onto current `main` |
+| `main` | Stable/physically accepted 48 kHz / 1x baseline plus reusable validation infrastructure | Authoritative project baseline |
+| `feature/pedal-packages` | Pedal package metadata, presets and related UI architecture | Active feature workstream |
+| `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Active feature workstream |
+| `validation/fuzz-factory` | Focused Fuzz Factory validation using the Woolly acceptance process as the template | Next validation workstream |
 
-## Legacy branches now safe to retire
+## Processing decision
 
-### `feature/boing-reverb`
+The accepted live generic-circuit path is currently **48 kHz / 1x**. Physical A/B testing found the 4x path still sounded materially wrong even though the observed test produced no host solve failures or failed oversampled sub-solves. Oversampling is therefore deferred rather than merged. See `docs/processing_decisions.md`.
 
-The useful reference material has been preserved on `feature/reverb-engine`. The old branch also contains diagnostics and unrelated circuit/runtime changes, so its implementation should not be merged wholesale.
+## Branches safe to retire
 
-### `diagnostic/generic-runtime`
+### `validation/woolly-mammoth`
 
-The reusable runtime counters, timing diagnostics, macOS diagnostic panel and signal-summary utility have been extracted to `validation/live-runtime` without importing the unrelated pedal-model and CI changes.
+The acceptance harness, physical checklist, dated baselines, DC-model triage and related CI have been promoted into `main`. The Woolly campaign remains documented in the repository, so this working branch no longer needs to remain active.
 
-### `integration/stable-1x`
+### `validation/live-runtime`
 
-Its final repository state is already represented by the stable `main` history. It is no longer a separate release or integration line.
+The branch completed its purpose: it established that the physical 4x problem was not explained by observed solver/sub-solve failures during the test session. The reusable `validation/model_signal_summary.py` utility has been preserved in `main`, and the engineering conclusion is recorded in `docs/processing_decisions.md`. The diagnostic overlay/runtime mode-switching implementation remains historical validation work and should not be merged wholesale.
 
-### `v0.18-validation-framework`
+### `fix/oversampling-regression`
 
-The validation framework represented by this historical version branch is already preserved in later project history. Version milestones should live in tags/releases rather than active branches.
-
-### `v0.19-woolly-validation`
-
-The Woolly validation work represented by this historical branch is already preserved in later project history. New Woolly validation belongs on `validation/woolly-mammoth`.
+The experimental 4x DSP correction has not passed physical listening acceptance. Because oversampling is deferred, this branch should be retired rather than kept as an apparently active fix. Its commits remain in Git history and may be consulted if oversampling is deliberately revisited later from a fresh branch based on then-current `main`.
 
 ## Rule for future cleanup
 
-A merged, extracted or superseded working branch should be deleted promptly. Long-term history belongs in commits, tags/releases and documentation rather than a growing set of permanent branch names.
+A merged, extracted, superseded or deliberately deferred working branch should be deleted promptly. Long-term history belongs in commits, tags/releases and documentation rather than a growing set of permanent branch names.
