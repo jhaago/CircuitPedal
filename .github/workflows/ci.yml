@@ -2,7 +2,7 @@ name: CircuitPedal CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, validation/woolly-mammoth]
   pull_request:
 
 jobs:
@@ -33,6 +33,18 @@ jobs:
             --control PINCH=1 \
             --control EQ=1 \
             --control OUTPUT=1
+      - name: Woolly 48 kHz / 1x acceptance report
+        if: runner.os == 'Linux'
+        run: |
+          python3 validation/woolly_mammoth/run_acceptance.py \
+            build/circuitpedal_validate \
+            build/validation/woolly-acceptance
+      - name: Upload Woolly acceptance report
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: woolly-1x-acceptance
+          path: build/validation/woolly-acceptance
       - name: Confirm stable macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
