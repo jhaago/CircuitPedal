@@ -1,4 +1,4 @@
-const CACHE = 'circuitpedal-ui-sandbox-v5';
+const CACHE = 'circuitpedal-ui-sandbox-v6';
 const ASSETS = [
   './',
   './launch.html',
