@@ -1,0 +1,9 @@
+{
+  "name": "Default",
+  "values": {
+    "OUTPUT": 0.50,
+    "EQ": 0.50,
+    "PINCH": 0.50,
+    "WOOL": 0.50
+  }
+}
