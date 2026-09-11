@@ -411,8 +411,21 @@ NSString* dbText(double peak)
 {
     [super drawRect:dirtyRect];
 
-    const CGFloat enclosureWidth = std::min<CGFloat>(300.0, NSWidth(self.bounds) * 0.46);
-    const CGFloat enclosureHeight = std::min<CGFloat>(380.0, NSHeight(self.bounds) - 80.0);
+    // Atmospheric pedal-specific stage behind the enclosure, matching the approved UI direction.
+    NSGradient* stageGradient = [[NSGradient alloc] initWithStartingColor:cpColor(0.12, 0.045, 0.038)
+                                                             endingColor:cpColor(0.025, 0.030, 0.036)];
+    [stageGradient drawInRect:NSInsetRect(self.bounds, 1.0, 1.0) angle:18.0];
+    [[warmAccentColor() colorWithAlphaComponent:0.10] setFill];
+    for (NSInteger i = 0; i < 18; ++i)
+    {
+        const CGFloat x = NSWidth(self.bounds) * (0.46 + 0.03 * static_cast<CGFloat>(i % 7));
+        const CGFloat y = NSHeight(self.bounds) * (0.18 + 0.08 * static_cast<CGFloat>((i * 3) % 8));
+        const CGFloat r = 7.0 + static_cast<CGFloat>((i * 5) % 13);
+        [[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(x, y, r, r)] fill];
+    }
+
+    const CGFloat enclosureWidth = std::min<CGFloat>(330.0, NSWidth(self.bounds) * 0.48);
+    const CGFloat enclosureHeight = std::min<CGFloat>(410.0, NSHeight(self.bounds) - 72.0);
     const NSRect enclosure = NSMakeRect(NSMidX(self.bounds) - enclosureWidth * 0.5,
                                         42.0,
                                         enclosureWidth,
@@ -420,7 +433,7 @@ NSString* dbText(double peak)
     NSBezierPath* body = [NSBezierPath bezierPathWithRoundedRect:enclosure
                                                          xRadius:18.0
                                                          yRadius:18.0];
-    [cpColor(0.09, 0.10, 0.11) setFill];
+    [cpColor(0.24, 0.075, 0.060) setFill];
     [body fill];
     [(self.bypassed ? borderColor() : warmAccentColor()) setStroke];
     body.lineWidth = self.bypassed ? 1.3 : 2.0;
@@ -483,6 +496,117 @@ NSString* dbText(double peak)
 }
 @end
 
+
+@interface CircuitPedalEQPreviewView : NSView
+@end
+@implementation CircuitPedalEQPreviewView
+- (BOOL)isOpaque { return NO; }
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    [[NSColor colorWithWhite:0.02 alpha:0.65] setFill];
+    [[NSBezierPath bezierPathWithRoundedRect:self.bounds xRadius:8.0 yRadius:8.0] fill];
+    [[NSColor colorWithWhite:1.0 alpha:0.055] setStroke];
+    for (NSInteger i = 1; i < 7; ++i) {
+        CGFloat x = NSWidth(self.bounds) * i / 7.0;
+        NSBezierPath* g = [NSBezierPath bezierPath]; [g moveToPoint:NSMakePoint(x, 0)]; [g lineToPoint:NSMakePoint(x, NSHeight(self.bounds))]; [g stroke];
+    }
+    for (NSInteger i = 1; i < 5; ++i) {
+        CGFloat y = NSHeight(self.bounds) * i / 5.0;
+        NSBezierPath* g = [NSBezierPath bezierPath]; [g moveToPoint:NSMakePoint(0, y)]; [g lineToPoint:NSMakePoint(NSWidth(self.bounds), y)]; [g stroke];
+    }
+    NSBezierPath* response = [NSBezierPath bezierPath];
+    for (NSInteger i = 0; i < 120; ++i) {
+        CGFloat t = static_cast<CGFloat>(i) / 119.0;
+        CGFloat x = t * NSWidth(self.bounds);
+        CGFloat y = NSHeight(self.bounds) * (0.58 - 0.18 * std::sin(t * 2.7) + 0.04 * std::sin(t * 13.0));
+        if (i == 0) [response moveToPoint:NSMakePoint(x, y)]; else [response lineToPoint:NSMakePoint(x, y)];
+    }
+    [accentColor() setStroke]; response.lineWidth = 2.0; [response stroke];
+}
+@end
+
+@interface CircuitPedalRoutingEditorView : NSView {
+@private
+    NSPoint _nodes[7];
+    NSInteger _dragNode;
+    NSInteger _pendingSource;
+    NSMutableArray<NSArray<NSNumber*>*>* _edges;
+}
+@end
+@implementation CircuitPedalRoutingEditorView
+- (instancetype)initWithFrame:(NSRect)frameRect
+{
+    self = [super initWithFrame:frameRect];
+    if (self) {
+        self.wantsLayer = YES;
+        _dragNode = -1; _pendingSource = -1;
+        _nodes[0] = NSMakePoint(0.08, 0.50); _nodes[1] = NSMakePoint(0.23, 0.50);
+        _nodes[2] = NSMakePoint(0.42, 0.68); _nodes[3] = NSMakePoint(0.42, 0.32);
+        _nodes[4] = NSMakePoint(0.62, 0.50); _nodes[5] = NSMakePoint(0.78, 0.50); _nodes[6] = NSMakePoint(0.93, 0.50);
+        _edges = [NSMutableArray arrayWithArray:@[ @[@0,@1], @[@1,@2], @[@1,@3], @[@2,@4], @[@3,@4], @[@4,@5], @[@5,@6] ]];
+    }
+    return self;
+}
+- (BOOL)isOpaque { return NO; }
+- (NSPoint)pointForNode:(NSInteger)i { return NSMakePoint(_nodes[i].x * NSWidth(self.bounds), _nodes[i].y * NSHeight(self.bounds)); }
+- (NSRect)rectForNode:(NSInteger)i
+{
+    NSPoint p = [self pointForNode:i];
+    CGFloat w = (i == 0 || i == 6) ? 76.0 : 104.0;
+    CGFloat h = (i == 0 || i == 6) ? 52.0 : 92.0;
+    return NSMakeRect(p.x - w * 0.5, p.y - h * 0.5, w, h);
+}
+- (NSPoint)inputPort:(NSInteger)i { NSRect r=[self rectForNode:i]; return NSMakePoint(NSMinX(r), NSMidY(r)); }
+- (NSPoint)outputPort:(NSInteger)i { NSRect r=[self rectForNode:i]; return NSMakePoint(NSMaxX(r), NSMidY(r)); }
+- (void)drawRect:(NSRect)dirtyRect
+{
+    (void)dirtyRect;
+    [[NSColor colorWithSRGBRed:0.025 green:0.040 blue:0.055 alpha:1.0] setFill]; NSRectFill(self.bounds);
+    [[NSColor colorWithWhite:1.0 alpha:0.035] setStroke];
+    for (CGFloat x=0; x<NSWidth(self.bounds); x+=24.0) { NSBezierPath* p=[NSBezierPath bezierPath]; [p moveToPoint:NSMakePoint(x,0)]; [p lineToPoint:NSMakePoint(x,NSHeight(self.bounds))]; [p stroke]; }
+    for (CGFloat y=0; y<NSHeight(self.bounds); y+=24.0) { NSBezierPath* p=[NSBezierPath bezierPath]; [p moveToPoint:NSMakePoint(0,y)]; [p lineToPoint:NSMakePoint(NSWidth(self.bounds),y)]; [p stroke]; }
+    [cpColor(0.35,0.58,0.70) setStroke];
+    for (NSArray<NSNumber*>* e in _edges) {
+        NSInteger a=e[0].integerValue,b=e[1].integerValue; NSPoint p1=[self outputPort:a],p2=[self inputPort:b];
+        CGFloat dx=std::max<CGFloat>(38.0,std::abs(p2.x-p1.x)*0.42);
+        NSBezierPath* cable=[NSBezierPath bezierPath]; [cable moveToPoint:p1];
+        [cable curveToPoint:p2 controlPoint1:NSMakePoint(p1.x+dx,p1.y) controlPoint2:NSMakePoint(p2.x-dx,p2.y)]; cable.lineWidth=3.0; [cable stroke];
+    }
+    NSArray<NSString*>* names=@[@"INPUT",@"COMP",@"FUZZ",@"MOD",@"DELAY",@"REVERB",@"OUTPUT"];
+    for (NSInteger i=0;i<7;++i) {
+        NSRect r=[self rectForNode:i]; NSBezierPath* body=[NSBezierPath bezierPathWithRoundedRect:r xRadius:(i==0||i==6?18.0:10.0) yRadius:(i==0||i==6?18.0:10.0)];
+        [(i==2 ? cpColor(0.27,0.08,0.065) : cpColor(0.075,0.095,0.115)) setFill]; [body fill];
+        [(i==2 ? warmAccentColor() : borderColor()) setStroke]; body.lineWidth=(i==2?1.8:1.0); [body stroke];
+        NSDictionary* attrs=@{NSFontAttributeName:[NSFont systemFontOfSize:10.0 weight:NSFontWeightSemibold],NSForegroundColorAttributeName:textColor()}; NSSize z=[names[i] sizeWithAttributes:attrs];
+        [names[i] drawAtPoint:NSMakePoint(NSMidX(r)-z.width*0.5,NSMidY(r)-5.0) withAttributes:attrs];
+        if (i>0) { NSPoint p=[self inputPort:i]; NSBezierPath* port=[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(p.x-6,p.y-6,12,12)]; [cpColor(0.10,0.13,0.16) setFill]; [port fill]; [accentColor() setStroke]; [port stroke]; }
+        if (i<6) { NSPoint p=[self outputPort:i]; NSBezierPath* port=[NSBezierPath bezierPathWithOvalInRect:NSMakeRect(p.x-6,p.y-6,12,12)]; [(_pendingSource==i?warmAccentColor():cpColor(0.10,0.13,0.16)) setFill]; [port fill]; [accentColor() setStroke]; [port stroke]; }
+    }
+    NSDictionary* hint=@{NSFontAttributeName:[NSFont monospacedSystemFontOfSize:9.0 weight:NSFontWeightRegular],NSForegroundColorAttributeName:mutedTextColor()};
+    [@"ROUTING DESIGN — drag nodes; click OUT then IN to draw a cable. Current live DSP still processes the selected model only." drawAtPoint:NSMakePoint(14.0,12.0) withAttributes:hint];
+}
+- (void)mouseDown:(NSEvent*)event
+{
+    NSPoint p=[self convertPoint:event.locationInWindow fromView:nil]; _dragNode=-1;
+    for (NSInteger i=0;i<7;++i) {
+        if (i<6 && NSPointInRect(p,NSInsetRect(NSMakeRect([self outputPort:i].x-8,[self outputPort:i].y-8,16,16),-2,-2))) { _pendingSource=i; self.needsDisplay=YES; return; }
+        if (i>0 && NSPointInRect(p,NSMakeRect([self inputPort:i].x-10,[self inputPort:i].y-10,20,20)) && _pendingSource>=0 && _pendingSource!=i) {
+            BOOL exists=NO; for (NSArray<NSNumber*>* e in _edges) if (e[0].integerValue==_pendingSource && e[1].integerValue==i) exists=YES;
+            if (!exists) [_edges addObject:@[@(_pendingSource),@(i)]]; _pendingSource=-1; self.needsDisplay=YES; return;
+        }
+        if (NSPointInRect(p,[self rectForNode:i])) { _dragNode=i; return; }
+    }
+}
+- (void)mouseDragged:(NSEvent*)event
+{
+    if (_dragNode<0) return; NSPoint p=[self convertPoint:event.locationInWindow fromView:nil];
+    _nodes[_dragNode].x=std::clamp(p.x/std::max<CGFloat>(1.0,NSWidth(self.bounds)),0.05,0.95);
+    _nodes[_dragNode].y=std::clamp(p.y/std::max<CGFloat>(1.0,NSHeight(self.bounds)),0.10,0.90); self.needsDisplay=YES;
+}
+- (void)mouseUp:(NSEvent*)event { (void)event; _dragNode=-1; }
+@end
+
 @interface CircuitPedalFlippedView : NSView
 @end
 @implementation CircuitPedalFlippedView
@@ -505,6 +629,16 @@ NSString* dbText(double peak)
     CircuitPedalChainView* _chainView;
     CircuitPedalHeroView* _heroView;
     CircuitPedalHistoryView* _historyView;
+    CircuitPedalRoutingEditorView* _routingEditorView;
+    CircuitPedalEQPreviewView* _eqPreviewView;
+    NSButton* _editChainButton;
+    NSButton* _inspectorTabButtons[4];
+    NSTextField* _inspectorInfoLabel;
+    NSInteger _inspectorTabIndex;
+    NSSlider* _inputTrimSlider;
+    NSTextField* _inputTrimValue;
+    NSSlider* _masterOutputSlider;
+    NSTextField* _masterOutputValue;
 
     NSTextField* _topModelLabel;
     CircuitPedalStatusDotView* _liveDot;
@@ -590,7 +724,7 @@ NSString* dbText(double peak)
                                    24.0,
                                    NSFontWeightSemibold);
     [_topBar addSubview:brand];
-    NSTextField* brandTag = makeLabel(@"TONE LIVES HERE",
+    NSTextField* brandTag = makeLabel(@"REAL CIRCUITS. REAL TONE.",
                                       NSMakeRect(24.0, 15.0, 180.0, 14.0),
                                       8.5,
                                       NSFontWeightMedium,
@@ -751,14 +885,10 @@ NSString* dbText(double peak)
     NSTextField* chainTitle = makeSectionLabel(@"SIGNAL CHAIN", NSMakeRect(18.0, 574.0, 130.0, 18.0));
     chainTitle.autoresizingMask = NSViewMinYMargin;
     [_workspacePanel addSubview:chainTitle];
-    NSTextField* chainMode = makeLabel(@"CHAIN VIEW  •  Phase 1 shell",
-                                       NSMakeRect(450.0, 574.0, 270.0, 18.0),
-                                       9.0,
-                                       NSFontWeightMedium,
-                                       mutedTextColor());
-    chainMode.alignment = NSTextAlignmentRight;
-    chainMode.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
-    [_workspacePanel addSubview:chainMode];
+    _editChainButton = makeButton(@"EDIT SIGNAL CHAIN", NSMakeRect(532.0, 568.0, 192.0, 28.0), self, @selector(toggleSignalChainEditor:));
+    _editChainButton.contentTintColor = accentColor();
+    _editChainButton.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    [_workspacePanel addSubview:_editChainButton];
 
     _chainView = [[CircuitPedalChainView alloc] initWithFrame:NSMakeRect(16.0, 470.0, 710.0, 96.0)];
     _chainView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
@@ -768,6 +898,11 @@ NSString* dbText(double peak)
     _heroView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     [_workspacePanel addSubview:_heroView];
 
+    _routingEditorView = [[CircuitPedalRoutingEditorView alloc] initWithFrame:NSMakeRect(16.0, 16.0, 710.0, 542.0)];
+    _routingEditorView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    _routingEditorView.hidden = YES;
+    [_workspacePanel addSubview:_routingEditorView];
+
     _rightPanel = [[CircuitPedalPanelView alloc] initWithFrame:NSMakeRect(1038.0, 124.0, 310.0, 612.0)];
     _rightPanel.autoresizingMask = NSViewHeightSizable | NSViewMinXMargin;
     [content addSubview:_rightPanel];
@@ -775,13 +910,16 @@ NSString* dbText(double peak)
     NSTextField* inspectorTitle = makeSectionLabel(@"INSPECTOR", NSMakeRect(16.0, 574.0, 120.0, 18.0));
     inspectorTitle.autoresizingMask = NSViewMinYMargin;
     [_rightPanel addSubview:inspectorTitle];
-    NSTextField* parameterTab = makeLabel(@"Parameters", NSMakeRect(16.0, 542.0, 86.0, 22.0), 12.0, NSFontWeightSemibold, accentColor());
-    parameterTab.autoresizingMask = NSViewMinYMargin;
-    [_rightPanel addSubview:parameterTab];
-    NSTextField* futureTabs = makeLabel(@"Circuit    EQ    Settings", NSMakeRect(112.0, 542.0, 180.0, 22.0), 10.0, NSFontWeightMedium, mutedTextColor());
-    futureTabs.alignment = NSTextAlignmentRight;
-    futureTabs.autoresizingMask = NSViewMinYMargin;
-    [_rightPanel addSubview:futureTabs];
+    NSArray<NSString*>* inspectorTabs = @[ @"Parameters", @"Circuit", @"EQ", @"Settings" ];
+    for (NSInteger i = 0; i < 4; ++i)
+    {
+        _inspectorTabButtons[i] = makeButton(inspectorTabs[i], NSMakeRect(12.0 + i * 72.0, 540.0, 68.0, 28.0), self, @selector(inspectorTabChanged:));
+        _inspectorTabButtons[i].tag = i;
+        _inspectorTabButtons[i].contentTintColor = i == 0 ? accentColor() : mutedTextColor();
+        _inspectorTabButtons[i].autoresizingMask = NSViewMinYMargin;
+        [_rightPanel addSubview:_inspectorTabButtons[i]];
+    }
+    _inspectorTabIndex = 0;
 
     _diodeLabel = makeSectionLabel(@"CLIPPING DIODES", NSMakeRect(18.0, 502.0, 150.0, 18.0));
     _diodeLabel.autoresizingMask = NSViewMinYMargin;
@@ -867,6 +1005,17 @@ NSString* dbText(double peak)
         [_circuitDocumentView addSubview:_circuitValues[i]];
     }
 
+    _inspectorInfoLabel = makeLabel(@"", NSMakeRect(20.0, 150.0, 270.0, 350.0), 11.0, NSFontWeightRegular, cpColor(0.72, 0.76, 0.80));
+    _inspectorInfoLabel.usesSingleLineMode = NO;
+    _inspectorInfoLabel.lineBreakMode = NSLineBreakByWordWrapping;
+    _inspectorInfoLabel.hidden = YES;
+    [_rightPanel addSubview:_inspectorInfoLabel];
+
+    _eqPreviewView = [[CircuitPedalEQPreviewView alloc] initWithFrame:NSMakeRect(18.0, 180.0, 274.0, 300.0)];
+    _eqPreviewView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    _eqPreviewView.hidden = YES;
+    [_rightPanel addSubview:_eqPreviewView];
+
     NSTextField* inspectorHint = makeLabel(@"Controls are generated from the loaded circuit definition.",
                                            NSMakeRect(16.0, 72.0, 278.0, 38.0),
                                            9.5,
@@ -880,18 +1029,14 @@ NSString* dbText(double peak)
     _bottomPanel.autoresizingMask = NSViewWidthSizable | NSViewMaxYMargin;
     [content addSubview:_bottomPanel];
 
-    [ _bottomPanel addSubview:makeSectionLabel(@"INPUT", NSMakeRect(14.0, 69.0, 60.0, 16.0)) ];
-    _inputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(166.0, 69.0, 74.0, 16.0), 9.5, NSFontWeightMedium, textColor());
-    _inputDbLabel.alignment = NSTextAlignmentRight;
-    [_bottomPanel addSubview:_inputDbLabel];
-    _inputMeter = [[CircuitPedalMeterView alloc] initWithFrame:NSMakeRect(14.0, 48.0, 226.0, 16.0)];
-    [_bottomPanel addSubview:_inputMeter];
-
-    _historyView = [[CircuitPedalHistoryView alloc] initWithFrame:NSMakeRect(260.0, 20.0, 330.0, 62.0)];
-    _historyView.autoresizingMask = NSViewWidthSizable;
-    [_bottomPanel addSubview:_historyView];
-    NSTextField* monitorLabel = makeSectionLabel(@"LIVE MONITOR", NSMakeRect(270.0, 69.0, 110.0, 16.0));
-    [_bottomPanel addSubview:monitorLabel];
+    [ _bottomPanel addSubview:makeSectionLabel(@"INPUT", NSMakeRect(72.0, 69.0, 60.0, 16.0)) ];
+    _inputTrimSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(14.0, 18.0, 56.0, 56.0)];
+    styleRotarySlider(_inputTrimSlider); _inputTrimSlider.minValue = -18.0; _inputTrimSlider.maxValue = 18.0; _inputTrimSlider.doubleValue = 0.0;
+    _inputTrimSlider.target = self; _inputTrimSlider.action = @selector(inputTrimChanged:); [_bottomPanel addSubview:_inputTrimSlider];
+    _inputTrimValue = makeLabel(@"0.0 dB", NSMakeRect(6.0, 3.0, 72.0, 16.0), 8.5, NSFontWeightMedium, accentColor()); _inputTrimValue.alignment = NSTextAlignmentCenter; [_bottomPanel addSubview:_inputTrimValue];
+    _inputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(206.0, 69.0, 70.0, 16.0), 9.5, NSFontWeightMedium, textColor()); _inputDbLabel.alignment = NSTextAlignmentRight; [_bottomPanel addSubview:_inputDbLabel];
+    _inputMeter = [[CircuitPedalMeterView alloc] initWithFrame:NSMakeRect(78.0, 48.0, 198.0, 16.0)]; [_bottomPanel addSubview:_inputMeter];
+    NSTextField* trimLabel = makeSectionLabel(@"TRIM", NSMakeRect(16.0, 78.0, 54.0, 14.0)); trimLabel.alignment = NSTextAlignmentCenter; [_bottomPanel addSubview:trimLabel];
 
     _bypassButton = makeButton(@"ACTIVE", NSMakeRect(610.0, 26.0, 120.0, 48.0), self, @selector(bypassChanged:));
     _bypassButton.buttonType = NSButtonTypePushOnPushOff;
@@ -900,7 +1045,7 @@ NSString* dbText(double peak)
     [_bottomPanel addSubview:_bypassButton];
 
     _statusLabel = makeLabel(@"Audio stopped — choose a pedal and audio device, then Start Audio.",
-                             NSMakeRect(752.0, 48.0, 340.0, 34.0),
+                             NSMakeRect(760.0, 48.0, 270.0, 34.0),
                              10.0,
                              NSFontWeightRegular,
                              cpColor(0.72, 0.76, 0.80));
@@ -909,24 +1054,24 @@ NSString* dbText(double peak)
     _statusLabel.autoresizingMask = NSViewMinXMargin;
     [_bottomPanel addSubview:_statusLabel];
 
-    _errorLabel = makeLabel(@"Ready.", NSMakeRect(752.0, 18.0, 340.0, 26.0), 9.5, NSFontWeightRegular, mutedTextColor());
+    _errorLabel = makeLabel(@"Ready.", NSMakeRect(760.0, 18.0, 270.0, 26.0), 9.5, NSFontWeightRegular, mutedTextColor());
     _errorLabel.autoresizingMask = NSViewMinXMargin;
     [_bottomPanel addSubview:_errorLabel];
 
-    [ _bottomPanel addSubview:makeSectionLabel(@"OUTPUT", NSMakeRect(1112.0, 69.0, 70.0, 16.0)) ];
-    _outputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(1260.0, 69.0, 62.0, 16.0), 9.5, NSFontWeightMedium, textColor());
-    _outputDbLabel.alignment = NSTextAlignmentRight;
-    _outputDbLabel.autoresizingMask = NSViewMinXMargin;
-    [_bottomPanel addSubview:_outputDbLabel];
-    _outputMeter = [[CircuitPedalMeterView alloc] initWithFrame:NSMakeRect(1112.0, 48.0, 210.0, 16.0)];
-    _outputMeter.autoresizingMask = NSViewMinXMargin;
-    [_bottomPanel addSubview:_outputMeter];
+    [ _bottomPanel addSubview:makeSectionLabel(@"OUTPUT", NSMakeRect(1060.0, 69.0, 70.0, 16.0)) ];
+    _outputDbLabel = makeLabel(@"−∞ dB", NSMakeRect(1194.0, 69.0, 62.0, 16.0), 9.5, NSFontWeightMedium, textColor()); _outputDbLabel.alignment = NSTextAlignmentRight; _outputDbLabel.autoresizingMask = NSViewMinXMargin; [_bottomPanel addSubview:_outputDbLabel];
+    _outputMeter = [[CircuitPedalMeterView alloc] initWithFrame:NSMakeRect(1060.0, 48.0, 196.0, 16.0)]; _outputMeter.autoresizingMask = NSViewMinXMargin; [_bottomPanel addSubview:_outputMeter];
+    _masterOutputSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(1264.0, 18.0, 56.0, 56.0)]; styleRotarySlider(_masterOutputSlider); _masterOutputSlider.minValue = -18.0; _masterOutputSlider.maxValue = 6.0; _masterOutputSlider.doubleValue = 0.0; _masterOutputSlider.target = self; _masterOutputSlider.action = @selector(masterOutputChanged:); _masterOutputSlider.autoresizingMask = NSViewMinXMargin; [_bottomPanel addSubview:_masterOutputSlider];
+    _masterOutputValue = makeLabel(@"0.0 dB", NSMakeRect(1256.0, 3.0, 72.0, 16.0), 8.5, NSFontWeightMedium, accentColor()); _masterOutputValue.alignment = NSTextAlignmentCenter; _masterOutputValue.autoresizingMask = NSViewMinXMargin; [_bottomPanel addSubview:_masterOutputValue];
+    NSTextField* levelLabel = makeSectionLabel(@"LEVEL", NSMakeRect(1264.0, 78.0, 56.0, 14.0)); levelLabel.alignment = NSTextAlignmentCenter; levelLabel.autoresizingMask = NSViewMinXMargin; [_bottomPanel addSubview:levelLabel];
 
     [self populateCircuitLibrary];
     [self populateDevices];
     [self refreshModelControls];
     [self setRunningControls:NO];
     [self refreshBypassAppearance];
+    _engine->setInputTrimDb(0.0f);
+    _engine->setMasterOutputDb(0.0f);
 
     _meterTimer = [NSTimer scheduledTimerWithTimeInterval:0.05
                                                    target:self
@@ -1158,6 +1303,8 @@ NSString* dbText(double peak)
     }
     if (generic)
         [_circuitDocumentView scrollPoint:NSMakePoint(0.0, 0.0)];
+    if (_inspectorTabIndex != 0)
+        [self inspectorTabChanged:_inspectorTabButtons[_inspectorTabIndex]];
 }
 
 - (void)setRunningControls:(BOOL)running
@@ -1189,6 +1336,57 @@ NSString* dbText(double peak)
     _bypassButton.contentTintColor = bypassed ? warningColor() : liveColor();
     _chainView.bypassed = bypassed;
     _heroView.bypassed = bypassed;
+}
+
+- (void)toggleSignalChainEditor:(id)sender
+{
+    (void)sender;
+    const BOOL showing = !_routingEditorView.hidden;
+    _routingEditorView.hidden = showing;
+    _chainView.hidden = !showing;
+    _heroView.hidden = !showing;
+    _editChainButton.title = showing ? @"EDIT SIGNAL CHAIN" : @"DONE";
+    _editChainButton.contentTintColor = showing ? accentColor() : warmAccentColor();
+}
+
+- (void)inspectorTabChanged:(id)sender
+{
+    NSButton* button = (NSButton*)sender;
+    _inspectorTabIndex = std::clamp<NSInteger>(button.tag, 0, 3);
+    for (NSInteger i=0;i<4;++i)
+        _inspectorTabButtons[i].contentTintColor = i == _inspectorTabIndex ? accentColor() : mutedTextColor();
+    const BOOL parameters = _inspectorTabIndex == 0;
+    _diodeLabel.hidden = !parameters || _engine->usingCircuitFile();
+    _diodePopup.hidden = !parameters || _engine->usingCircuitFile();
+    _distortionLabel.hidden = !parameters || _engine->usingCircuitFile();
+    _distortionSlider.hidden = !parameters || _engine->usingCircuitFile();
+    _distortionValue.hidden = !parameters || _engine->usingCircuitFile();
+    _outputControlLabel.hidden = !parameters || _engine->usingCircuitFile();
+    _outputSlider.hidden = !parameters || _engine->usingCircuitFile();
+    _outputValue.hidden = !parameters || _engine->usingCircuitFile();
+    _circuitScrollView.hidden = !parameters || !_engine->usingCircuitFile();
+    _eqPreviewView.hidden = _inspectorTabIndex != 2;
+    _inspectorInfoLabel.hidden = parameters || _inspectorTabIndex == 2;
+    if (_inspectorTabIndex == 1)
+        _inspectorInfoLabel.stringValue = [NSString stringWithFormat:@"%@\n\nCircuit model\n%zu exposed controls\n48 kHz / 1× live path\n\nThe detailed schematic view will attach to package/model metadata in a later pass.", nsString(_engine->activeModelName()), _engine->circuitControls().size()];
+    else if (_inspectorTabIndex == 3)
+        _inspectorInfoLabel.stringValue = @"Audio settings remain live and functional in the left panel for this native pass.\n\nDevice, input channel and buffer selection still use the existing engine path.\n\nUI scale and package preferences will move here later.";
+}
+
+- (void)inputTrimChanged:(id)sender
+{
+    (void)sender;
+    const float db = static_cast<float>(_inputTrimSlider.doubleValue);
+    _engine->setInputTrimDb(db);
+    _inputTrimValue.stringValue = [NSString stringWithFormat:@"%+.1f dB", db];
+}
+
+- (void)masterOutputChanged:(id)sender
+{
+    (void)sender;
+    const float db = static_cast<float>(_masterOutputSlider.doubleValue);
+    _engine->setMasterOutputDb(db);
+    _masterOutputValue.stringValue = [NSString stringWithFormat:@"%+.1f dB", db];
 }
 
 - (void)loadCircuit:(id)sender
@@ -1365,7 +1563,6 @@ NSString* dbText(double peak)
     _outputMeter.level = output;
     _inputDbLabel.stringValue = dbText(input);
     _outputDbLabel.stringValue = dbText(output);
-    [_historyView pushLevel:output];
 }
 
 - (void)updateRunningStatus
