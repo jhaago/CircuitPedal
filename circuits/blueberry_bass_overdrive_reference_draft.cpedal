@@ -61,11 +61,12 @@ C C10 CLAMP_B 0 22n
 C C9 CLAMP_B FB_B 4n7
 R R8 FB_B OP_MINUS 147k
 
-# JFET isolation/output stage. Blueberry-specific C11/R12/R14 values are used.
+# JFET isolation/output stage. The cross-checked Procyon/Blueberry drain
+# resistor is 56k; the previous 5k6 transcription under-biased this stage.
 C C11 CLAMP_B Q1G 47n
 R R9 Q1G 0 1M
 JFET Q1 Q1D Q1G Q1S 2N5457
-R R10 VA Q1D 5k6
+R R10 VA Q1D 56k
 R R11 Q1S 0 2k6
 
 # The three-terminal Tone control is intentionally used with its wiper grounded.
