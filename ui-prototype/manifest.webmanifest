@@ -6,8 +6,8 @@
   "scope": "./",
   "display": "fullscreen",
   "orientation": "landscape",
-  "background_color": "#070b10",
-  "theme_color": "#091018",
+  "background_color": "#07090c",
+  "theme_color": "#0a0d11",
   "icons": [
     {
       "src": "circuitpedal-ui.svg",
