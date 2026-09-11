@@ -30,6 +30,8 @@ add_library(circuit_core
     src/GenericCircuit.cpp
     src/GenericCircuitProcessor.cpp
     src/CircuitFile.cpp
+    src/Btdr2Model.cpp
+    src/BoingReverbModel.cpp
 )
 target_include_directories(circuit_core PUBLIC src)
 circuitpedal_target_defaults(circuit_core)
@@ -51,6 +53,12 @@ add_executable(generic_circuit_test
 )
 target_link_libraries(generic_circuit_test PRIVATE circuit_core)
 circuitpedal_target_defaults(generic_circuit_test)
+
+add_executable(btdr2_test
+    src/btdr2_test.cpp
+)
+target_link_libraries(btdr2_test PRIVATE circuit_core)
+circuitpedal_target_defaults(btdr2_test)
 
 add_executable(circuit_file_test
     src/circuit_file_test.cpp
@@ -76,6 +84,7 @@ circuitpedal_target_defaults(circuitpedal_validate)
 if(BUILD_TESTING)
     add_test(NAME circuit_core_validation COMMAND circuit_core_test)
     add_test(NAME generic_circuit_validation COMMAND generic_circuit_test)
+    add_test(NAME btdr2_boing_validation COMMAND btdr2_test)
     add_test(NAME circuit_file_validation COMMAND circuit_file_test)
     add_test(NAME validation_framework COMMAND validation_test)
 
