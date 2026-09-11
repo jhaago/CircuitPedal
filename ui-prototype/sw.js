@@ -1,7 +1,8 @@
-const CACHE = 'circuitpedal-ui-sandbox-v3';
+const CACHE = 'circuitpedal-ui-sandbox-v4';
 const ASSETS = [
   './',
   './launch.html',
+  './balanced.html',
   './match.html',
   './focus.html',
   './index.html',
@@ -28,6 +29,6 @@ self.addEventListener('fetch', event => {
       const copy = response.clone();
       caches.open(CACHE).then(cache => cache.put(event.request, copy));
       return response;
-    }).catch(() => caches.match('./match.html')))
+    }).catch(() => caches.match('./balanced.html')))
   );
 });
