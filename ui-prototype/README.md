@@ -1,50 +1,38 @@
-# CircuitPedal HTML UI Sandbox
+# CircuitPedal UI prototype
 
-This folder is an isolated visual/UX prototype for CircuitPedal. It does not run the C++ DSP engine and must not be treated as an audio-validation build.
+This folder is an isolated visual/UX sandbox. It does not process audio and it does not change the C++ DSP engine.
 
-## Purpose
+## Current default
 
-Use the sandbox to iterate quickly on the visual language and interaction model for:
+`launch.html` now opens `match.html`, the screenshot-inspired premium direction selected during tablet review.
 
-- the future CircuitPedal desktop UI;
-- the eventual phone/tablet companion app;
-- pedal/package presentation and control layouts;
-- signal-chain and live-performance workflows.
+The target is a pedal-centred professional audio application rather than a stripped-down single-pedal screen. The main composition is:
 
-## Current prototype
+- compact top navigation;
+- left device/chain and preset browser;
+- circuit/schematic panel;
+- large central pedal hero with touch-adjustable controls;
+- right frequency/time analysis stack;
+- compact bottom audio I/O, meters, bypass and latency strip.
 
-`index.html` is fully self-contained and can be opened directly in a browser. It includes:
+The visual reference is treated as a composition/polish target rather than a pixel-for-pixel copy. CircuitPedal branding, labels, circuit graphics and pedal styling remain original.
 
-- dark premium application shell;
-- pedal library and search;
-- selectable example pedals;
-- signal-chain strip;
-- large pedal hero view;
-- touch/drag rotary controls;
-- parameter inspector;
-- bypass/active state;
-- simulated input/output meters;
-- simulated live monitor;
-- scenes and placeholder quick actions;
-- fullscreen control;
-- landscape/tablet-oriented layout.
+## Prototype variants
 
-The UI deliberately labels future-only features rather than pretending they are implemented in the real application.
+- `match.html` — current primary direction, closest to the premium multi-panel reference.
+- `focus.html` — earlier pedal-dominant minimalist experiment retained for comparison.
+- `index.html` — original dashboard-style experiment retained for comparison.
+- `launch.html` — wrapper used for PWA/fullscreen testing; currently opens `match.html`.
 
-## Android / PWA path
+## Tablet interaction
 
-`launch.html`, `manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` make the sandbox PWA-ready when the folder is served over HTTPS (for example through a future GitHub Pages deployment).
+- Drag vertically on pedal knobs to adjust them.
+- Mouse-wheel knob adjustment also works on desktop.
+- Presets are selectable.
+- Bypass toggles the pedal LED state.
+- Meters are simulated for visual testing.
+- `FULLSCREEN` attempts the browser Fullscreen API and also enters a CSS immersive mode, so there is a visible response even where the browser blocks true fullscreen.
 
-Once hosted, Android Chrome can install it to the home screen and run it fullscreen in landscape orientation.
+## PWA notes
 
-## Important boundary
-
-This prototype is visual only. It does not change or validate:
-
-- the 48 kHz / 1x DSP path;
-- circuit models;
-- pedal fidelity;
-- live audio latency;
-- package loading in the native app.
-
-Approved visual ideas should be ported deliberately into the native macOS UI and eventual companion app rather than merging browser code into the audio engine.
+`manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` are included so this can later be installed as an Android home-screen app once hosted over HTTPS. GitHub Pages must first be enabled for the repository before automated Pages deployment can be added.
