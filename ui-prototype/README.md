@@ -1,38 +1,50 @@
-# CircuitPedal UI prototype
+# CircuitPedal HTML UI Sandbox
 
-This folder is an isolated visual/UX sandbox. It does not process audio and it does not change the C++ DSP engine.
+This folder is an isolated visual/UX prototype for CircuitPedal. It does not run the C++ DSP engine and must not be treated as an audio-validation build.
 
-## Current default
+## Purpose
 
-`launch.html` now opens `match.html`, the screenshot-inspired premium direction selected during tablet review.
+Use the sandbox to iterate quickly on the visual language and interaction model for:
 
-The target is a pedal-centred professional audio application rather than a stripped-down single-pedal screen. The main composition is:
+- the future CircuitPedal desktop UI;
+- the eventual phone/tablet companion app;
+- pedal/package presentation and control layouts;
+- signal-chain and live-performance workflows.
 
-- compact top navigation;
-- left device/chain and preset browser;
-- circuit/schematic panel;
-- large central pedal hero with touch-adjustable controls;
-- right frequency/time analysis stack;
-- compact bottom audio I/O, meters, bypass and latency strip.
+## Current direction
 
-The visual reference is treated as a composition/polish target rather than a pixel-for-pixel copy. CircuitPedal branding, labels, circuit graphics and pedal styling remain original.
+`launch.html` now opens `balanced.html` by default.
 
-## Prototype variants
+The balanced prototype is intentionally between the two earlier extremes:
 
-- `match.html` — current primary direction, closest to the premium multi-panel reference.
-- `focus.html` — earlier pedal-dominant minimalist experiment retained for comparison.
-- `index.html` — original dashboard-style experiment retained for comparison.
-- `launch.html` — wrapper used for PWA/fullscreen testing; currently opens `match.html`.
+- the pedal remains the dominant visual element;
+- the left pedal/preset browser is narrow and secondary;
+- the right side contains one contextual panel with Circuit / Analysis / Info tabs rather than permanent technical panels;
+- the signal chain is a separate view opened only when needed;
+- the bottom strip is kept thin and limited to audio I/O, level meters, bypass and latency;
+- the main editable controls remain directly on the pedal.
 
-## Tablet interaction
+Earlier visual experiments are retained for comparison:
 
-- Drag vertically on pedal knobs to adjust them.
-- Mouse-wheel knob adjustment also works on desktop.
-- Presets are selectable.
-- Bypass toggles the pedal LED state.
-- Meters are simulated for visual testing.
-- `FULLSCREEN` attempts the browser Fullscreen API and also enters a CSS immersive mode, so there is a visible response even where the browser blocks true fullscreen.
+- `index.html` — original dashboard-heavy pass;
+- `focus.html` — stripped-back pedal-dominant pass;
+- `match.html` — richer workstation/reference-matched pass;
+- `balanced.html` — current preferred middle-ground direction.
 
-## PWA notes
+## Android / PWA path
 
-`manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` are included so this can later be installed as an Android home-screen app once hosted over HTTPS. GitHub Pages must first be enabled for the repository before automated Pages deployment can be added.
+`launch.html`, `manifest.webmanifest`, `sw.js` and `circuitpedal-ui.svg` make the sandbox PWA-ready when the folder is served over HTTPS.
+
+Once hosted, Android Chrome can install it to the home screen and run it fullscreen in landscape orientation.
+
+## Important boundary
+
+This prototype is visual only. It does not change or validate:
+
+- the 48 kHz / 1x DSP path;
+- circuit models;
+- pedal fidelity;
+- live audio latency;
+- package loading in the native app.
+
+Approved visual ideas should be ported deliberately into the native macOS UI and eventual companion app rather than merging browser code into the audio engine.
