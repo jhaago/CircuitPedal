@@ -95,12 +95,12 @@ jobs:
         run: |
           python3 validation/woolly_mammoth/run_dc_model_comparison.py \
             build/circuitpedal_validate \
-            build/validation/woolly-dc-model-comparison
+            build/validation/woolly-dc-model
       - name: Upload Woolly DC model comparison
         uses: actions/upload-artifact@v4
         with:
           name: woolly-dc-model-comparison
-          path: build/validation/woolly-dc-model-comparison
+          path: build/validation/woolly-dc-model
       - name: Validate normalized reference columns
         run: |
           validation/woolly_mammoth/run_ngspice.sh build/validation/woolly
