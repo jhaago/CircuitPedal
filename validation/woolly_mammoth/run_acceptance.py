@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
 """Build a repeatable Woolly Mammoth acceptance report.
 
-This runner intentionally separates two questions:
+This runner intentionally separates three questions:
 
 1. Is the current 48 kHz / 1x production path numerically safe across useful
    Woolly control states?
 2. How close is the model's DC operating point to the published working-board
    reference?
+3. Are the published DC numbers themselves internally representative enough to
+   justify parameter fitting?
 
 The first is a hard automated gate. The second reports both the historical 35%
 saneness gate and the published ~10% working-board target, but only the 35% gate
-is currently enforced in CI. Component-fidelity promotion still requires better
+is currently enforced in CI. The third is a reference-sanity calculation rather
+than a pass/fail gate. Component-fidelity promotion still requires better
 provenance / physical reference evidence.
 """
 
@@ -86,6 +89,33 @@ def summarize_render(path: Path) -> dict[str, float]:
     }
 
 
+def implied_betas(reference: dict[str, float], supply: float, feedback_ohms: float) -> tuple[float, float]:
+    """Infer effective DC current gains from the published node voltages.
+
+    At DC the coupling/bypass capacitors are open. The feedback path from Q2
+    emitter to Q1 base is therefore the only Q1-base current path represented by
+    this compact Woolly topology. `feedback_ohms` includes the fixed 100k plus
+    whichever end-state of the 500k PINCH rheostat is being considered.
+    """
+
+    b1 = reference["B1"]
+    q2_base = reference["C1_NODE"]
+    e2 = reference["E2"]
+    c2 = reference["C2_NODE"]
+
+    ib1 = (e2 - b1) / feedback_ohms
+    r3_current = (supply - q2_base) / 51_000.0
+    ic2 = (supply - c2) / 20_000.0
+    emitter_resistor_current = e2 / 2_200.0
+    ie2 = emitter_resistor_current + ib1
+    ib2 = ie2 - ic2
+    ic1 = r3_current - ib2
+
+    if ib1 <= 0.0 or ib2 <= 0.0 or ic1 <= 0.0 or ic2 <= 0.0:
+        raise RuntimeError("published DC reference produces non-positive inferred BJT currents")
+    return ic1 / ib1, ic2 / ib2
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("validator", help="path to circuitpedal_validate")
@@ -148,9 +178,11 @@ def main() -> int:
 
     ten_percent_pass = True
     legacy_pass = True
+    reference_values: dict[str, float] = {}
     for row in references:
         node = row["node"]
         expected = float(row["expected_v"])
+        reference_values[node] = expected
         if node not in actual:
             raise RuntimeError(f"DC output did not contain reference node {node}")
         measured = actual[node]
@@ -166,6 +198,10 @@ def main() -> int:
             f"{'PASS' if point_35 else 'FAIL'} |"
         )
 
+    supply = float(references[0]["source_supply_v"])
+    beta1_current, beta2_current = implied_betas(reference_values, supply, 600_000.0)
+    beta1_alternate, beta2_alternate = implied_betas(reference_values, supply, 100_000.0)
+
     report.extend([
         "",
         f"**Published ~±10% working-board target:** {'PASS' if ten_percent_pass else 'NOT YET MET'}",
@@ -176,6 +212,23 @@ def main() -> int:
         "yet a CI failure because the published voltages are from another working",
         "build/transistor lot and the current compact transistor model does not have",
         "manufacturer-model provenance.",
+        "",
+        "### Reference self-consistency sanity check",
+        "",
+        "Using the published voltages with the 51k collector feed, 20k Q2 collector",
+        "resistor, 2.2k emitter resistor and the feedback path gives the following",
+        "effective DC current gains. This is not transistor parameter fitting; it is",
+        "a KCL sanity check on what the external voltage set implies.",
+        "",
+        "| PINCH end-state assumption | Implied Q1 β | Implied Q2 β |",
+        "| --- | ---: | ---: |",
+        f"| 100k fixed + 500k rheostat (current all-max mapping) | {beta1_current:.1f} | {beta2_current:.1f} |",
+        f"| 100k fixed + ~0Ω rheostat (opposite mechanical-end assumption) | {beta1_alternate:.1f} | {beta2_alternate:.1f} |",
+        "",
+        "The Q2 value remains around 7 under either PINCH-end interpretation. That is",
+        "a strong warning against treating this one working-board voltage set as a",
+        "golden component-calibration target. It can still serve as a broad operating-",
+        "region check while a nominated physical reference is obtained.",
         "",
         "## 2. 48 kHz / 1x live-path solver sweep",
         "",
@@ -231,9 +284,9 @@ def main() -> int:
         "",
         "Remaining fidelity evidence before promotion:",
         "",
-        "- resolve or justify any DC points outside the published ~±10% range;",
+        "- obtain a nominated physical Woolly/verified clone and record its own DC voltages;",
         "- corroborate the 2N3904 model with a versioned manufacturer SPICE model or",
-        "  measurements from a nominated transistor/pedal reference;",
+        "  measurements from a nominated transistor lot;",
         "- compare transient node/output waveforms across multiple control states;",
         "- complete the manual physical control-range/listening checklist;",
         "- record the reference hardware, supply voltage, audio interface and test date.",
