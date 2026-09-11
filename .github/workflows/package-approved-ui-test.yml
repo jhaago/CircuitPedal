@@ -1,0 +1,42 @@
+name: Package approved macOS UI test
+
+on:
+  push:
+    branches: [feature/circuit-lab-approved-ui]
+    paths:
+      - '.github/workflows/package-approved-ui-test.yml'
+
+jobs:
+  package:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build native app
+        run: cmake --build build --parallel --target CircuitPedalGUI
+      - name: Verify bundle
+        run: |
+          test -x build/CircuitPedalGUI.app/Contents/MacOS/CircuitPedalGUI
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/woolly_mammoth_reference_draft.cpedal
+      - name: Ad-hoc sign test app
+        run: codesign --force --deep --sign - build/CircuitPedalGUI.app
+      - name: Create test DMG and ZIP
+        run: |
+          rm -rf package
+          mkdir -p package/dmg
+          cp -R build/CircuitPedalGUI.app package/dmg/CircuitPedal.app
+          ln -s /Applications package/dmg/Applications
+          hdiutil create -volname 'CircuitPedal UI Test' -srcfolder package/dmg -ov -format UDZO package/CircuitPedal-approved-ui-test.dmg
+          ditto -c -k --sequesterRsrc --keepParent package/dmg/CircuitPedal.app package/CircuitPedal-approved-ui-test.zip
+          shasum -a 256 package/CircuitPedal-approved-ui-test.dmg package/CircuitPedal-approved-ui-test.zip > package/SHA256SUMS.txt
+      - name: Upload macOS test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: CircuitPedal-macOS-approved-ui-test
+          path: |
+            package/CircuitPedal-approved-ui-test.dmg
+            package/CircuitPedal-approved-ui-test.zip
+            package/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
