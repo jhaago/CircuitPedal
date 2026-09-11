@@ -1,0 +1,28 @@
+name: One-shot native approved UI patch
+
+on:
+  push:
+    branches: [feature/circuit-lab-approved-ui-patch]
+    paths:
+      - '.github/workflows/native-approved-ui-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/circuit-lab-approved-ui-patch
+          fetch-depth: 0
+      - name: Apply approved native UI pass
+        run: python3 .github/scripts/patch_native_approved_ui.py
+      - name: Commit generated changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/MacAudioEngine.h src/MacAudioEngine.cpp src/main_mac_gui.mm docs/ui_approved_layout_native.md
+          git commit -m "Port approved UI layout into native Circuit Lab"
+          git push origin HEAD:feature/circuit-lab-approved-ui-patch
