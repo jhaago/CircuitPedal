@@ -1,54 +1,40 @@
 # CircuitPedal Branch Status
 
-This file records which branches are canonical and which older branches are retained only for history/reconciliation.
+This file records the canonical active branches and the legacy branches that are safe to retire after reconciliation.
 
 ## Canonical active branches
 
 | Branch | Purpose | Origin |
 | --- | --- | --- |
 | `main` | Stable/physically accepted baseline | Authoritative project baseline |
-| `feature/pedal-packages` | Pedal package metadata, presets and related UI architecture | Replaces `feature/pedal-packages-v0.1` |
-| `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Replaces `feature/boing-reverb-clean` as the canonical clean reverb line |
-| `fix/oversampling-regression` | Focused generic-circuit oversampling regression work | Replaces `fix/generic-oversampling-regression` |
-| `validation/woolly-mammoth` | Fresh Woolly Mammoth validation work based from current `main` | New canonical validation branch |
+| `feature/pedal-packages` | Pedal package metadata, presets and related UI architecture | Canonical package/UI workstream |
+| `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Canonical reverb workstream; detailed Boing reference material preserved from the old branch |
+| `fix/oversampling-regression` | Focused generic-circuit oversampling regression work | Canonical DSP-fix workstream |
+| `validation/woolly-mammoth` | Focused Woolly Mammoth validation based from current `main` | Canonical model-validation workstream |
+| `validation/live-runtime` | Realtime solve/timing instrumentation and 1x/4x A/B diagnostics | Extracted cleanly from `diagnostic/generic-runtime` onto current `main` |
 
-## Safe legacy deletions
-
-These branches are superseded by another branch that contains the same or later work and should not be used for new development:
-
-- `feature/pedal-packages-v0.1`
-- `feature/pedal-packages-v0.1-ci`
-- `feature/ui-aesthetic-pass`
-- `feature/boing-reverb-clean`
-- `fix/generic-oversampling-regression`
-- `fix/restore-1x-live-generic`
-
-They may be deleted once convenient.
-
-## Legacy branches requiring reconciliation before deletion
-
-These branches still contain unique or mixed-purpose commits and should be retained until their useful work has been either merged, deliberately discarded, or preserved another way:
+## Legacy branches now safe to retire
 
 ### `feature/boing-reverb`
 
-Mixed-purpose branch. Contains reverb work plus diagnostics, generic runtime/oversampling changes and pedal-model changes. Do not continue development here. Extract only the pieces still wanted after comparison with `feature/reverb-engine`, `fix/oversampling-regression` and `main`.
+The useful reference material has been preserved on `feature/reverb-engine`. The old branch also contains diagnostics and unrelated circuit/runtime changes, so its implementation should not be merged wholesale.
 
 ### `diagnostic/generic-runtime`
 
-Diagnostic branch with substantial mixed changes. Keep temporarily for reference while determining which diagnostics or runtime fixes deserve focused branches or integration into `main`.
+The reusable runtime counters, timing diagnostics, macOS diagnostic panel and signal-summary utility have been extracted to `validation/live-runtime` without importing the unrelated pedal-model and CI changes.
 
 ### `integration/stable-1x`
 
-Historical integration branch that still has unique commits, but `main` is now the authoritative stable branch. Reconcile any remaining useful changes into focused branches or `main`, then retire it.
+Its final repository state is already represented by the stable `main` history. It is no longer a separate release or integration line.
 
 ### `v0.18-validation-framework`
 
-Historical version-named validation branch. Do not continue work here. Preserve any missing validation functionality in `main`/`validation/*`, then replace the historical milestone with a tag/release if desired.
+The validation framework represented by this historical version branch is already preserved in later project history. Version milestones should live in tags/releases rather than active branches.
 
 ### `v0.19-woolly-validation`
 
-Historical Woolly validation branch. Do not continue work here. New Woolly work belongs on `validation/woolly-mammoth` from current `main`.
+The Woolly validation work represented by this historical branch is already preserved in later project history. New Woolly validation belongs on `validation/woolly-mammoth`.
 
-## Rule for future branch cleanup
+## Rule for future cleanup
 
-A merged or superseded working branch should be deleted promptly. Long-term history should live in Git commits, tags/releases and documentation, not in a growing set of permanent branch names.
+A merged, extracted or superseded working branch should be deleted promptly. Long-term history belongs in commits, tags/releases and documentation rather than a growing set of permanent branch names.
