@@ -2,7 +2,7 @@ name: CircuitPedal CI
 
 on:
   push:
-    branches: [main, validation/woolly-mammoth]
+    branches: [main]
   pull_request:
 
 jobs:
