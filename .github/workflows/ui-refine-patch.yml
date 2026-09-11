@@ -1,0 +1,46 @@
+name: One-shot canonical UI cleanup
+
+on:
+  push:
+    branches: [feature/ui-html-prototype]
+    paths:
+      - '.github/workflows/ui-refine-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ui-html-prototype
+          fetch-depth: 0
+      - name: Fix chain touch markup and drag behavior
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('ui-prototype/app.html')
+          s = p.read_text()
+          mini = r'''function miniHtml(item,index){const e=effect(item.id),ctrl=e.controls.slice(0,2);return `<div class="mini-pedal ${effects[selectedEffect].id===e.id?'active':''}" role="button" tabindex="0" data-chain-id="${e.id}" data-index="${index}" style="--pc1:${e.c1};--pc2:${e.c2}"><button class="remove-pedal" data-remove="${e.id}">×</button>${routingMode==='parallel'?`<button class="lane-toggle" data-lane="${e.id}">${item.lane?'B':'A'}</button>`:''}<div class="mini-knobs">${ctrl.map(()=>'<i class="mk"></i>').join('')}</div><div class="sig">${e.id==='tuner'?'│':e.type==='FUZZ'?'◌':e.type==='MOD'?'∿':e.type==='DELAY'?'···':'△'}</div><strong>${e.name}</strong><i class="fs"></i></div>`}'''
+          wire = r'''function wireChain(){let drag=null,moved=false,startX=0,startY=0,target=null;$$('[data-chain-id]').forEach(card=>{card.onclick=e=>{if(e.target.closest('.remove-pedal,.lane-toggle')||moved)return;selectEffect(effects.findIndex(x=>x.id===card.dataset.chainId))};card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();selectEffect(effects.findIndex(x=>x.id===card.dataset.chainId))}};card.onpointerdown=e=>{if(e.target.closest('.remove-pedal,.lane-toggle'))return;drag=card.dataset.chainId;target=drag;moved=false;startX=e.clientX;startY=e.clientY;card.setPointerCapture(e.pointerId)};card.onpointermove=e=>{if(!drag||!card.hasPointerCapture(e.pointerId))return;if(Math.hypot(e.clientX-startX,e.clientY-startY)<8&&!moved)return;moved=true;card.classList.add('dragging');const under=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-chain-id]');if(under)target=under.dataset.chainId};card.onpointerup=e=>{card.classList.remove('dragging');if(moved&&drag&&target&&drag!==target){const from=chain.findIndex(c=>c.id===drag),to=chain.findIndex(c=>c.id===target);if(from>=0&&to>=0){const [item]=chain.splice(from,1);chain.splice(to,0,item);renderChain()}}drag=null;target=null;setTimeout(()=>moved=false,0)}});$$('[data-remove]').forEach(b=>b.onclick=e=>{e.stopPropagation();toggleLibraryPedal(b.dataset.remove)});$$('[data-lane]').forEach(b=>b.onclick=e=>{e.stopPropagation();const item=chain.find(c=>c.id===b.dataset.lane);if(item)item.lane=item.lane?0:1;renderChain()})}'''
+          s, n1 = re.subn(r'function miniHtml\(item,index\)\{.*?\nfunction renderChain', mini + '\nfunction renderChain', s, count=1, flags=re.S)
+          s, n2 = re.subn(r'function wireChain\(\)\{.*?\nfunction controlHtml', wire + '\nfunction controlHtml', s, count=1, flags=re.S)
+          if n1 != 1 or n2 != 1:
+              raise SystemExit(f'patch anchors failed: mini={n1} wire={n2}')
+          p.write_text(s)
+          sw = Path('ui-prototype/sw.js')
+          if sw.exists():
+              w = sw.read_text()
+              w = re.sub(r"const CACHE = 'circuitpedal-ui-sandbox-v\d+';", "const CACHE = 'circuitpedal-ui-sandbox-v6';", w, count=1)
+              sw.write_text(w)
+          PY
+      - name: Commit focused patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ui-prototype/app.html ui-prototype/sw.js
+          git commit -m "Harden tablet chain drag interactions"
+          git push origin HEAD:feature/ui-html-prototype
