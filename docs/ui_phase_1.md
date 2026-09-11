@@ -1,25 +1,44 @@
-# CircuitPedal UI Phase 1
+# CircuitPedal UI Phase 1 — Concept Shell
 
-This branch establishes the first visual redesign pass for the native macOS Circuit Lab.
+This branch establishes the first major visual foundation for the native macOS Circuit Lab and moves the app toward the premium CircuitPedal concept-art direction without changing the accepted audio/DSP path.
 
-## Scope
+## Implemented shell
 
-- Dark industrial desktop shell inspired by the approved CircuitPedal concepts.
-- Clear three-column hierarchy: pedal library / audio I/O, central virtual pedal, signal / engine status.
-- Rotary native controls for continuous pedal parameters.
-- Grid-based generic circuit controls with discrete switch support preserved.
-- Footswitch-style bypass control and clearer live-audio state.
-- Segmented input/output meters with dB readouts.
-- Existing model selection, external `.cpedal` loading, Core Audio setup and real-time engine behaviour preserved.
-- Stable generic live path remains 1x; no DSP architecture changes are part of this UI branch.
+- Permanent dark top application bar with CircuitPedal branding and live-audio status.
+- Left library / audio-I/O sidebar containing the existing circuit chooser, external-file workflow, device selection, input channel, buffer selection, and start/stop controls.
+- Dominant central pedal workspace that gives the loaded effect a proper visual identity instead of presenting it as a developer form.
+- Rotary native controls for continuous parameters and discrete popup controls for switches.
+- Persistent right-side signal / engine inspector with input and output meters, dB readouts, runtime status, and the accepted 1x live-path indication.
+- Bottom status/performance strip reserved for stage-oriented feedback and future performance controls.
+- Footswitch-style active/bypass control with clearer live-state presentation.
+- Coherent dark graphite palette, restrained warm accent, muted secondary text, and status colours.
+- Existing built-in circuit selection, `Load External…`, generic `.cpedal` controls, Core Audio configuration, metering, bypass and live processing behaviour preserved.
 
-## Deliberately deferred
+## Design intent
 
-- Schematic editor / circuit view.
-- Component browser and editable component values.
-- Spectrum, waveform or oscilloscope views.
-- Preset browser and pedalboard chains.
-- Photorealistic per-model pedal artwork.
-- Animato, Blueberry and Tentacle promotion into the stable bundled library.
+Phase 1 establishes the application frame for the longer-term concept:
 
-The goal of Phase 1 is to replace the crude engineering-form layout with a coherent visual foundation without mixing UI work with audio-engine changes.
+`top bar / left library / centre workspace / right inspector / bottom performance area`
+
+The centre should remain the visual priority. Future work can replace the generic pedal face with package-provided artwork and can turn the centre header into a true signal-chain editor without another wholesale application-shell rewrite.
+
+## Deliberately deferred to later phases
+
+- Full drag-and-drop multi-effect signal chain.
+- Package-aware pedal/preset browser with search, categories and favourites.
+- Per-pedal artwork and richer metadata-driven control positioning.
+- Dedicated Parameters / Circuit / EQ / Settings inspector tabs.
+- Spectrum, waveform and oscilloscope views.
+- Scene/footswitch slots and preset save/navigation controls.
+- Schematic/component editor.
+- Photorealistic materials or heavy animation.
+- Promotion of Animato, Blueberry or Tentacle into the stable bundled library.
+
+## Engineering constraints
+
+- The stable generic live path remains 48 kHz / 1x.
+- No pedal-model values or DSP architecture are changed by this UI branch.
+- Source-draft pedals remain withheld from the normal bundled library.
+- Visual polish must not replace functioning controls with non-functional mockups.
+
+The goal is a credible, significantly more polished foundation that can be physically tested on macOS before Phase 2 expands the signal-chain/pedalboard experience.
