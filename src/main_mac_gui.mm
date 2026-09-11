@@ -161,8 +161,10 @@ NSString* dbText(double peak)
     (void)dirtyRect;
     NSRect dotRect = NSInsetRect(self.bounds, 2.0, 2.0);
     NSBezierPath* glow = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(dotRect, -2.0, -2.0)];
-    [[self.active ? [liveColor() colorWithAlphaComponent:0.18]
-                  : [NSColor colorWithWhite:0.3 alpha:0.08]] setFill];
+    NSColor* glowColor = self.active
+        ? [liveColor() colorWithAlphaComponent:0.18]
+        : [NSColor colorWithWhite:0.3 alpha:0.08];
+    [glowColor setFill];
     [glow fill];
     NSBezierPath* dot = [NSBezierPath bezierPathWithOvalInRect:dotRect];
     [(self.active ? liveColor() : cpColor(0.25, 0.28, 0.31)) setFill];
@@ -295,7 +297,7 @@ NSString* dbText(double peak)
 @end
 
 @interface CircuitPedalChainView : NSView
-@property(copy) NSString* selectedName;
+@property(nonatomic, copy) NSString* selectedName;
 @property(nonatomic) BOOL bypassed;
 @end
 
@@ -370,8 +372,8 @@ NSString* dbText(double peak)
 @end
 
 @interface CircuitPedalHeroView : CircuitPedalPanelView
-@property(copy) NSString* pedalName;
-@property(copy) NSString* pedalType;
+@property(nonatomic, copy) NSString* pedalName;
+@property(nonatomic, copy) NSString* pedalType;
 @property(nonatomic) BOOL bypassed;
 @end
 
