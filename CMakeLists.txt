@@ -200,15 +200,24 @@ if(APPLE)
     list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
         "/eqd_tentacle_reference_draft\\.cpedal$")
 
+    set(CIRCUITPEDAL_HEADER_LOGO
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets/circuitpedal_header_logo.png"
+    )
+
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        src/HeaderBranding.mm
         src/NativeAestheticPass.mm
         src/NativeFeedbackPass.mm
         src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
+        ${CIRCUITPEDAL_HEADER_LOGO}
     )
     set_source_files_properties(${CIRCUITPEDAL_CIRCUIT_FILES} PROPERTIES
         MACOSX_PACKAGE_LOCATION "Resources/circuits"
+    )
+    set_source_files_properties(${CIRCUITPEDAL_HEADER_LOGO} PROPERTIES
+        MACOSX_PACKAGE_LOCATION "Resources"
     )
     target_link_libraries(CircuitPedalGUI PRIVATE
         circuit_mac_audio
