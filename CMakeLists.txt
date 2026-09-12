@@ -202,6 +202,7 @@ if(APPLE)
 
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
+        src/NativeAestheticPass.mm
         src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
     )
@@ -211,6 +212,7 @@ if(APPLE)
     target_link_libraries(CircuitPedalGUI PRIVATE
         circuit_mac_audio
         "-framework AppKit"
+        "-framework QuartzCore"
     )
     target_compile_options(CircuitPedalGUI PRIVATE -fobjc-arc)
     set_target_properties(CircuitPedalGUI PROPERTIES
