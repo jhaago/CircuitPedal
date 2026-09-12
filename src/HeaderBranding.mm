@@ -1,6 +1,100 @@
 #import <Cocoa/Cocoa.h>
+#import <objc/runtime.h>
 
 namespace {
+
+using CPImageInitWithFile = id (*)(id, SEL, NSString*);
+IMP gOriginalImageInitWithFile = nullptr;
+
+BOOL CPIsWoollyArtworkPath(NSString* path)
+{
+    if (path.length == 0)
+        return NO;
+    return [path containsString:@"/pedals/woolly_mammoth/assets/"]
+        && [[path pathExtension].lowercaseString isEqualToString:@"png"];
+}
+
+NSImage* CPDecodeWoollyArtworkChunks(NSString* path)
+{
+    NSString* stem = [[path lastPathComponent] stringByDeletingPathExtension];
+    if (![stem isEqualToString:@"hero_pedal"]
+        && ![stem isEqualToString:@"hero_background"]
+        && ![stem isEqualToString:@"mini_pedal"])
+    {
+        return nil;
+    }
+
+    NSString* directory = [[[NSBundle mainBundle] resourcePath]
+        stringByAppendingPathComponent:@"pedals/woolly_mammoth/assets"];
+    NSError* listError = nil;
+    NSArray<NSString*>* names = [[NSFileManager defaultManager]
+        contentsOfDirectoryAtPath:directory
+                            error:&listError];
+    if (names == nil || listError != nil)
+        return nil;
+
+    NSString* prefix = [stem stringByAppendingString:@"_"];
+    NSMutableArray<NSString*>* chunks = [NSMutableArray array];
+    for (NSString* name in names)
+    {
+        if ([name hasPrefix:prefix] && [[name pathExtension].lowercaseString isEqualToString:@"b64"])
+            [chunks addObject:name];
+    }
+    [chunks sortUsingSelector:@selector(compare:)];
+    if (chunks.count == 0)
+        return nil;
+
+    NSMutableString* encoded = [NSMutableString string];
+    for (NSString* name in chunks)
+    {
+        NSString* chunkPath = [directory stringByAppendingPathComponent:name];
+        NSError* readError = nil;
+        NSString* chunk = [NSString stringWithContentsOfFile:chunkPath
+                                                    encoding:NSASCIIStringEncoding
+                                                       error:&readError];
+        if (chunk == nil || readError != nil)
+            return nil;
+        [encoded appendString:chunk];
+    }
+
+    NSData* data = [[NSData alloc]
+        initWithBase64EncodedString:encoded
+                            options:NSDataBase64DecodingIgnoreUnknownCharacters];
+    if (data.length == 0)
+        return nil;
+
+    NSImage* image = [[NSImage alloc] initWithData:data];
+    return image.isValid ? image : nil;
+}
+
+id CPImageInitWithContentsOfFile(id object, SEL command, NSString* path)
+{
+    if (CPIsWoollyArtworkPath(path))
+    {
+        NSImage* corrected = CPDecodeWoollyArtworkChunks(path);
+        if (corrected != nil)
+            return corrected;
+    }
+
+    if (gOriginalImageInitWithFile == nullptr)
+        return nil;
+    return reinterpret_cast<CPImageInitWithFile>(gOriginalImageInitWithFile)(object, command, path);
+}
+
+void CPInstallWoollyArtworkResourceFix()
+{
+    static BOOL installed = NO;
+    if (installed)
+        return;
+
+    Method method = class_getInstanceMethod(NSImage.class, @selector(initWithContentsOfFile:));
+    if (method == nullptr)
+        return;
+
+    gOriginalImageInitWithFile = method_getImplementation(method);
+    method_setImplementation(method, reinterpret_cast<IMP>(CPImageInitWithContentsOfFile));
+    installed = YES;
+}
 
 NSTextField* CPFindHeaderText(NSView* topBar, NSString* text)
 {
@@ -86,6 +180,11 @@ void CPInstallHeaderBranding()
 
 + (void)load
 {
+    // The first Woolly artwork upload used binary PNG blobs that proved unreliable
+    // in the native app. Decode the verified text chunks for those exact package
+    // assets before any hero/chain artwork can be cached by the drawing pass.
+    CPInstallWoollyArtworkResourceFix();
+
     [[NSNotificationCenter defaultCenter]
         addObserverForName:NSApplicationDidFinishLaunchingNotification
                     object:nil
