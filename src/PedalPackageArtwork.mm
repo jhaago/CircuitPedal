@@ -10,65 +10,104 @@ namespace {
 
 using DrawRectFunction = void (*)(id, SEL, NSRect);
 
-IMP gPreviousWoollyHeroDraw = nullptr;
-IMP gPreviousWoollyChainDraw = nullptr;
+IMP gPreviousPackageHeroDraw = nullptr;
+IMP gPreviousPackageChainDraw = nullptr;
 
-BOOL CPWMIsWoollyName(NSString* name)
-{
-    if (name.length == 0)
-        return NO;
-    return [name rangeOfString:@"Woolly Mammoth"
-                       options:NSCaseInsensitiveSearch].location != NSNotFound;
-}
-
-enum class CPWMAssetRole {
+enum class CPPackageAssetRole {
     HeroPedal,
     HeroBackground,
     MiniPedal
 };
 
-NSString* CPWMAssetPath(CPWMAssetRole role)
+NSArray<NSDictionary<NSString*, NSString*>*>* CPPackageArtworkCatalog()
 {
-    static NSDictionary<NSNumber*, NSString*>* paths = nil;
+    static NSArray<NSDictionary<NSString*, NSString*>*>* catalog = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        NSString* manifestPath = [NSBundle.mainBundle.resourcePath
-            stringByAppendingPathComponent:@"pedals/woolly_mammoth/pedal.json"];
-        circuitpedal::PedalPackageManifest manifest;
-        std::string error;
-        if (!circuitpedal::loadPedalPackageManifest(
-                manifestPath.fileSystemRepresentation, manifest, error))
+        NSString* pedalsRoot =
+            [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"pedals"];
+        NSArray<NSString*>* packageNames = [[NSFileManager defaultManager]
+            contentsOfDirectoryAtPath:pedalsRoot error:nil];
+        NSMutableArray<NSDictionary<NSString*, NSString*>*>* discovered =
+            [NSMutableArray array];
+
+        for (NSString* packageName in packageNames)
         {
-            paths = @{};
-            return;
+            NSString* manifestPath = [[pedalsRoot stringByAppendingPathComponent:packageName]
+                stringByAppendingPathComponent:@"pedal.json"];
+            circuitpedal::PedalPackageManifest manifest;
+            std::string error;
+            if (!circuitpedal::loadPedalPackageManifest(
+                    manifestPath.fileSystemRepresentation, manifest, error))
+            {
+                continue;
+            }
+
+            const auto resolve = [&](const std::string& relativePath) -> NSString* {
+                if (relativePath.empty())
+                    return nil;
+                const std::string resolved =
+                    circuitpedal::resolvePedalPackagePath(manifest, relativePath);
+                return [NSString stringWithUTF8String:resolved.c_str()];
+            };
+
+            NSString* displayName =
+                [NSString stringWithUTF8String:manifest.displayName.c_str()];
+            NSString* packageID = [NSString stringWithUTF8String:manifest.id.c_str()];
+            NSString* heroPedal = resolve(manifest.assets.faceplate);
+            NSString* heroBackground = resolve(manifest.assets.heroBackground);
+            NSString* miniPedal = resolve(manifest.assets.thumbnail);
+            if (displayName.length == 0 || packageID.length == 0 ||
+                heroPedal.length == 0 || heroBackground.length == 0 || miniPedal.length == 0)
+            {
+                continue;
+            }
+
+            [discovered addObject:@{
+                @"displayName": displayName,
+                @"packageID": packageID,
+                @"heroPedal": heroPedal,
+                @"heroBackground": heroBackground,
+                @"miniPedal": miniPedal
+            }];
         }
-
-        const auto resolve = [&](const std::string& relativePath) -> NSString* {
-            if (relativePath.empty())
-                return nil;
-            const std::string resolved =
-                circuitpedal::resolvePedalPackagePath(manifest, relativePath);
-            return [NSString stringWithUTF8String:resolved.c_str()];
-        };
-
-        NSMutableDictionary<NSNumber*, NSString*>* resolvedPaths =
-            [NSMutableDictionary dictionary];
-        NSString* heroPedal = resolve(manifest.assets.faceplate);
-        NSString* heroBackground = resolve(manifest.assets.heroBackground);
-        NSString* miniPedal = resolve(manifest.assets.thumbnail);
-        if (heroPedal != nil)
-            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::HeroPedal))] = heroPedal;
-        if (heroBackground != nil)
-            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::HeroBackground))] = heroBackground;
-        if (miniPedal != nil)
-            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::MiniPedal))] = miniPedal;
-        paths = [resolvedPaths copy];
+        catalog = [discovered copy];
     });
 
-    return paths[@(static_cast<NSInteger>(role))];
+    return catalog;
 }
 
-NSImage* CPWMArtwork(CPWMAssetRole role)
+NSDictionary<NSString*, NSString*>* CPPackageForModelName(NSString* modelName)
+{
+    if (modelName.length == 0)
+        return nil;
+
+    for (NSDictionary<NSString*, NSString*>* package in CPPackageArtworkCatalog())
+    {
+        NSString* displayName = package[@"displayName"];
+        if ([modelName rangeOfString:displayName
+                             options:NSCaseInsensitiveSearch].location != NSNotFound)
+        {
+            return package;
+        }
+    }
+    return nil;
+}
+
+NSString* CPPackageAssetPath(NSDictionary<NSString*, NSString*>* package,
+                             CPPackageAssetRole role)
+{
+    switch (role)
+    {
+        case CPPackageAssetRole::HeroPedal: return package[@"heroPedal"];
+        case CPPackageAssetRole::HeroBackground: return package[@"heroBackground"];
+        case CPPackageAssetRole::MiniPedal: return package[@"miniPedal"];
+    }
+    return nil;
+}
+
+NSImage* CPPackageArtwork(NSDictionary<NSString*, NSString*>* package,
+                          CPPackageAssetRole role)
 {
     static NSMutableDictionary<NSString*, NSImage*>* cache = nil;
     static dispatch_once_t onceToken;
@@ -76,7 +115,7 @@ NSImage* CPWMArtwork(CPWMAssetRole role)
         cache = [[NSMutableDictionary alloc] init];
     });
 
-    NSString* fullPath = CPWMAssetPath(role);
+    NSString* fullPath = CPPackageAssetPath(package, role);
     if (fullPath.length == 0)
         return nil;
 
@@ -90,7 +129,7 @@ NSImage* CPWMArtwork(CPWMAssetRole role)
     return image;
 }
 
-NSRect CPWMAspectRect(NSSize imageSize, NSRect container, BOOL fill)
+NSRect CPPackageAspectRect(NSSize imageSize, NSRect container, BOOL fill)
 {
     if (imageSize.width <= 0.0 || imageSize.height <= 0.0 ||
         NSWidth(container) <= 0.0 || NSHeight(container) <= 0.0)
@@ -109,7 +148,7 @@ NSRect CPWMAspectRect(NSSize imageSize, NSRect container, BOOL fill)
                       height);
 }
 
-void CPWMDrawImage(NSImage* image, NSRect rect, CGFloat fraction)
+void CPPackageDrawImage(NSImage* image, NSRect rect, CGFloat fraction)
 {
     if (image == nil)
         return;
@@ -125,7 +164,7 @@ void CPWMDrawImage(NSImage* image, NSRect rect, CGFloat fraction)
     [NSGraphicsContext restoreGraphicsState];
 }
 
-void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
+void CPPackageHeroDraw(id object, SEL command, NSRect dirtyRect)
 {
     NSView* view = (NSView*)object;
     NSString* pedalName = nil;
@@ -136,19 +175,21 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
     } @catch (__unused NSException* exception) {
     }
 
-    if (!CPWMIsWoollyName(pedalName))
+    NSDictionary<NSString*, NSString*>* package = CPPackageForModelName(pedalName);
+    if (package == nil)
     {
-        if (gPreviousWoollyHeroDraw != nullptr)
-            reinterpret_cast<DrawRectFunction>(gPreviousWoollyHeroDraw)(object, command, dirtyRect);
+        if (gPreviousPackageHeroDraw != nullptr)
+            reinterpret_cast<DrawRectFunction>(gPreviousPackageHeroDraw)(object, command, dirtyRect);
         return;
     }
 
-    NSImage* background = CPWMArtwork(CPWMAssetRole::HeroBackground);
-    NSImage* pedal = CPWMArtwork(CPWMAssetRole::HeroPedal);
+    NSImage* background =
+        CPPackageArtwork(package, CPPackageAssetRole::HeroBackground);
+    NSImage* pedal = CPPackageArtwork(package, CPPackageAssetRole::HeroPedal);
     if (background == nil || pedal == nil)
     {
-        if (gPreviousWoollyHeroDraw != nullptr)
-            reinterpret_cast<DrawRectFunction>(gPreviousWoollyHeroDraw)(object, command, dirtyRect);
+        if (gPreviousPackageHeroDraw != nullptr)
+            reinterpret_cast<DrawRectFunction>(gPreviousPackageHeroDraw)(object, command, dirtyRect);
         return;
     }
 
@@ -159,10 +200,10 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
     [NSGraphicsContext saveGraphicsState];
     [stage addClip];
 
-    const NSRect backgroundRect = CPWMAspectRect(background.size, bounds, YES);
-    CPWMDrawImage(background, backgroundRect, 1.0);
+    const NSRect backgroundRect = CPPackageAspectRect(background.size, bounds, YES);
+    CPPackageDrawImage(background, backgroundRect, 1.0);
 
-    // Keep the supplied scenery atmospheric so the enclosure remains the focus.
+    // Keep the package scenery atmospheric so the enclosure remains the focus.
     [[NSColor colorWithWhite:0.0 alpha:(bypassed ? 0.46 : 0.16)] setFill];
     NSRectFill(bounds);
 
@@ -175,7 +216,7 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
                    NSMinY(bounds) + 10.0,
                    maximumPedalWidth,
                    maximumPedalHeight);
-    NSRect pedalRect = CPWMAspectRect(pedal.size, pedalContainer, NO);
+    NSRect pedalRect = CPPackageAspectRect(pedal.size, pedalContainer, NO);
 
     [NSGraphicsContext saveGraphicsState];
     NSShadow* shadow = [[NSShadow alloc] init];
@@ -183,7 +224,7 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
     shadow.shadowBlurRadius = 24.0;
     shadow.shadowOffset = NSMakeSize(0.0, -9.0);
     [shadow set];
-    CPWMDrawImage(pedal, pedalRect, bypassed ? 0.48 : 1.0);
+    CPPackageDrawImage(pedal, pedalRect, bypassed ? 0.48 : 1.0);
     [NSGraphicsContext restoreGraphicsState];
 
     [NSGraphicsContext restoreGraphicsState];
@@ -201,7 +242,7 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
     [inner stroke];
 }
 
-void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
+void CPPackageChainDraw(id object, SEL command, NSRect dirtyRect)
 {
     NSView* view = (NSView*)object;
     NSString* selectedName = nil;
@@ -212,18 +253,19 @@ void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
     } @catch (__unused NSException* exception) {
     }
 
-    if (!CPWMIsWoollyName(selectedName))
+    NSDictionary<NSString*, NSString*>* package = CPPackageForModelName(selectedName);
+    if (package == nil)
     {
-        if (gPreviousWoollyChainDraw != nullptr)
-            reinterpret_cast<DrawRectFunction>(gPreviousWoollyChainDraw)(object, command, dirtyRect);
+        if (gPreviousPackageChainDraw != nullptr)
+            reinterpret_cast<DrawRectFunction>(gPreviousPackageChainDraw)(object, command, dirtyRect);
         return;
     }
 
-    NSImage* pedal = CPWMArtwork(CPWMAssetRole::MiniPedal);
+    NSImage* pedal = CPPackageArtwork(package, CPPackageAssetRole::MiniPedal);
     if (pedal == nil)
     {
-        if (gPreviousWoollyChainDraw != nullptr)
-            reinterpret_cast<DrawRectFunction>(gPreviousWoollyChainDraw)(object, command, dirtyRect);
+        if (gPreviousPackageChainDraw != nullptr)
+            reinterpret_cast<DrawRectFunction>(gPreviousPackageChainDraw)(object, command, dirtyRect);
         return;
     }
 
@@ -266,7 +308,7 @@ void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
                    midY - pedalHeight * 0.5,
                    84.0,
                    pedalHeight);
-    const NSRect pedalRect = CPWMAspectRect(pedal.size, pedalContainer, NO);
+    const NSRect pedalRect = CPPackageAspectRect(pedal.size, pedalContainer, NO);
 
     if (!bypassed)
     {
@@ -288,7 +330,7 @@ void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
     shadow.shadowBlurRadius = 9.0;
     shadow.shadowOffset = NSMakeSize(0.0, -3.0);
     [shadow set];
-    CPWMDrawImage(pedal, pedalRect, bypassed ? 0.48 : 1.0);
+    CPPackageDrawImage(pedal, pedalRect, bypassed ? 0.48 : 1.0);
     [NSGraphicsContext restoreGraphicsState];
 
     NSDictionary* ioAttributes = @{
@@ -319,7 +361,7 @@ void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
     }
 }
 
-void CPWMInstallDrawOverride(NSString* className, IMP replacement, IMP* previousStorage)
+void CPPackageInstallDrawOverride(NSString* className, IMP replacement, IMP* previousStorage)
 {
     Class cls = NSClassFromString(className);
     if (cls == Nil)
@@ -334,7 +376,7 @@ void CPWMInstallDrawOverride(NSString* className, IMP replacement, IMP* previous
     method_setImplementation(method, replacement);
 }
 
-void CPWMInstallArtworkPass()
+void CPPackageInstallArtworkPass()
 {
     static BOOL installed = NO;
     if (installed)
@@ -345,12 +387,12 @@ void CPWMInstallArtworkPass()
     if (heroClass == Nil || chainClass == Nil)
         return;
 
-    CPWMInstallDrawOverride(@"CircuitPedalHeroView",
-                            reinterpret_cast<IMP>(CPWMHeroDraw),
-                            &gPreviousWoollyHeroDraw);
-    CPWMInstallDrawOverride(@"CircuitPedalChainView",
-                            reinterpret_cast<IMP>(CPWMChainDraw),
-                            &gPreviousWoollyChainDraw);
+    CPPackageInstallDrawOverride(@"CircuitPedalHeroView",
+                                 reinterpret_cast<IMP>(CPPackageHeroDraw),
+                                 &gPreviousPackageHeroDraw);
+    CPPackageInstallDrawOverride(@"CircuitPedalChainView",
+                                 reinterpret_cast<IMP>(CPPackageChainDraw),
+                                 &gPreviousPackageChainDraw);
     installed = YES;
 
     for (NSWindow* window in NSApp.windows)
@@ -362,10 +404,10 @@ void CPWMInstallArtworkPass()
 
 } // namespace
 
-@interface CPWoollyMammothArtworkInstaller : NSObject
+@interface CPPedalPackageArtworkInstaller : NSObject
 @end
 
-@implementation CPWoollyMammothArtworkInstaller
+@implementation CPPedalPackageArtworkInstaller
 
 + (void)load
 {
@@ -380,7 +422,7 @@ void CPWMInstallArtworkPass()
                     dispatch_async(dispatch_get_main_queue(), ^{
                         dispatch_async(dispatch_get_main_queue(), ^{
                             dispatch_async(dispatch_get_main_queue(), ^{
-                                CPWMInstallArtworkPass();
+                                CPPackageInstallArtworkPass();
                             });
                         });
                     });

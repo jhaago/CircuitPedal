@@ -64,9 +64,27 @@ bool validatePackageLibrary(const std::filesystem::path& pedalsRoot)
             ok &= expect(std::filesystem::exists(presetPath),
                          "package preset exists: " + manifest.id + " -> " + preset);
         }
+
+        const auto expectAsset = [&](const std::string& role,
+                                     const std::string& relativePath) {
+            ok &= expect(!relativePath.empty(),
+                         "package " + role + " is declared: " + manifest.id);
+            if (!relativePath.empty())
+            {
+                const std::filesystem::path assetPath(
+                    circuitpedal::resolvePedalPackagePath(manifest, relativePath));
+                ok &= expect(std::filesystem::exists(assetPath),
+                             "package " + role + " exists: " + manifest.id);
+            }
+        };
+        expectAsset("hero faceplate", manifest.assets.faceplate);
+        expectAsset("signal-chain thumbnail", manifest.assets.thumbnail);
+        expectAsset("icon", manifest.assets.icon);
+        expectAsset("hero background", manifest.assets.heroBackground);
     }
 
-    ok &= expect(packageCount > 0U, "at least one pedal package is discovered");
+    ok &= expect(packageCount >= 5U,
+                 "Woolly Mammoth and four Big Muff packages are discovered");
     return ok;
 }
 
