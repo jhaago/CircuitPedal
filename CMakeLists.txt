@@ -203,6 +203,7 @@ if(APPLE)
     add_executable(CircuitPedalGUI MACOSX_BUNDLE
         src/main_mac_gui.mm
         src/NativeAestheticPass.mm
+        src/NativePhaseOnePass.mm
         src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
     )
