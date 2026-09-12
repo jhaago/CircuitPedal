@@ -1,0 +1,8 @@
+{
+  "name": "Default",
+  "values": {
+    "DRIVE": 0.65,
+    "TONE": 0.50,
+    "LEVEL": 0.55
+  }
+}

@@ -65,7 +65,9 @@ jobs:
             big_muff_nyc \
             big_muff_triangle \
             big_muff_rams_head \
-            big_muff_green_russian
+            big_muff_green_russian \
+            ts10 \
+            kalamazoo
           do
             test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/pedal.json"
             test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/presets/default.json"

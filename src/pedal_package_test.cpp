@@ -83,8 +83,8 @@ bool validatePackageLibrary(const std::filesystem::path& pedalsRoot)
         expectAsset("hero background", manifest.assets.heroBackground);
     }
 
-    ok &= expect(packageCount >= 5U,
-                 "Woolly Mammoth and four Big Muff packages are discovered");
+    ok &= expect(packageCount >= 7U,
+                 "all artwork-enabled pedal packages are discovered");
     return ok;
 }
 
