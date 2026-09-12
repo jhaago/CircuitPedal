@@ -91,6 +91,12 @@ int main()
     ok &= expect(manifest.id == "woolly_mammoth", "package id");
     ok &= expect(manifest.displayName == "Woolly Mammoth", "display name");
     ok &= expect(manifest.category == "fuzz", "category");
+    ok &= expect(manifest.assets.faceplate == "assets/hero_pedal.png",
+                 "hero faceplate asset role");
+    ok &= expect(manifest.assets.thumbnail == "assets/mini_pedal.png",
+                 "signal-chain thumbnail asset role");
+    ok &= expect(manifest.assets.heroBackground == "assets/hero_background.png",
+                 "hero background asset role");
     ok &= expect(manifest.controls.size() == 4U, "four overlay controls");
     ok &= expect(manifest.controls[0].id == "OUTPUT", "OUTPUT is first control");
     ok &= expect(manifest.controls[3].id == "WOOL", "WOOL is fourth control");
@@ -112,6 +118,16 @@ int main()
         circuitpedal::resolvePedalPackagePath(manifest, manifest.presets.front()));
     ok &= expect(std::filesystem::exists(presetPath),
                  "default preset path resolves");
+
+    const std::filesystem::path faceplatePath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.faceplate));
+    const std::filesystem::path thumbnailPath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.thumbnail));
+    const std::filesystem::path backgroundPath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.heroBackground));
+    ok &= expect(std::filesystem::exists(faceplatePath), "hero faceplate asset exists");
+    ok &= expect(std::filesystem::exists(thumbnailPath), "signal-chain thumbnail asset exists");
+    ok &= expect(std::filesystem::exists(backgroundPath), "hero background asset exists");
 
     ok &= validatePackageLibrary(pedalsRoot);
 

@@ -1,7 +1,10 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
+#include "PedalPackage.h"
+
 #include <algorithm>
+#include <string>
 
 namespace {
 
@@ -18,7 +21,54 @@ BOOL CPWMIsWoollyName(NSString* name)
                        options:NSCaseInsensitiveSearch].location != NSNotFound;
 }
 
-NSImage* CPWMArtwork(NSString* fileName)
+enum class CPWMAssetRole {
+    HeroPedal,
+    HeroBackground,
+    MiniPedal
+};
+
+NSString* CPWMAssetPath(CPWMAssetRole role)
+{
+    static NSDictionary<NSNumber*, NSString*>* paths = nil;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSString* manifestPath = [NSBundle.mainBundle.resourcePath
+            stringByAppendingPathComponent:@"pedals/woolly_mammoth/pedal.json"];
+        circuitpedal::PedalPackageManifest manifest;
+        std::string error;
+        if (!circuitpedal::loadPedalPackageManifest(
+                manifestPath.fileSystemRepresentation, manifest, error))
+        {
+            paths = @{};
+            return;
+        }
+
+        const auto resolve = [&](const std::string& relativePath) -> NSString* {
+            if (relativePath.empty())
+                return nil;
+            const std::string resolved =
+                circuitpedal::resolvePedalPackagePath(manifest, relativePath);
+            return [NSString stringWithUTF8String:resolved.c_str()];
+        };
+
+        NSMutableDictionary<NSNumber*, NSString*>* resolvedPaths =
+            [NSMutableDictionary dictionary];
+        NSString* heroPedal = resolve(manifest.assets.faceplate);
+        NSString* heroBackground = resolve(manifest.assets.heroBackground);
+        NSString* miniPedal = resolve(manifest.assets.thumbnail);
+        if (heroPedal != nil)
+            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::HeroPedal))] = heroPedal;
+        if (heroBackground != nil)
+            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::HeroBackground))] = heroBackground;
+        if (miniPedal != nil)
+            resolvedPaths[@(static_cast<NSInteger>(CPWMAssetRole::MiniPedal))] = miniPedal;
+        paths = [resolvedPaths copy];
+    });
+
+    return paths[@(static_cast<NSInteger>(role))];
+}
+
+NSImage* CPWMArtwork(CPWMAssetRole role)
 {
     static NSMutableDictionary<NSString*, NSImage*>* cache = nil;
     static dispatch_once_t onceToken;
@@ -26,17 +76,17 @@ NSImage* CPWMArtwork(NSString* fileName)
         cache = [[NSMutableDictionary alloc] init];
     });
 
-    NSImage* cached = cache[fileName];
+    NSString* fullPath = CPWMAssetPath(role);
+    if (fullPath.length == 0)
+        return nil;
+
+    NSImage* cached = cache[fullPath];
     if (cached != nil)
         return cached;
 
-    NSString* relativePath =
-        [@"pedals/woolly_mammoth/assets" stringByAppendingPathComponent:fileName];
-    NSString* fullPath =
-        [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:relativePath];
     NSImage* image = [[NSImage alloc] initWithContentsOfFile:fullPath];
     if (image != nil && image.isValid)
-        cache[fileName] = image;
+        cache[fullPath] = image;
     return image;
 }
 
@@ -93,8 +143,8 @@ void CPWMHeroDraw(id object, SEL command, NSRect dirtyRect)
         return;
     }
 
-    NSImage* background = CPWMArtwork(@"hero_background.png");
-    NSImage* pedal = CPWMArtwork(@"hero_pedal.png");
+    NSImage* background = CPWMArtwork(CPWMAssetRole::HeroBackground);
+    NSImage* pedal = CPWMArtwork(CPWMAssetRole::HeroPedal);
     if (background == nil || pedal == nil)
     {
         if (gPreviousWoollyHeroDraw != nullptr)
@@ -169,7 +219,7 @@ void CPWMChainDraw(id object, SEL command, NSRect dirtyRect)
         return;
     }
 
-    NSImage* pedal = CPWMArtwork(@"mini_pedal.png");
+    NSImage* pedal = CPWMArtwork(CPWMAssetRole::MiniPedal);
     if (pedal == nil)
     {
         if (gPreviousWoollyChainDraw != nullptr)

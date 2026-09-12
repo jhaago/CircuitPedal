@@ -62,6 +62,9 @@ jobs:
           # manifests can resolve circuit, artwork and preset paths consistently.
           test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/pedal.json
           test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/presets/default.json
+          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/assets/hero_pedal.png
+          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/assets/hero_background.png
+          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/assets/mini_pedal.png
           (
             cd build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth
             test -f ../../circuits/woolly_mammoth_reference_draft.cpedal
