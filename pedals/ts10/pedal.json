@@ -1,0 +1,29 @@
+{
+  "id": "ts10",
+  "displayName": "TS10 Tube Screamer",
+  "modelStatus": "reference_draft",
+  "category": "overdrive",
+  "inspiredBy": "TS10-style soft-clipping overdrive",
+  "description": "A mid-focused soft-clipping overdrive with drive, active tone and output level controls.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/ts10_reference_draft.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.64,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "DRIVE", "label": "DRIVE", "type": "knob", "x": 0.20, "y": 0.18 },
+    { "id": "TONE", "label": "TONE", "type": "knob", "x": 0.50, "y": 0.18 },
+    { "id": "LEVEL", "label": "LEVEL", "type": "knob", "x": 0.80, "y": 0.18 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}

@@ -10,6 +10,7 @@ struct PedalPackageAssets {
     std::string faceplate;
     std::string thumbnail;
     std::string icon;
+    std::string heroBackground;
 };
 
 struct PedalPackageControl {

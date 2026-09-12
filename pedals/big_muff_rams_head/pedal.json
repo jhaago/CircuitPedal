@@ -1,0 +1,29 @@
+{
+  "id": "big_muff_rams_head",
+  "displayName": "Big Muff - Ram's Head",
+  "modelStatus": "reference_draft",
+  "category": "fuzz",
+  "inspiredBy": "Ram's Head-era Big Muff-style fuzz",
+  "description": "A Ram's Head-style fuzz with sustain, passive tone and output controls.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/big_muff_rams_head.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.59,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "SUSTAIN", "label": "SUSTAIN", "type": "knob", "x": 0.20, "y": 0.18 },
+    { "id": "TONE", "label": "TONE", "type": "knob", "x": 0.50, "y": 0.18 },
+    { "id": "VOLUME", "label": "VOLUME", "type": "knob", "x": 0.80, "y": 0.18 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}
