@@ -68,12 +68,16 @@ public:
 
     void setDistortion(float normalized) noexcept;
     void setOutput(float normalized) noexcept;
+    void setInputTrimDb(float decibels) noexcept;
+    void setMasterOutputDb(float decibels) noexcept;
     void setBypass(bool bypassed) noexcept;
     void setClippingDiodePreset(ClippingDiodePreset preset) noexcept;
     bool setCircuitParameters(const DistortionPlusCircuitParameters& parameters) noexcept;
 
     float distortion() const noexcept;
     float output() const noexcept;
+    float inputTrimDb() const noexcept;
+    float masterOutputDb() const noexcept;
     bool bypassed() const noexcept;
     ClippingDiodePreset clippingDiodePreset() const noexcept;
     DistortionPlusCircuitParameters circuitParameters() const noexcept;

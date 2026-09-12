@@ -306,6 +306,10 @@ struct MacAudioEngine::Impl {
     std::vector<Float32> inputScratch;
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
+    std::atomic<float> inputTrimLinear { 1.0f };
+    std::atomic<float> masterOutputLinear { 1.0f };
+    std::atomic<float> inputTrimDecibels { 0.0f };
+    std::atomic<float> masterOutputDecibels { 0.0f };
     std::atomic<bool> running { false };
     AudioRuntimeInfo info;
 
@@ -347,7 +351,8 @@ struct MacAudioEngine::Impl {
         float blockOutputPeak = 0.0f;
         for (UInt32 frame = 0; frame < frameCount; ++frame)
         {
-            const float input = state->inputScratch[frame];
+            const float rawInput = state->inputScratch[frame];
+            const float input = rawInput * state->inputTrimLinear.load(std::memory_order_relaxed);
             float output = 0.0f;
             if (state->circuitFileSelected)
             {
@@ -378,6 +383,7 @@ struct MacAudioEngine::Impl {
             {
                 output = state->pedal.processSample(input);
             }
+            output = std::clamp(output * state->masterOutputLinear.load(std::memory_order_relaxed), -1.0f, 1.0f);
             if (std::isfinite(input))
                 blockInputPeak = std::max(blockInputPeak, std::abs(input));
             blockOutputPeak = std::max(blockOutputPeak, std::abs(output));
@@ -936,6 +942,20 @@ void MacAudioEngine::setOutput(float normalized) noexcept
     impl_->pedal.setOutput(normalized);
 }
 
+void MacAudioEngine::setInputTrimDb(float decibels) noexcept
+{
+    const float db = std::clamp(decibels, -18.0f, 18.0f);
+    impl_->inputTrimDecibels.store(db, std::memory_order_relaxed);
+    impl_->inputTrimLinear.store(std::pow(10.0f, db / 20.0f), std::memory_order_relaxed);
+}
+
+void MacAudioEngine::setMasterOutputDb(float decibels) noexcept
+{
+    const float db = std::clamp(decibels, -18.0f, 6.0f);
+    impl_->masterOutputDecibels.store(db, std::memory_order_relaxed);
+    impl_->masterOutputLinear.store(std::pow(10.0f, db / 20.0f), std::memory_order_relaxed);
+}
+
 void MacAudioEngine::setBypass(bool bypassed) noexcept
 {
     impl_->pedal.setBypass(bypassed);
@@ -957,6 +977,16 @@ bool MacAudioEngine::setCircuitParameters(
 
 float MacAudioEngine::distortion() const noexcept { return impl_->pedal.getDistortion(); }
 float MacAudioEngine::output() const noexcept { return impl_->pedal.getOutput(); }
+float MacAudioEngine::inputTrimDb() const noexcept
+{
+    return impl_->inputTrimDecibels.load(std::memory_order_relaxed);
+}
+
+float MacAudioEngine::masterOutputDb() const noexcept
+{
+    return impl_->masterOutputDecibels.load(std::memory_order_relaxed);
+}
+
 bool MacAudioEngine::bypassed() const noexcept
 {
     return impl_->circuitFileSelected
