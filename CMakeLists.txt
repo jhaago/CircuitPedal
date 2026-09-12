@@ -209,6 +209,7 @@ if(APPLE)
         src/HeaderBranding.mm
         src/NativeAestheticPass.mm
         src/NativeFeedbackPass.mm
+        src/WoollyMammothArtwork.mm
         src/LiveGeneric1x.cpp
         ${CIRCUITPEDAL_CIRCUIT_FILES}
         ${CIRCUITPEDAL_HEADER_LOGO}
