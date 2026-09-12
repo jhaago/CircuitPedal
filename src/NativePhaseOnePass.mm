@@ -169,8 +169,6 @@ void P1ChainDraw(id object, SEL command, NSRect dirtyRect)
     cable.lineWidth = 0.9;
     [cable stroke];
 
-    // The compact pedal now inherits the main hero enclosure's live aspect ratio
-    // instead of being a wide card. This keeps both representations visually tied.
     const CGFloat cardHeight = std::max<CGFloat>(50.0, std::min<CGFloat>(76.0, NSHeight(view.bounds) - 16.0));
     const CGFloat cardWidth = cardHeight * P1MainPedalAspectForChain(view);
     const NSRect cardRect = NSMakeRect(NSMidX(view.bounds) - cardWidth * 0.5,
@@ -283,15 +281,11 @@ void P1RefreshModelControls(id object, SEL command)
         using Fn = void (*)(id, SEL);
         reinterpret_cast<Fn>(gOriginalRefreshModelControls)(object, command);
     }
-    // Input trim is global I/O state. Reassert it after any model refresh so a
-    // pedal change can never leave the displayed knob and DSP state divergent.
     P1ReapplyInputTrim(object);
 }
 
 void P1StartAudio(id object, SEL command, id sender)
 {
-    // Reassert the global trim immediately before opening the audio path as an
-    // additional guard against any model-load setup changing the effective gain.
     P1ReapplyInputTrim(object);
     if (gOriginalStartAudio != nullptr)
     {
@@ -317,7 +311,6 @@ void P1HeroMouseDown(id object, SEL command, NSEvent* event)
                                          44.0,
                                          44.0);
 
-    // Slightly enlarge the click target without changing the visible hardware.
     if (!NSPointInRect(point, NSInsetRect(footswitch, -8.0, -8.0)))
         return;
 
@@ -378,6 +371,8 @@ void P1InstallPhaseOnePass()
     P1ReapplyInputTrim(delegate);
 }
 
+} // namespace
+
 @interface CPPhaseOneInstaller : NSObject
 @end
 
@@ -388,13 +383,9 @@ void P1InstallPhaseOnePass()
                                                       object:nil
                                                        queue:NSOperationQueue.mainQueue
                                                   usingBlock:^(__unused NSNotification* notification) {
-        // Run after the app delegate has constructed the approved native layout
-        // and after NativeAestheticPass has installed its drawing implementations.
         dispatch_async(dispatch_get_main_queue(), ^{
             P1InstallPhaseOnePass();
         });
     }];
 }
 @end
-
-} // namespace
