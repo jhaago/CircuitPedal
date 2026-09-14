@@ -8,11 +8,11 @@ When testing `feature/circuit-lab-ui` on macOS, verify both function and present
 - stable bundled pedal list is unchanged;
 - Built-in Distortion+ controls work;
 - generic circuit knobs and switches update correctly;
-- Start / Stop Audio works with the selected interface, channel and buffer;
-- Bypass/Active toggles correctly while audio is running;
+- the pedal launches off and the stomp starts/stops audio using the selected interface, channel and buffer;
+- a failed audio start returns the pedal to its off state and leaves the error visible;
 - input/output segmented meters and dB readouts respond;
-- model switching remains locked while audio is running;
-- external `.cpedal` loading still works while stopped;
+- selecting another model stops audio and loads the new pedal in its off state;
+- external `.cpedal` loading stops audio before opening the file picker;
 - switching between bundled circuits still works without relaunching;
 - no change in the accepted 48 kHz / 1x live generic tone compared with stable `main`.
 

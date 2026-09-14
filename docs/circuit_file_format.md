@@ -132,15 +132,15 @@ until a higher-fidelity primitive is introduced.
 
 ## macOS loading workflow
 
-1. Stop audio.
+1. Audio stops automatically when a different pedal is selected.
 2. Click **Load External…** or choose a bundled circuit from **Choose Circuit…**.
 3. Choose a circuit file if loading externally.
 4. CircuitPedal parses and validates it.
 5. Up to sixteen named controls appear in the scrollable macOS GUI.
-6. Click **Start Audio**.
+6. Press the on-screen stomp to start audio and engage the pedal.
 7. CircuitPedal calculates the DC operating point and starts the real-time MNA
    transient solver.
-8. Pot and switch controls can then be moved live.
+8. Pot and switch controls can then be moved live; pressing the stomp again stops audio.
 
 Loading, topology compilation and DC setup are deliberately outside the audio
 callback. Live control targets are atomic and the transient solver uses
