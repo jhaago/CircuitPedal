@@ -34,25 +34,25 @@
 - Consumes: `build/circuitpedal_validate render`, the current `circuits/animato_reference_draft.cpedal`, and its controls `BOOST`, `DISTORTION`, `TONE`, `VOLUME`, `BIAS`.
 - Produces: `build/validation/animato-acceptance/acceptance_report.md` plus per-case CSV renders; process exit status is the CI gate.
 
-- [ ] **Step 1: Add a failing behavioural gate for BOOST direction**
+- [x] **Step 1: Add a failing behavioural gate for BOOST direction**
 
-Render matched 48 kHz / 1x cases with BOOST at `0` and `1`, DISTORTION/TONE/VOLUME held constant, and assert that the user-facing higher BOOST position produces materially higher RMS signal at the Rangemaster output / subsequent signal path. The current model is expected to fail because terminal 3 of BOOST is the 9 V AC-ground rail.
+The pre-fix model failed exactly as predicted: BOOST 0 produced 0.231211295 V AC RMS at `BOOST_W`, while BOOST 1 collapsed to 0.000000025 V.
 
-- [ ] **Step 2: Add non-gating baseline measurements before changing DSP**
+- [x] **Step 2: Add non-gating baseline measurements before changing DSP**
 
-Report peak, RMS, clipping percentage and solver failures for low/mid/high DISTORTION, both BIAS states, Tone extremes, guitar-range and bass-range sine inputs, and 44.1/48/96 kHz sample rates. Include internal nodes around the booster and clipping stages where useful.
+Peak, RMS, host clipping, harmonic content, symmetry, bias state, Tone states, bass/guitar frequencies, output-domain calibration and sample-rate results are emitted into the acceptance report.
 
-- [ ] **Step 3: Add hard numerical-safety gates**
+- [x] **Step 3: Add hard numerical-safety gates**
 
-Fail if any render has non-finite output, solver convergence failures, no meaningful signal, or unexpected full-scale digital clipping in the normal instrument-level test cases.
+The campaign fails on non-finite output, convergence failures, loss of meaningful signal where signal is expected, host full-scale clipping, incorrect BOOST direction, output-conversion inconsistency, transient stress failures or sample-rate robustness failures.
 
-- [ ] **Step 4: Add the acceptance runner to CI**
+- [x] **Step 4: Add the acceptance runner to CI**
 
-Run the script on Linux after building `circuitpedal_validate`; upload/report artifacts if practical. Do not bundle/promote the Animato as part of this task.
+Linux CI runs the campaign and uploads the report/CSV artifact.
 
-- [ ] **Step 5: Run CI and verify RED**
+- [x] **Step 5: Run CI and verify RED**
 
-Expected result: the focused Animato job fails specifically on BOOST direction while baseline metrics are still emitted. A compile/configuration error is not an acceptable RED result.
+Run 349 built successfully and all existing CTests/other pedal checks passed; only the new Animato BOOST-direction gate failed.
 
 ### Task 2: Correct confirmed control-orientation error
 
@@ -63,17 +63,17 @@ Expected result: the focused Animato job fails specifically on BOOST direction w
 - Consumes: the pot convention in `GenericCircuit` where normalized 0 is terminal 1 and normalized 1 is terminal 3, plus the traced/Aion schematic.
 - Produces: BOOST increasing clockwise/user-normalized position increases the Rangemaster contribution instead of moving the wiper toward AC ground.
 
-- [ ] **Step 1: Make the minimum production change**
+- [x] **Step 1: Make the minimum production change**
 
-Swap only the BOOST outer terminals so the signal node is terminal 3 and the 9 V rail is terminal 1. Do not change the 10k value, linear taper or initial setting in the same commit.
+Only the BOOST outer terminals were swapped: `PAIR_C ... VA` became `VA ... PAIR_C`. The 10k value, LIN taper and 0.65 default were retained.
 
-- [ ] **Step 2: Run focused validation**
+- [x] **Step 2: Run focused validation**
 
-Expected result: the previously failing BOOST-direction gate passes; stability gates remain green.
+The fixed model produces 0.000000025 V at BOOST 0 and 0.231211295 V at BOOST 1. The focused acceptance gate passes.
 
-- [ ] **Step 3: Inspect before/after metrics**
+- [x] **Step 3: Inspect before/after metrics**
 
-Confirm that the change affects direction rather than silently changing unrelated Tone, BIAS or output behaviour.
+The correction reverses BOOST action without changing Tone, Bias, clipping topology, Distortion law or output conversion.
 
 ### Task 3: Diagnose gain staging and output-domain calibration
 
@@ -85,21 +85,21 @@ Confirm that the change affects direction rather than silently changing unrelate
 - Consumes: measured output/node levels from Task 1/2, `AUDIO GUITAR ... 0.20`, `OUTPUT` conversion semantics, physical finding that low DISTORTION was excessively quiet, and the traced component values.
 - Produces: a documented decision to either retain the current output conversion or correct it, with quantitative evidence.
 
-- [ ] **Step 1: Measure analog-domain versus digital-domain level**
+- [x] **Step 1: Measure analog-domain versus digital-domain level**
 
-Use exported output/internal node voltages and digital `output_fs` to determine whether the low-drive level problem is circuit behaviour or only model-I/O scaling. Record the actual conversion ratio rather than assuming that every pedal must use the same `OUTPUT` multiplier.
+At medium drive, a 50 mV-peak analogue input produces 0.410594 V RMS at `OUT` and 0.205297 FS RMS at the host, exactly 0.5 FS/V, with +21.30 dB analogue RMS gain.
 
-- [ ] **Step 2: Add a failing level/calibration test only if evidence proves a defect**
+- [x] **Step 2: Add a failing level/calibration test only if evidence proves a defect**
 
-The test must describe observable behaviour at realistic instrument level (for example, pathological attenuation unrelated to the analogue node voltage). Do not assert a configuration string merely to force a desired constant.
+No output-calibration defect was found, so no artificial failing constant was added. The campaign instead gates conversion consistency and host clipping/headroom.
 
-- [ ] **Step 3: Apply the smallest calibration correction if the test fails**
+- [x] **Step 3: Apply the smallest calibration correction if the test fails**
 
-Change only `OUTPUT` scaling if the analog circuit is healthy and the digital-domain conversion is the defect. Do not compensate with arbitrary gain blocks or EQ.
+Not applicable: the evidence supports retaining `OUTPUT OUT 0.5`. Copying another pedal's larger conversion would create host hard clipping.
 
-- [ ] **Step 4: Verify hard-strum behaviour**
+- [x] **Step 4: Verify hard-strum behaviour**
 
-Render higher-amplitude guitar-like and bass-like transients/sines and confirm the correction does not simply replace low output with pervasive digital hard clipping.
+A 150 mV-peak high-drive sine, step, impulse and two dual-tone stress cases all remained finite, convergent and at 0% host full-scale clipping. Physical pickup/strum retest remains required.
 
 ### Task 4: Validate Distortion, Tone, Bias and circuit fidelity
 
@@ -111,25 +111,25 @@ Render higher-amplitude guitar-like and bass-like transients/sines and confirm t
 - Consumes: Aion/trace values (dual 100kA Distortion, 100kB Tone/Volume, 1N914 feedback clipping, 10n input coupling, Sziklai front end), baseline measurements, and physical observations.
 - Produces: quantified control sweeps and any narrowly justified component/taper/orientation corrections.
 
-- [ ] **Step 1: Quantify the dual-gang DISTORTION sweep**
+- [x] **Step 1: Quantify the dual-gang DISTORTION sweep**
 
-Measure output RMS and harmonic content at low/mid/high settings. Keep the documented dual 100k audio topology unless the implementation's taper/orientation demonstrably disagrees with the traced circuit.
+Measured output relative to maximum is about -70.84 dB at 10%, -18.68 dB at 25%, -2.47 dB at 50%, -0.53 dB at 75% and 0 dB at 100%. The steep sweep follows the traced dual 100kA topology, so it was retained.
 
-- [ ] **Step 2: Quantify frequency response**
+- [x] **Step 2: Quantify frequency response**
 
-Use low-amplitude sweeps or multi-frequency renders at low drive to characterize the 10n Rangemaster input loss and Big-Muff-style Tone network. Confirm bass fundamentals are naturally reduced rather than artificially restored.
+Low-level output gain measures -9.17 dB at 40 Hz, +8.00 dB at 82 Hz, +24.35 dB at 196 Hz, +30.53 dB at 440 Hz, +29.01 dB at 1 kHz, +2.26 dB at 5 kHz and -13.61 dB at 10 kHz. The measured bass loss is consistent with the Rangemaster front end and Aion's bass-use warning.
 
-- [ ] **Step 3: Quantify clipping/harmonics**
+- [x] **Step 3: Quantify clipping/harmonics**
 
-At medium/high drive, inspect symmetry and harmonic content from the two antiparallel 1N914 feedback-clipping stages. Confirm no extra generic clipper or dry blend is present.
+Medium/high drive produce strong predominantly odd harmonic content with small peak asymmetry and zero host hard clipping in the controlled cases; the two antiparallel 1N914 feedback-clipping stages remain unchanged.
 
-- [ ] **Step 4: Check BIAS effect**
+- [x] **Step 4: Check BIAS effect**
 
-Verify both linked switch poles move together, remain stable, and cause the expected modest bias/EQ/gain shift rather than a catastrophic level change.
+Both linked poles remain intact. The alternate state produces a modest level/harmonic shift rather than instability or a catastrophic gain change, consistent with the traced circuit description.
 
-- [ ] **Step 5: Change nothing without a failed evidence-backed test**
+- [x] **Step 5: Change nothing without a failed evidence-backed test**
 
-If the traced topology already matches and the observed sensitivity is inherent to the dual audio pot, document that result rather than "improving" it arbitrarily.
+No further model-DSP defect was demonstrated after the BOOST correction. No speculative EQ, bass blend, taper, clipping or transistor changes were made.
 
 ### Task 5: Full verification and engineering handoff
 
@@ -143,19 +143,19 @@ If the traced topology already matches and the observed sensitivity is inherent 
 
 - [ ] **Step 1: Run complete CMake build and CTest in CI**
 
-Require Linux and macOS project builds/tests to pass with no new compiler errors; sanitizer CI must remain green.
+Linux and macOS normal build/test jobs and the unrelated ngspice/Woolly regression job are green after the DSP fix and expanded diagnostics. Final sanitizer/final-HEAD status is checked again immediately before handoff.
 
-- [ ] **Step 2: Run Animato focused acceptance**
+- [x] **Step 2: Run Animato focused acceptance**
 
-Require stability at 44.1/48/96 kHz, finite output, zero solver failures, functional controls, meaningful guitar/bass output and correct BOOST direction.
+The focused campaign passes at 44.1/48/96 kHz with finite output, zero solver failures, meaningful guitar/bass-range output, correct BOOST direction and no host clipping in the defined stress cases.
 
-- [ ] **Step 3: Confirm unrelated models are unaffected**
+- [x] **Step 3: Confirm unrelated models are unaffected**
 
-Because the intended fix is model-local, the existing full test suite is the regression guard. If a shared file was changed, add explicit regression evidence for known-good pedals.
+No shared DSP file was changed. Existing CTest, Blueberry checks, Woolly acceptance and ngspice reference campaign remain green.
 
-- [ ] **Step 4: Keep physical-listening promotion separate**
+- [x] **Step 4: Keep physical-listening promotion separate**
 
-Do not remove the Animato bundle exclusion unless the user explicitly chooses to promote it after Mac A/B/listening. Document exact listening positions for BOOST, DISTORTION, TONE, VOLUME and BIAS and both guitar/bass material.
+The Animato bundle exclusion remains in place. The validation README contains the exact Mac listening checklist for BOOST, DISTORTION, TONE, VOLUME, BIAS, guitar, bass and hard-input behaviour.
 
 - [ ] **Step 5: Final report**
 
