@@ -1098,6 +1098,38 @@ void testBlueberryRepositoryModel()
            "Blueberry minimum Drive is unexpectedly distorted");
     expect(highH1 > 0.0 && highH3 / highH1 > 0.08,
            "Blueberry maximum Drive does not produce useful clipping");
+
+    const auto measureRms = [&](double drivePosition, double digitalInputPeak) {
+        auto probeDefinition = document.definition;
+        (void)probeDefinition.setPotentiometerPosition(driveIndex, drivePosition);
+        circuitpedal::GenericCircuit probe;
+        std::string probeError;
+        if (!probe.compile(probeDefinition, sampleRate, probeError))
+            return -1.0;
+        double squareSum = 0.0;
+        for (int n = 0; n < totalSamples; ++n)
+        {
+            const float input = static_cast<float>(
+                digitalInputPeak * std::sin(2.0 * pi * frequency
+                    * static_cast<double>(n) / sampleRate));
+            const double output = static_cast<double>(probe.processSample(input));
+            if (!probe.lastSolveConverged() || !std::isfinite(output))
+                return -1.0;
+            if (n >= analysisStart)
+                squareSum += output * output;
+        }
+        return std::sqrt(squareSum / analysisSamples);
+    };
+
+    std::cout << "Blueberry 80 Hz level sweep (analogue input peak -> digital RMS output)\n";
+    for (const double digitalPeak : { 0.001, 0.01, 0.05, 0.10, 0.50 })
+    {
+        const double analogueMillivolts = digitalPeak * 0.20 * 1000.0;
+        std::cout << "  " << analogueMillivolts << " mV: drive 0%="
+                  << measureRms(0.0, digitalPeak)
+                  << ", 50%=" << measureRms(0.5, digitalPeak)
+                  << ", 100%=" << measureRms(1.0, digitalPeak) << '\n';
+    }
 #endif
 }
 
