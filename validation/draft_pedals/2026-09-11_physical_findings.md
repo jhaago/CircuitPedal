@@ -43,25 +43,20 @@ First live test:
 - DRIVE at 100% produced very little overdrive;
 - physical behaviour was therefore not accepted.
 
-An initial reference review incorrectly concluded that the JFET drain resistor
-should be `56k` rather than `5k6`. That change was physically retested and made
-the model worse: it produced no useful output.
+The first correction campaign remained based on the different Mad
+Professor/Procyon version and therefore produced a hybrid rather than an
+accurate BJFE Blueberry. The supplied BJFE #045 trace resolves the discrepancies.
 
-Re-checking the current Aion Procyon V2 documentation showed that `R10 = 5k6`
-is correct and the Blueberry substitution list does not change it. The mistaken
-`56k` conclusion came from mixing resistor numbering from an older schematic
-revision.
+Action: the source-only candidate has been rebuilt around the traced 370k Drive,
+1M input pulldown, 14k7 op-amp input resistor, 22n JFET coupling capacitor,
+BF244A output device and 2k6 source resistor. The incorrect JFET-source Tone
+branch has been removed; Tone now connects its 22u side to the op-amp feedback
+node and its 2n2 side to the final signal node, matching both the schematic and
+the tracer's explanation that BJFE Tone affects output treble response.
 
-Action: the model has been restored to `R10 = 5k6`, which returns it to the last
-audible state. A subsequent dedicated reference review found that the model had
-also transcribed the Drive control as `250k`, while the corrected Procyon V2
-trace and its Blueberry substitution list retain `500kA`. The model now uses the
-documented 500k Drive, 15k input resistor and 2k2 JFET source resistor.
-
-Automated 48 kHz / 1x validation now checks that Drive provides a substantial
-gain range and produces measurable third-harmonic clipping at a 100 mV peak
-bass-scale input without solver failures. This is a candidate fidelity fix, but
-physical listening acceptance is still required before promotion.
+Automated 48 kHz / 1x validation checks Drive range, distortion, solver
+convergence and usable BF244A DC bias. This remains a candidate fidelity fix;
+physical listening acceptance is required before promotion.
 
 ## Human Gear Animato
 

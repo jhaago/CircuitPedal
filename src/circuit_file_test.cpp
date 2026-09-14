@@ -1021,6 +1021,16 @@ void testBlueberryRepositoryModel()
     if (!lowCompiled || !highCompiled)
         return;
 
+    const double jfetSourceVolts =
+        lowDrive.nodeVoltage(document.definition.findNode("Q1S"));
+    const double jfetDrainVolts =
+        lowDrive.nodeVoltage(document.definition.findNode("Q1D"));
+    expect(jfetSourceVolts > 0.5 && jfetSourceVolts < 3.0,
+           "Blueberry BF244A source is outside its expected self-bias range");
+    expect(jfetDrainVolts > 2.0 && jfetDrainVolts < 8.0
+               && jfetDrainVolts > jfetSourceVolts + 1.0,
+           "Blueberry BF244A drain has insufficient operating headroom");
+
     constexpr double pi = 3.14159265358979323846;
     constexpr double sampleRate = 48000.0;
     constexpr double frequency = 80.0;
@@ -1132,6 +1142,12 @@ void testBuiltInModels()
     const auto p3906 = circuitpedal::builtInPnpModel("2N3906", ok);
     expect(ok && p3906.forwardBeta >= 100.0,
            "2N3906 silicon PNP model was unavailable");
+
+    const auto bf244a = circuitpedal::builtInNjfetModel("BF244A", ok);
+    expect(ok && bf244a.idssAmps >= 2.0e-3
+              && bf244a.idssAmps <= 6.5e-3
+              && bf244a.pinchOffVoltageVolts < 0.0,
+           "BF244A N-JFET model was unavailable or outside its A-grade range");
 }
 
 } // namespace
