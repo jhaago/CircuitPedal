@@ -54,6 +54,9 @@ jobs:
           python3 validation/animato/run_acceptance.py \
             build/circuitpedal_validate \
             build/validation/animato-acceptance
+      - name: Animato exposed-control sanity
+        if: runner.os == 'Linux'
+        run: python3 validation/animato/check_controls.py build/circuitpedal_validate
       - name: Upload Animato acceptance report
         if: ${{ always() && runner.os == 'Linux' }}
         uses: actions/upload-artifact@v4
