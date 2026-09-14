@@ -23,6 +23,9 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Blueberry low-level signal report
+        if: runner.os == 'Linux'
+        run: ./build/circuit_file_test
       - name: Woolly working-board DC report
         run: |
           ./build/circuitpedal_validate dc-check \
