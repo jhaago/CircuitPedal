@@ -1051,7 +1051,7 @@ void testBlueberryRepositoryModel()
     for (int n = 0; n < totalSamples; ++n)
     {
         const float input = static_cast<float>(
-            0.50 * std::sin(2.0 * pi * frequency
+            0.10 * std::sin(2.0 * pi * frequency
                 * static_cast<double>(n) / sampleRate));
         const double lowOutput = static_cast<double>(lowDrive.processSample(input));
         const double highOutput = static_cast<double>(highDrive.processSample(input));
@@ -1120,6 +1120,14 @@ void testBlueberryRepositoryModel()
         }
         return std::sqrt(squareSum / analysisSamples);
     };
+
+    const double dryTwoMillivoltRms = 0.01 / std::sqrt(2.0);
+    const double lowLevelCleanRms = measureRms(0.0, 0.01);
+    const double lowLevelDrivenRms = measureRms(1.0, 0.01);
+    expect(lowLevelCleanRms >= dryTwoMillivoltRms,
+           "Blueberry clean output falls below dry level at a 2 mV input");
+    expect(lowLevelDrivenRms >= dryTwoMillivoltRms * 5.0,
+           "Blueberry Drive remains inaudible at a 2 mV input");
 
     std::cout << "Blueberry 80 Hz level sweep (analogue input peak -> digital RMS output)\n";
     for (const double digitalPeak : { 0.001, 0.01, 0.05, 0.10, 0.50 })

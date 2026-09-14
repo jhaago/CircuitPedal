@@ -54,8 +54,12 @@ branch has been removed; Tone now connects its 22u side to the op-amp feedback
 node and its 2n2 side to the final signal node, matching both the schematic and
 the tracer's explanation that BJFE Tone affects output treble response.
 
-Automated 48 kHz / 1x validation checks Drive range, distortion, solver
-convergence and usable BF244A DC bias. This remains a candidate fidelity fix;
+The live-silence report exposed a separate model-I/O calibration error:
+`AUDIO ... 0.20` was paired with `OUTPUT ... 0.5`, attenuating the analogue
+result by 10x relative to unity conversion. Output is now calibrated at 5
+digital full scale per volt. Automated 48 kHz / 1x validation checks Drive
+range, distortion, solver convergence, usable BF244A DC bias and audible output
+at a 2 mV input. This remains a candidate fidelity fix;
 physical listening acceptance is required before promotion.
 
 ## Human Gear Animato
