@@ -44,7 +44,7 @@ Peak, RMS, host clipping, harmonic content, symmetry, bias state, Tone states, b
 
 - [x] **Step 3: Add hard numerical-safety gates**
 
-The campaign fails on non-finite output, convergence failures, loss of meaningful signal where signal is expected, host full-scale clipping, incorrect BOOST direction, output-conversion inconsistency, transient stress failures or sample-rate robustness failures.
+The campaign fails on non-finite output, convergence failures, loss of meaningful signal where signal is expected, host full-scale clipping inside the defined normal/high-output envelope, incorrect BOOST direction, output-conversion inconsistency, transient stress failures or sample-rate robustness failures. Separate all-controls-maximum cases document the output boundary without redefining a 9 V pedal's physical Volume attenuator as a DSP limiter.
 
 - [x] **Step 4: Add the acceptance runner to CI**
 
@@ -91,7 +91,7 @@ At medium drive, a 50 mV-peak analogue input produces 0.410594 V RMS at `OUT` an
 
 - [x] **Step 2: Add a failing level/calibration test only if evidence proves a defect**
 
-No output-calibration defect was found, so no artificial failing constant was added. The campaign instead gates conversion consistency and host clipping/headroom.
+No output-calibration defect was found, so no artificial failing constant was added. The campaign instead gates conversion consistency and host clipping/headroom through 150 mV-peak input with Volume at 75%, and reports all-controls-maximum behavior separately.
 
 - [x] **Step 3: Apply the smallest calibration correction if the test fails**
 
@@ -99,7 +99,7 @@ Not applicable: the evidence supports retaining `OUTPUT OUT 0.5`. Copying anothe
 
 - [x] **Step 4: Verify hard-strum behaviour**
 
-A 150 mV-peak high-drive sine, step, impulse and two dual-tone stress cases all remained finite, convergent and at 0% host full-scale clipping. Physical pickup/strum retest remains required.
+A 150 mV-peak high-drive sine with Volume at 75%, step, impulse and two dual-tone stress cases all remained finite, convergent and at 0% host full-scale clipping. An all-controls-maximum 55 Hz case exceeds the 2 V-peak host mapping and is retained as a diagnostic because the real Volume control is the intended output attenuator. Physical pickup/strum retest remains required.
 
 ### Task 4: Validate Distortion, Tone, Bias and circuit fidelity
 
@@ -160,3 +160,27 @@ The Animato bundle exclusion remains in place. The validation README contains th
 - [ ] **Step 5: Final report**
 
 Report original implementation, faults, real-circuit facts/inferences/unknowns, changes, quantitative verification, guitar-vs-bass behaviour, remaining uncertainty and the Mac listening checklist.
+
+## Independent review addendum — 2026-09-14
+
+The follow-up review independently re-read the schematic, pot implementation,
+component models, live audio route and generated measurements rather than taking
+the report above as authoritative.
+
+- The BOOST correction is confirmed from both the traced schematic and
+  `GenericCircuit` terminal semantics.
+- The `.cpedal` values and topology remain defensible; no further netlist change
+  is supported by the available evidence.
+- The exact original dual 100kA taper curve is not established. The steep model
+  sweep is a consequence of the confirmed two-attenuator topology plus
+  CircuitPedal's plausible 10%-at-midpoint law, not proof of an exact physical
+  control match.
+- The prior 180 ms steady-sine reports are superseded. The final 10 uF coupling
+  capacitor needs seconds to settle after signal onset, so the new campaign uses
+  four-second renders and analyzes the final coherent second with DC removed.
+- The accepted 1x live path incorrectly delayed dry/bypass audio and reported the
+  experimental 4x FIR's 47-sample latency. A focused failing test preceded the
+  runtime-mode-aware correction (0 samples at 1x; 47 at 4x).
+- 4x processing measurably reduces an extreme aliasing probe, but it remains
+  deferred because the current path failed physical listening and clamps/converts
+  circuit output before decimation.

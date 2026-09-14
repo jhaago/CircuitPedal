@@ -16,7 +16,9 @@ import sys
 from pathlib import Path
 
 
-TEST_SECONDS = 0.18
+STEADY_TEST_SECONDS = 4.0
+STEADY_ANALYSIS_SECONDS = 1.0
+TRANSIENT_TEST_SECONDS = 0.18
 WARMUP_SECONDS = 0.06
 AUDIO_VOLTS_PER_FS = 0.20
 ANIMATO_OUTPUT_FS_PER_VOLT = 0.50
@@ -83,11 +85,33 @@ def harmonic_amplitudes(
     return amplitudes
 
 
-def basic_metrics(path: Path) -> dict[str, float]:
-    values, failures = read_column(path, "output_fs")
+def steady_state_samples(
+    values: list[float], sample_rate: float, analysis_seconds: float
+) -> list[float]:
+    count = int(round(sample_rate * analysis_seconds))
+    if count <= 0 or count > len(values):
+        raise ValueError("steady-state analysis window is outside the capture")
+    return values[-count:]
+
+
+def harmonic_count_below_nyquist(
+    sample_rate: float, fundamental: float, maximum: int
+) -> int:
+    if sample_rate <= 0.0 or fundamental <= 0.0 or maximum < 1:
+        raise ValueError("invalid harmonic-analysis parameters")
+    nyquist_exclusive = math.nextafter(sample_rate * 0.5, 0.0)
+    count = min(maximum, int(nyquist_exclusive / fundamental))
+    if count < 1:
+        raise ValueError("fundamental must be below Nyquist")
+    return count
+
+
+def waveform_metrics(values: list[float]) -> dict[str, float]:
+    mean = sum(values) / len(values)
+    centered = [value - mean for value in values]
     peak = max(abs(value) for value in values)
-    positive_peak = max(values)
-    negative_peak = abs(min(values))
+    positive_peak = max(centered)
+    negative_peak = abs(min(centered))
     clipped = sum(1 for value in values if abs(value) >= 0.999999)
     asymmetry_db = (
         db(positive_peak / negative_peak)
@@ -96,27 +120,54 @@ def basic_metrics(path: Path) -> dict[str, float]:
     )
     return {
         "peak_fs": peak,
-        "rms_fs": rms(values),
+        "rms_fs": rms(centered),
+        "ac_rms_fs": rms(centered),
+        "total_rms_fs": rms(values),
+        "dc_offset_fs": mean,
         "clip_percent": 100.0 * clipped / len(values),
-        "convergence_failures": float(failures),
         "positive_peak_fs": positive_peak,
         "negative_peak_fs": negative_peak,
         "asymmetry_db": asymmetry_db,
     }
 
 
-def summarize_output(path: Path, sample_rate: float, fundamental: float) -> dict[str, float]:
-    metrics = basic_metrics(path)
+def basic_metrics(
+    path: Path,
+    sample_rate: float | None = None,
+    analysis_seconds: float | None = None,
+) -> dict[str, float]:
+    values, failures = read_column(path, "output_fs")
+    if analysis_seconds is not None:
+        if sample_rate is None:
+            raise ValueError("sample rate is required for a bounded analysis window")
+        values = steady_state_samples(values, sample_rate, analysis_seconds)
+    metrics = waveform_metrics(values)
+    metrics["convergence_failures"] = float(failures)
+    return metrics
+
+
+def summarize_output(
+    path: Path,
+    sample_rate: float,
+    fundamental: float,
+    analysis_seconds: float | None = STEADY_ANALYSIS_SECONDS,
+) -> dict[str, float]:
+    metrics = basic_metrics(path, sample_rate, analysis_seconds)
     values, _ = read_column(path, "output_fs")
-    harmonics = harmonic_amplitudes(values, sample_rate, fundamental)
+    if analysis_seconds is not None:
+        values = steady_state_samples(values, sample_rate, analysis_seconds)
+    count = harmonic_count_below_nyquist(sample_rate, fundamental, 6)
+    harmonics = harmonic_amplitudes(values, sample_rate, fundamental, count)
     fundamental_amp = harmonics[0]
     harmonic_power = sum(amplitude * amplitude for amplitude in harmonics[1:])
     thd = math.sqrt(harmonic_power) / fundamental_amp if fundamental_amp > 1.0e-15 else 0.0
     metrics.update({
         "fundamental": fundamental_amp,
         "thd_percent": 100.0 * thd,
-        "h2_db": db(harmonics[1] / fundamental_amp) if fundamental_amp > 1.0e-15 else -180.0,
-        "h3_db": db(harmonics[2] / fundamental_amp) if fundamental_amp > 1.0e-15 else -180.0,
+        "h2_db": db(harmonics[1] / fundamental_amp)
+            if fundamental_amp > 1.0e-15 and len(harmonics) >= 2 else -180.0,
+        "h3_db": db(harmonics[2] / fundamental_amp)
+            if fundamental_amp > 1.0e-15 and len(harmonics) >= 3 else -180.0,
     })
     return metrics
 
@@ -137,11 +188,12 @@ def render(
     volume: float = 0.55,
     bias: int = 0,
     nodes: tuple[str, ...] = (),
+    seconds: float = STEADY_TEST_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
     command = [
         str(validator), "render", str(circuit), str(output),
         "--sample-rate", str(sample_rate),
-        "--seconds", str(TEST_SECONDS),
+        "--seconds", str(seconds),
         "--warmup", str(WARMUP_SECONDS),
         "--signal", signal,
         "--frequency", str(frequency),
@@ -195,7 +247,10 @@ def main() -> int:
 
     boost_rows: list[tuple[str, float, float, int]] = []
     boost_pass = True
-    for name, position in (("minimum", 0.0), ("maximum", 1.0)):
+    for name, position in (
+        ("minimum", 0.0), ("quarter", 0.25), ("midpoint", 0.50),
+        ("three-quarter", 0.75), ("maximum", 1.0),
+    ):
         csv_path = output_dir / f"boost_{name}.csv"
         result = render(
             validator, circuit, csv_path,
@@ -208,14 +263,17 @@ def main() -> int:
             boost_rows.append((name, position, 0.0, -1))
             continue
         node_values, failures = read_column(csv_path, "node_BOOST_W_v")
+        node_values = steady_state_samples(
+            node_values, 48000.0, STEADY_ANALYSIS_SECONDS)
         boost_rows.append((name, position, ac_rms(node_values), failures))
         if failures:
             boost_pass = False
 
-    if len(boost_rows) == 2:
-        low_ac = boost_rows[0][2]
-        high_ac = boost_rows[1][2]
-        if not (high_ac > low_ac * 2.0 and high_ac > 1.0e-7):
+    if len(boost_rows) == 5:
+        levels = [row[2] for row in boost_rows]
+        if not (all(high > low for low, high in zip(levels, levels[1:]))
+                and levels[-1] > levels[0] * 2.0
+                and levels[-1] > 1.0e-7):
             boost_pass = False
 
     report.extend([
@@ -233,29 +291,36 @@ def main() -> int:
         "## 2. Gain / clipping baseline",
         "",
         "Input amplitude 0.25 FS corresponds to 50 mV peak at the model's 0.20 V/FS",
-        "input calibration. Full-scale digital clipping is a hard failure for these",
-        "normal/stress cases; analogue transistor/diode clipping is expected.",
+        "input calibration. Full-scale digital clipping is a hard failure for the",
+        "normal cases; the explicitly labelled all-maximum cases document the output",
+        "headroom boundary. Analogue transistor/diode clipping is expected.",
         "",
-        "| State | Peak FS | RMS FS | Clip % | THD % | H2/fund dB | H3/fund dB | Peak asym dB | Solver failures |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "Steady sine metrics use the final coherent one-second window after four",
+        "seconds of signal. This allows the 10 uF output coupling capacitor to settle.",
+        "",
+        "| State | Headroom gate | Peak FS | AC RMS FS | DC FS | Clip % | THD % | H2/fund dB | H3/fund dB | Peak asym dB | Solver failures |",
+        "| --- | :---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ])
 
     safety_pass = True
     baseline_metrics: dict[str, dict[str, float]] = {}
     cases = (
-        ("distortion_low", 196.0, 0.25, 0.65, 0.05, 0.50, 0.75, 0),
-        ("distortion_mid", 196.0, 0.25, 0.65, 0.50, 0.50, 0.75, 0),
-        ("distortion_high", 196.0, 0.25, 0.65, 0.95, 0.50, 0.75, 0),
-        ("tone_dark", 196.0, 0.12, 0.65, 0.40, 0.00, 0.75, 0),
-        ("tone_bright", 196.0, 0.12, 0.65, 0.40, 1.00, 0.75, 0),
-        ("bias_alt", 196.0, 0.25, 0.65, 0.50, 0.50, 0.75, 1),
-        ("bass_55hz", 55.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0),
-        ("bass_82hz", 82.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0),
-        ("guitar_196hz", 196.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0),
-        ("guitar_440hz", 440.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0),
-        ("hard_input", 110.0, 0.75, 0.65, 0.80, 0.50, 0.75, 0),
+        ("distortion_low", 196.0, 0.25, 0.65, 0.05, 0.50, 0.75, 0, True),
+        ("distortion_mid", 196.0, 0.25, 0.65, 0.50, 0.50, 0.75, 0, True),
+        ("distortion_high", 196.0, 0.25, 0.65, 0.95, 0.50, 0.75, 0, True),
+        ("tone_dark", 196.0, 0.12, 0.65, 0.40, 0.00, 0.75, 0, True),
+        ("tone_bright", 196.0, 0.12, 0.65, 0.40, 1.00, 0.75, 0, True),
+        ("bias_alt", 196.0, 0.25, 0.65, 0.50, 0.50, 0.75, 1, True),
+        ("bass_55hz", 55.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0, True),
+        ("bass_82hz", 82.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0, True),
+        ("guitar_196hz", 196.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0, True),
+        ("guitar_440hz", 440.0, 0.25, 0.65, 0.65, 0.50, 0.75, 0, True),
+        ("hard_input", 110.0, 0.75, 0.65, 0.80, 0.50, 0.75, 0, True),
+        ("max_controls_guitar", 440.0, 0.75, 1.00, 1.00, 0.50, 1.00, 0, False),
+        ("max_controls_bass", 55.0, 0.75, 1.00, 1.00, 0.50, 1.00, 0, False),
     )
-    for name, frequency, amplitude, boost, distortion, tone, volume, bias in cases:
+    for (name, frequency, amplitude, boost, distortion, tone, volume, bias,
+         headroom_required) in cases:
         csv_path = output_dir / f"case_{name}.csv"
         result = render(
             validator, circuit, csv_path,
@@ -264,7 +329,7 @@ def main() -> int:
         )
         if result.returncode != 0:
             safety_pass = False
-            report.append(f"| {name} | — | — | — | — | — | — | — | command failed ({result.returncode}) |")
+            report.append(f"| {name} | {'required' if headroom_required else 'diagnostic'} | — | — | — | — | — | — | — | — | command failed ({result.returncode}) |")
             continue
         metrics = summarize_output(csv_path, 48000.0, frequency)
         baseline_metrics[name] = metrics
@@ -272,16 +337,27 @@ def main() -> int:
             metrics["convergence_failures"] != 0.0
             or not math.isfinite(metrics["peak_fs"])
             or metrics["peak_fs"] <= 1.0e-10
-            or metrics["clip_percent"] > 0.0
+            or (metrics["clip_percent"] > 0.0 and headroom_required)
+            or abs(metrics["dc_offset_fs"]) > 0.005
         ):
             safety_pass = False
         report.append(
-            f"| {name} | {metrics['peak_fs']:.6f} | {metrics['rms_fs']:.6f} | "
-            f"{metrics['clip_percent']:.3f} | {metrics['thd_percent']:.3f} | "
+            f"| {name} | {'required' if headroom_required else 'diagnostic'} | "
+            f"{metrics['peak_fs']:.6f} | {metrics['rms_fs']:.6f} | "
+            f"{metrics['dc_offset_fs']:+.6f} | {metrics['clip_percent']:.3f} | {metrics['thd_percent']:.3f} | "
             f"{metrics['h2_db']:.2f} | {metrics['h3_db']:.2f} | "
             f"{metrics['asymmetry_db']:+.2f} | {int(metrics['convergence_failures'])} |"
         )
     report.extend(["", f"**Numerical-safety / digital-headroom gate:** {'PASS' if safety_pass else 'FAIL'}", ""])
+    report.extend([
+        "The all-maximum rows are stress diagnostics, not a no-clipping requirement:",
+        "the physical Volume control can attenuate the pedal before host conversion.",
+        "The hard headroom envelope extends through 150 mV peak with BOOST 65%,",
+        "DISTORTION 80% and VOLUME 75%; every required row is unclipped.",
+        "Changing the model-wide output scale solely to make an extreme sine pass would",
+        "alter every normal control position without original-unit output-level evidence.",
+        "",
+    ])
 
     report.extend([
         "## 3. Output-domain calibration check",
@@ -305,6 +381,10 @@ def main() -> int:
     else:
         out_node, failures = read_column(calibration_csv, "node_OUT_v")
         output_values, output_failures = read_column(calibration_csv, "output_fs")
+        out_node = steady_state_samples(
+            out_node, 48000.0, STEADY_ANALYSIS_SECONDS)
+        output_values = steady_state_samples(
+            output_values, 48000.0, STEADY_ANALYSIS_SECONDS)
         out_rms_v = ac_rms(out_node)
         output_rms_fs = ac_rms(output_values)
         input_rms_v = 0.25 * AUDIO_VOLTS_PER_FS / math.sqrt(2.0)
@@ -350,6 +430,8 @@ def main() -> int:
             safety_pass = False
             continue
         values, failures = read_column(csv_path, "output_fs")
+        values = steady_state_samples(
+            values, 48000.0, STEADY_ANALYSIS_SECONDS)
         drive_rows.append((position, position ** AUDIO_TAPER_EXPONENT, ac_rms(values), failures))
         if failures:
             safety_pass = False
@@ -386,14 +468,17 @@ def main() -> int:
             report.append(f"| {frequency:.0f} Hz | — | — | — | command failed |")
             continue
         boost_node, failures = read_column(csv_path, "node_BOOST_W_v")
+        boost_node = steady_state_samples(
+            boost_node, 48000.0, STEADY_ANALYSIS_SECONDS)
         metrics = summarize_output(csv_path, 48000.0, frequency)
+        reported_failures = max(failures, int(metrics["convergence_failures"]))
         boost_gain = ac_rms(boost_node) / input_rms_v if input_rms_v > 0.0 else 0.0
         output_gain = metrics["fundamental"] / low_amplitude_fs if low_amplitude_fs > 0.0 else 0.0
-        if failures or metrics["convergence_failures"] != 0.0:
+        if reported_failures:
             response_pass = False
         report.append(
             f"| {frequency:.0f} Hz | {db(boost_gain):+.2f} dB | {db(output_gain):+.2f} dB | "
-            f"{metrics['thd_percent']:.3f}% | {failures + int(metrics['convergence_failures'])} |"
+            f"{metrics['thd_percent']:.3f}% | {reported_failures} |"
         )
     report.extend(["", f"**Frequency-sweep numerical gate:** {'PASS' if response_pass else 'FAIL'}", ""])
 
@@ -407,7 +492,7 @@ def main() -> int:
         "| ---: | ---: | ---: | ---: | ---: |",
     ])
     tone_rows: dict[float, list[float]] = {}
-    for tone in (0.0, 0.5, 1.0):
+    for tone in (0.0, 0.25, 0.5, 0.75, 1.0):
         gains: list[float] = []
         for frequency in (110.0, 440.0, 2000.0, 5000.0):
             csv_path = output_dir / f"tone_{int(tone * 100):03d}_{int(frequency):05d}.csv"
@@ -427,7 +512,7 @@ def main() -> int:
         tone_rows[tone] = gains
     for tone, gains in tone_rows.items():
         formatted = [f"{value:+.2f} dB" if math.isfinite(value) else "—" for value in gains]
-        report.append(f"| {tone:.1f} | {formatted[0]} | {formatted[1]} | {formatted[2]} | {formatted[3]} |")
+        report.append(f"| {tone:.2f} | {formatted[0]} | {formatted[1]} | {formatted[2]} | {formatted[3]} |")
     report.append("")
 
     report.extend([
@@ -453,7 +538,7 @@ def main() -> int:
             validator, circuit, csv_path,
             signal=signal, frequency=frequency, frequency2=frequency2,
             amplitude=amplitude, boost=0.65, distortion=0.80,
-            tone=0.50, volume=0.75,
+            tone=0.50, volume=0.75, seconds=TRANSIENT_TEST_SECONDS,
         )
         if result.returncode != 0:
             transient_pass = False
@@ -476,8 +561,8 @@ def main() -> int:
         "exercised to catch sample-rate-dependent instability; exact tone is reported",
         "rather than treated as a golden-response match.",
         "",
-        "| Sample rate | Peak FS | RMS FS | Clip % | THD % | Solver failures |",
-        "| ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Sample rate | Peak FS | AC RMS FS | DC FS | Clip % | THD % | Solver failures |",
+        "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ])
     sample_rate_pass = True
     for sample_rate in (44100.0, 48000.0, 96000.0):
@@ -489,18 +574,19 @@ def main() -> int:
         )
         if result.returncode != 0:
             sample_rate_pass = False
-            report.append(f"| {sample_rate:.0f} | — | — | — | — | command failed ({result.returncode}) |")
+            report.append(f"| {sample_rate:.0f} | — | — | — | — | — | command failed ({result.returncode}) |")
             continue
         metrics = summarize_output(csv_path, sample_rate, 220.0)
         if (
             metrics["convergence_failures"] != 0.0
             or metrics["peak_fs"] <= 1.0e-10
             or metrics["clip_percent"] > 0.0
+            or abs(metrics["dc_offset_fs"]) > 0.005
         ):
             sample_rate_pass = False
         report.append(
             f"| {sample_rate:.0f} | {metrics['peak_fs']:.6f} | {metrics['rms_fs']:.6f} | "
-            f"{metrics['clip_percent']:.3f} | {metrics['thd_percent']:.3f} | "
+            f"{metrics['dc_offset_fs']:+.6f} | {metrics['clip_percent']:.3f} | {metrics['thd_percent']:.3f} | "
             f"{int(metrics['convergence_failures'])} |"
         )
     report.extend(["", f"**44.1/48/96 kHz robustness gate:** {'PASS' if sample_rate_pass else 'FAIL'}", ""])

@@ -51,6 +51,7 @@ jobs:
       - name: Animato 1x acceptance diagnostics
         if: runner.os == 'Linux'
         run: |
+          python3 validation/animato/test_analysis.py
           python3 validation/animato/run_acceptance.py \
             build/circuitpedal_validate \
             build/validation/animato-acceptance

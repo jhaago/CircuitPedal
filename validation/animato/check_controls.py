@@ -26,7 +26,14 @@ def rms(path: Path) -> float:
         raise RuntimeError(f"{failures} nonlinear solve failures in {path}")
     if not values:
         raise RuntimeError(f"no output samples in {path}")
-    return math.sqrt(sum(value * value for value in values) / len(values))
+    analysis_samples = 48000
+    if len(values) < analysis_samples:
+        raise RuntimeError(f"capture is too short for steady-state analysis: {path}")
+    values = values[-analysis_samples:]
+    mean = sum(values) / len(values)
+    return math.sqrt(
+        sum((value - mean) ** 2 for value in values) / len(values)
+    )
 
 
 def render(
@@ -45,7 +52,7 @@ def render(
     command = [
         str(validator), "render", str(circuit), str(output),
         "--sample-rate", "48000",
-        "--seconds", "0.18",
+        "--seconds", "4.0",
         "--warmup", "0.06",
         "--signal", "sine",
         "--frequency", str(frequency),
