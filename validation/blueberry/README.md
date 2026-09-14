@@ -1,7 +1,8 @@
 # Blueberry Bass Overdrive validation
 
-The Blueberry reference draft remains source-only until it passes a repeat
-physical listening test. The 2026-09-14 second candidate is reconstructed
+The Blueberry model was promoted to the bundled pedal list after its corrected
+output calibration passed the 2026-09-14 physical retest. The accepted candidate
+is reconstructed
 directly from the supplied BJFE Blueberry Bass Overdrive #045 trace rather than
 from the different Mad Professor/Procyon topology.
 
@@ -58,9 +59,7 @@ They do not replace a bass/interface listening test.
 
 ## Physical retest
 
-Load this source-only draft externally and use the same interface gain and bass
-used for the rejected 2026-09-11 pass. Check minimum, midpoint and maximum Drive
-with Tone centred and Volume matched, then sweep Tone at low and high Drive.
-Do not add the model to the bundled stable library unless Drive progresses from
-light colour into audible overdrive, Tone behaves as a treble-response control,
-and there is no abnormal level drop, gating or hard-strum instability.
+The 2026-09-14 retest confirmed that the calibrated model produces working
+audio in the native app while the other pedals remain unaffected. On that basis
+the Blueberry is now bundled and selectable normally. Further tone matching can
+continue without returning the model to a silent/source-only state.

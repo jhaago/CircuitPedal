@@ -196,8 +196,6 @@ if(APPLE)
     list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
         "/animato_reference_draft\\.cpedal$")
     list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
-        "/blueberry_bass_overdrive_reference_draft\\.cpedal$")
-    list(FILTER CIRCUITPEDAL_CIRCUIT_FILES EXCLUDE REGEX
         "/eqd_tentacle_reference_draft\\.cpedal$")
 
     set(CIRCUITPEDAL_HEADER_LOGO

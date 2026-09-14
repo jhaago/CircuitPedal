@@ -58,6 +58,7 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fuzzolo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/ts10_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/blueberry_bass_overdrive_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
 
@@ -86,7 +87,6 @@ jobs:
           # These models remain source drafts but are deliberately withheld from
           # the stable app until physical listening checks accept them.
           test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal
-          test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/blueberry_bass_overdrive_reference_draft.cpedal
           test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/eqd_tentacle_reference_draft.cpedal
 
   sanitizer-test:

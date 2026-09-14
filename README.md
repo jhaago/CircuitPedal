@@ -32,7 +32,7 @@ In the GUI:
 7. Selecting another pedal stops audio before the new pedal is loaded.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft, Lovepedal Kalamazoo Reference Draft and BearFoot Blueberry Bass Overdrive Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory, Fat Fuzz Factory, Fuzzolo, TS10 Tube Screamer, Human Gear Animato, Lovepedal Kalamazoo and BearFoot Blueberry Bass Overdrive. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
 Startup errors remain visible in the window so settings can be changed and the stomp can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
 

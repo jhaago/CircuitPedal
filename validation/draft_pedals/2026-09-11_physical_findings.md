@@ -59,8 +59,8 @@ The live-silence report exposed a separate model-I/O calibration error:
 result by 10x relative to unity conversion. Output is now calibrated at 5
 digital full scale per volt. Automated 48 kHz / 1x validation checks Drive
 range, distortion, solver convergence, usable BF244A DC bias and audible output
-at a 2 mV input. This remains a candidate fidelity fix;
-physical listening acceptance is required before promotion.
+at a 2 mV input. The 2026-09-14 physical retest confirmed working output, and
+the Blueberry was promoted to the bundled pedal list.
 
 ## Human Gear Animato
 
@@ -78,5 +78,6 @@ trace/control-orientation review rather than speculative tuning.
 
 ## Promotion rule
 
-None of these three models should be added back to the stable bundled pedal
-library until a repeat physical listening pass accepts their behaviour.
+Blueberry passed its 2026-09-14 output retest and is now bundled. EQD Tentacle
+and Human Gear Animato remain withheld until repeat physical listening accepts
+their behaviour.
