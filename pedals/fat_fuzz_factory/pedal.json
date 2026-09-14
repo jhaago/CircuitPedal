@@ -1,0 +1,32 @@
+{
+  "id": "fat_fuzz_factory",
+  "displayName": "Fat Fuzz Factory",
+  "modelStatus": "reference_draft",
+  "category": "fuzz",
+  "inspiredBy": "expanded five-knob oscillating germanium fuzz",
+  "description": "A Fuzz Factory-style circuit with the additional three-position Fat voicing switch.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/fat_fuzz_factory_reference.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.64,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "STAB", "label": "STAB", "type": "knob", "x": 0.20, "y": 0.16 },
+    { "id": "GATE", "label": "GATE", "type": "knob", "x": 0.50, "y": 0.16 },
+    { "id": "COMP", "label": "COMP", "type": "knob", "x": 0.80, "y": 0.16 },
+    { "id": "DRIVE", "label": "DRIVE", "type": "knob", "x": 0.32, "y": 0.36 },
+    { "id": "VOLUME", "label": "VOLUME", "type": "knob", "x": 0.68, "y": 0.36 },
+    { "id": "FAT", "label": "FAT", "type": "switch", "x": 0.50, "y": 0.55 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}

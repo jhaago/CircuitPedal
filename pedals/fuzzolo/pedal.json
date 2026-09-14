@@ -1,0 +1,29 @@
+{
+  "id": "fuzzolo",
+  "displayName": "Fuzzolo",
+  "modelStatus": "reference_draft",
+  "category": "fuzz",
+  "inspiredBy": "compact pulse-width silicon fuzz",
+  "description": "A compact gated fuzz with pulse-width shaping, output level and passive/active pickup voicing.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/fuzzolo_reference_draft.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.64,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "PULSE_WIDTH", "label": "PULSE WIDTH", "type": "knob", "x": 0.30, "y": 0.20 },
+    { "id": "VOLUME", "label": "VOLUME", "type": "knob", "x": 0.70, "y": 0.20 },
+    { "id": "PICKUPS", "label": "PICKUPS", "type": "switch", "x": 0.50, "y": 0.42 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}

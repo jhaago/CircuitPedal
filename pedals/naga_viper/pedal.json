@@ -1,0 +1,29 @@
+{
+  "id": "naga_viper",
+  "displayName": "Naga Viper",
+  "modelStatus": "reference_draft",
+  "category": "boost",
+  "inspiredBy": "Rangemaster-derived treble booster",
+  "description": "A sharp treble booster with range, boost and heat controls for sculpting bite and push.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/naga_viper.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.64,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "RANGE", "label": "RANGE", "type": "knob", "x": 0.20, "y": 0.18 },
+    { "id": "BOOST", "label": "BOOST", "type": "knob", "x": 0.50, "y": 0.18 },
+    { "id": "HEAT", "label": "HEAT", "type": "knob", "x": 0.80, "y": 0.18 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}

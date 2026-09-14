@@ -1,5 +1,5 @@
 CPEDAL 1
-NAME "Fat Fuzz Factory Reference"
+NAME "Fat Fuzz Factory"
 
 # Fuzz Factory signal path plus a three-position Fat switch. The centre position
 # leaves the stock 100n interstage capacitor alone. The outer positions add

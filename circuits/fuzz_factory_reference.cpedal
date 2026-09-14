@@ -1,5 +1,5 @@
 CPEDAL 1
-NAME "Fuzz Factory Reference"
+NAME "Fuzz Factory"
 
 # Classic five-knob Fuzz Factory topology, cross-checked against the supplied
 # Effects Layouts drawing and the Aion/verified public schematic.

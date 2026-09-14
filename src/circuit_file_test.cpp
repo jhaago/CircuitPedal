@@ -998,39 +998,146 @@ void testBlueberryRepositoryModel()
                "Blueberry Volume control missing");
     }
 
-    circuitpedal::OversampledGenericCircuit circuit;
-    const bool compiled = circuit.compile(document.definition, 48000.0, error);
-    expect(compiled, "Blueberry did not compile at 4x: " + error);
-    if (!compiled)
+    // Exercise the same 48 kHz / 1x path used by the accepted macOS runtime.
+    const auto driveIndex = document.controls[0].potentiometerIndex;
+    const auto toneIndex = document.controls[1].potentiometerIndex;
+    const auto volumeIndex = document.controls[2].potentiometerIndex;
+    expect(document.definition.setPotentiometerPosition(driveIndex, 0.0),
+           "Blueberry minimum Drive could not be configured");
+    expect(document.definition.setPotentiometerPosition(toneIndex, 0.5),
+           "Blueberry Tone midpoint could not be configured");
+    expect(document.definition.setPotentiometerPosition(volumeIndex, 1.0),
+           "Blueberry maximum Volume could not be configured");
+
+    circuitpedal::GenericCircuit lowDrive;
+    const bool lowCompiled = lowDrive.compile(document.definition, 48000.0, error);
+    expect(lowCompiled, "Blueberry minimum-Drive model did not compile at 1x: " + error);
+
+    expect(document.definition.setPotentiometerPosition(driveIndex, 1.0),
+           "Blueberry maximum Drive could not be configured");
+    circuitpedal::GenericCircuit highDrive;
+    const bool highCompiled = highDrive.compile(document.definition, 48000.0, error);
+    expect(highCompiled, "Blueberry maximum-Drive model did not compile at 1x: " + error);
+    if (!lowCompiled || !highCompiled)
         return;
 
-    constexpr double pi = 3.14159265358979323846;
-    double peak = 0.0;
-    int failureCount = 0;
-    for (int n = 0; n < 24000; ++n)
-    {
-        if (n == 8000)
-            expect(circuit.setPotentiometerPosition(
-                       document.controls[0].potentiometerIndex, 0.92),
-                   "Blueberry Drive could not move live");
-        if (n == 16000)
-            expect(circuit.setPotentiometerPosition(
-                       document.controls[1].potentiometerIndex, 0.85),
-                   "Blueberry Tone could not move live");
+    const double jfetSourceVolts =
+        lowDrive.nodeVoltage(document.definition.findNode("Q1S"));
+    const double jfetDrainVolts =
+        lowDrive.nodeVoltage(document.definition.findNode("Q1D"));
+    expect(jfetSourceVolts > 0.5 && jfetSourceVolts < 3.0,
+           "Blueberry BF244A source is outside its expected self-bias range");
+    expect(jfetDrainVolts > 2.0 && jfetDrainVolts < 8.0
+               && jfetDrainVolts > jfetSourceVolts + 1.0,
+           "Blueberry BF244A drain has insufficient operating headroom");
 
+    constexpr double pi = 3.14159265358979323846;
+    constexpr double sampleRate = 48000.0;
+    constexpr double frequency = 80.0;
+    constexpr int totalSamples = 12000;
+    constexpr int analysisStart = 2400;
+    double lowSquareSum = 0.0;
+    double highSquareSum = 0.0;
+    double lowH1Sin = 0.0;
+    double lowH1Cos = 0.0;
+    double lowH3Sin = 0.0;
+    double lowH3Cos = 0.0;
+    double highH1Sin = 0.0;
+    double highH1Cos = 0.0;
+    double highH3Sin = 0.0;
+    double highH3Cos = 0.0;
+    int lowFailureCount = 0;
+    int highFailureCount = 0;
+    for (int n = 0; n < totalSamples; ++n)
+    {
         const float input = static_cast<float>(
-            0.30 * std::sin(2.0 * pi * 82.0
-                * static_cast<double>(n) / 48000.0));
-        const float output = circuit.processSample(input);
-        expect(std::isfinite(output), "Blueberry produced non-finite audio");
-        if (!circuit.lastSolveConverged())
-            ++failureCount;
-        peak = std::max(peak, std::abs(static_cast<double>(output)));
+            0.10 * std::sin(2.0 * pi * frequency
+                * static_cast<double>(n) / sampleRate));
+        const double lowOutput = static_cast<double>(lowDrive.processSample(input));
+        const double highOutput = static_cast<double>(highDrive.processSample(input));
+        expect(std::isfinite(lowOutput) && std::isfinite(highOutput),
+               "Blueberry produced non-finite audio");
+        if (!lowDrive.lastSolveConverged())
+            ++lowFailureCount;
+        if (!highDrive.lastSolveConverged())
+            ++highFailureCount;
+
+        if (n >= analysisStart)
+        {
+            const double phase = 2.0 * pi * frequency
+                * static_cast<double>(n - analysisStart) / sampleRate;
+            lowSquareSum += lowOutput * lowOutput;
+            highSquareSum += highOutput * highOutput;
+            lowH1Sin += lowOutput * std::sin(phase);
+            lowH1Cos += lowOutput * std::cos(phase);
+            lowH3Sin += lowOutput * std::sin(3.0 * phase);
+            lowH3Cos += lowOutput * std::cos(3.0 * phase);
+            highH1Sin += highOutput * std::sin(phase);
+            highH1Cos += highOutput * std::cos(phase);
+            highH3Sin += highOutput * std::sin(3.0 * phase);
+            highH3Cos += highOutput * std::cos(3.0 * phase);
+        }
     }
 
-    expect(failureCount == 0,
-           "Blueberry nonlinear solve failed during live-control sweep");
-    expect(peak > 1.0e-6, "Blueberry produced no meaningful audio");
+    constexpr double analysisSamples = totalSamples - analysisStart;
+    const double lowRms = std::sqrt(lowSquareSum / analysisSamples);
+    const double highRms = std::sqrt(highSquareSum / analysisSamples);
+    const auto projectedAmplitude = [](double sinSum, double cosSum) {
+        return 2.0 * std::hypot(sinSum, cosSum) / analysisSamples;
+    };
+    const double lowH1 = projectedAmplitude(lowH1Sin, lowH1Cos);
+    const double lowH3 = projectedAmplitude(lowH3Sin, lowH3Cos);
+    const double highH1 = projectedAmplitude(highH1Sin, highH1Cos);
+    const double highH3 = projectedAmplitude(highH3Sin, highH3Cos);
+
+    expect(lowFailureCount == 0 && highFailureCount == 0,
+           "Blueberry nonlinear solve failed during Drive validation");
+    expect(lowRms > 1.0e-6 && highRms > lowRms * 4.0,
+           "Blueberry Drive does not provide the expected gain range");
+    expect(lowH1 > 0.0 && lowH3 / lowH1 < 0.02,
+           "Blueberry minimum Drive is unexpectedly distorted");
+    expect(highH1 > 0.0 && highH3 / highH1 > 0.08,
+           "Blueberry maximum Drive does not produce useful clipping");
+
+    const auto measureRms = [&](double drivePosition, double digitalInputPeak) {
+        auto probeDefinition = document.definition;
+        (void)probeDefinition.setPotentiometerPosition(driveIndex, drivePosition);
+        circuitpedal::GenericCircuit probe;
+        std::string probeError;
+        if (!probe.compile(probeDefinition, sampleRate, probeError))
+            return -1.0;
+        double squareSum = 0.0;
+        for (int n = 0; n < totalSamples; ++n)
+        {
+            const float input = static_cast<float>(
+                digitalInputPeak * std::sin(2.0 * pi * frequency
+                    * static_cast<double>(n) / sampleRate));
+            const double output = static_cast<double>(probe.processSample(input));
+            if (!probe.lastSolveConverged() || !std::isfinite(output))
+                return -1.0;
+            if (n >= analysisStart)
+                squareSum += output * output;
+        }
+        return std::sqrt(squareSum / analysisSamples);
+    };
+
+    const double dryTwoMillivoltRms = 0.01 / std::sqrt(2.0);
+    const double lowLevelCleanRms = measureRms(0.0, 0.01);
+    const double lowLevelDrivenRms = measureRms(1.0, 0.01);
+    expect(lowLevelCleanRms >= dryTwoMillivoltRms,
+           "Blueberry clean output falls below dry level at a 2 mV input");
+    expect(lowLevelDrivenRms >= dryTwoMillivoltRms * 5.0,
+           "Blueberry Drive remains inaudible at a 2 mV input");
+
+    std::cout << "Blueberry 80 Hz level sweep (analogue input peak -> digital RMS output)\n";
+    for (const double digitalPeak : { 0.001, 0.01, 0.05, 0.10, 0.50 })
+    {
+        const double analogueMillivolts = digitalPeak * 0.20 * 1000.0;
+        std::cout << "  " << analogueMillivolts << " mV: drive 0%="
+                  << measureRms(0.0, digitalPeak)
+                  << ", 50%=" << measureRms(0.5, digitalPeak)
+                  << ", 100%=" << measureRms(1.0, digitalPeak) << '\n';
+    }
 #endif
 }
 
@@ -1075,6 +1182,12 @@ void testBuiltInModels()
     const auto p3906 = circuitpedal::builtInPnpModel("2N3906", ok);
     expect(ok && p3906.forwardBeta >= 100.0,
            "2N3906 silicon PNP model was unavailable");
+
+    const auto bf244a = circuitpedal::builtInNjfetModel("BF244A", ok);
+    expect(ok && bf244a.idssAmps >= 2.0e-3
+              && bf244a.idssAmps <= 6.5e-3
+              && bf244a.pinchOffVoltageVolts < 0.0,
+           "BF244A N-JFET model was unavailable or outside its A-grade range");
 }
 
 } // namespace

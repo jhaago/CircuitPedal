@@ -1,0 +1,9 @@
+{
+  "name": "Default",
+  "values": {
+    "DRIVE": 0.58,
+    "TONE": 0.45,
+    "GLASS": 0.45,
+    "LEVEL": 0.55
+  }
+}

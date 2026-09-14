@@ -23,6 +23,9 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+      - name: Blueberry low-level signal report
+        if: runner.os == 'Linux'
+        run: ./build/circuit_file_test
       - name: Woolly working-board DC report
         run: |
           ./build/circuitpedal_validate dc-check \
@@ -55,13 +58,27 @@ jobs:
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/fuzzolo_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/ts10_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/kalamazoo_reference_draft.cpedal
+          test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/blueberry_bass_overdrive_reference_draft.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/big_muff_nyc.cpedal
           test -f build/CircuitPedalGUI.app/Contents/Resources/circuits/naga_viper.cpedal
 
           # Pedal packages preserve their directory structure in Resources so
           # manifests can resolve circuit, artwork and preset paths consistently.
-          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/pedal.json
-          test -f build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth/presets/default.json
+          for package in \
+            woolly_mammoth \
+            big_muff_nyc \
+            big_muff_triangle \
+            big_muff_rams_head \
+            big_muff_green_russian \
+            ts10 \
+            kalamazoo
+          do
+            test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/pedal.json"
+            test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/presets/default.json"
+            test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/assets/hero_pedal.png"
+            test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/assets/hero_background.png"
+            test -f "build/CircuitPedalGUI.app/Contents/Resources/pedals/$package/assets/mini_pedal.png"
+          done
           (
             cd build/CircuitPedalGUI.app/Contents/Resources/pedals/woolly_mammoth
             test -f ../../circuits/woolly_mammoth_reference_draft.cpedal
@@ -70,7 +87,6 @@ jobs:
           # These models remain source drafts but are deliberately withheld from
           # the stable app until physical listening checks accept them.
           test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/animato_reference_draft.cpedal
-          test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/blueberry_bass_overdrive_reference_draft.cpedal
           test ! -f build/CircuitPedalGUI.app/Contents/Resources/circuits/eqd_tentacle_reference_draft.cpedal
 
   sanitizer-test:

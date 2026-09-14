@@ -519,6 +519,7 @@ bool loadPedalPackageManifest(const std::string& manifestPath,
         optionalString(*assets, "faceplate", loaded.assets.faceplate);
         optionalString(*assets, "thumbnail", loaded.assets.thumbnail);
         optionalString(*assets, "icon", loaded.assets.icon);
+        optionalString(*assets, "heroBackground", loaded.assets.heroBackground);
     }
 
     const JsonValue* circuit = member(root, "circuit");

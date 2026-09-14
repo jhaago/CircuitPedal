@@ -1,5 +1,7 @@
 #include "PedalPackage.h"
 
+#include <array>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -23,6 +25,59 @@ bool writeText(const std::filesystem::path& path, const std::string& text)
     std::ofstream output(path, std::ios::binary);
     output << text;
     return static_cast<bool>(output);
+}
+
+bool pngHasTransparency(const std::filesystem::path& path)
+{
+    std::ifstream input(path, std::ios::binary);
+    std::array<unsigned char, 8> signature {};
+    input.read(reinterpret_cast<char*>(signature.data()),
+               static_cast<std::streamsize>(signature.size()));
+    const std::array<unsigned char, 8> pngSignature {
+        0x89U, 0x50U, 0x4eU, 0x47U, 0x0dU, 0x0aU, 0x1aU, 0x0aU
+    };
+    if (!input || signature != pngSignature)
+        return false;
+
+    while (input)
+    {
+        std::array<unsigned char, 4> lengthBytes {};
+        std::array<char, 4> type {};
+        input.read(reinterpret_cast<char*>(lengthBytes.data()), 4);
+        input.read(type.data(), 4);
+        if (!input)
+            return false;
+        const std::uint32_t length =
+            (static_cast<std::uint32_t>(lengthBytes[0]) << 24U)
+            | (static_cast<std::uint32_t>(lengthBytes[1]) << 16U)
+            | (static_cast<std::uint32_t>(lengthBytes[2]) << 8U)
+            | static_cast<std::uint32_t>(lengthBytes[3]);
+
+        if (type == std::array<char, 4> { 'I', 'H', 'D', 'R' })
+        {
+            if (length != 13U)
+                return false;
+            std::array<unsigned char, 13> header {};
+            input.read(reinterpret_cast<char*>(header.data()), 13);
+            if (!input)
+                return false;
+            const unsigned char colorType = header[9];
+            if (colorType == 4U || colorType == 6U)
+                return true;
+        }
+        else if (type == std::array<char, 4> { 't', 'R', 'N', 'S' })
+        {
+            return true;
+        }
+        else
+        {
+            input.seekg(static_cast<std::streamoff>(length), std::ios::cur);
+        }
+
+        // Skip the chunk CRC. IHDR data was consumed explicitly above.
+        input.seekg(4, std::ios::cur);
+    }
+    return false;
 }
 
 bool validatePackageLibrary(const std::filesystem::path& pedalsRoot)
@@ -64,9 +119,34 @@ bool validatePackageLibrary(const std::filesystem::path& pedalsRoot)
             ok &= expect(std::filesystem::exists(presetPath),
                          "package preset exists: " + manifest.id + " -> " + preset);
         }
+
+        const auto expectAsset = [&](const std::string& role,
+                                     const std::string& relativePath,
+                                     bool requireTransparency) {
+            ok &= expect(!relativePath.empty(),
+                         "package " + role + " is declared: " + manifest.id);
+            if (!relativePath.empty())
+            {
+                const std::filesystem::path assetPath(
+                    circuitpedal::resolvePedalPackagePath(manifest, relativePath));
+                ok &= expect(std::filesystem::exists(assetPath),
+                             "package " + role + " exists: " + manifest.id);
+                if (requireTransparency && std::filesystem::exists(assetPath))
+                {
+                    ok &= expect(pngHasTransparency(assetPath),
+                                 "package " + role + " has transparency: "
+                                     + manifest.id);
+                }
+            }
+        };
+        expectAsset("hero faceplate", manifest.assets.faceplate, true);
+        expectAsset("signal-chain thumbnail", manifest.assets.thumbnail, true);
+        expectAsset("icon", manifest.assets.icon, true);
+        expectAsset("hero background", manifest.assets.heroBackground, false);
     }
 
-    ok &= expect(packageCount > 0U, "at least one pedal package is discovered");
+    ok &= expect(packageCount >= 7U,
+                 "all artwork-enabled pedal packages are discovered");
     return ok;
 }
 
@@ -91,6 +171,12 @@ int main()
     ok &= expect(manifest.id == "woolly_mammoth", "package id");
     ok &= expect(manifest.displayName == "Woolly Mammoth", "display name");
     ok &= expect(manifest.category == "fuzz", "category");
+    ok &= expect(manifest.assets.faceplate == "assets/hero_pedal.png",
+                 "hero faceplate asset role");
+    ok &= expect(manifest.assets.thumbnail == "assets/mini_pedal.png",
+                 "signal-chain thumbnail asset role");
+    ok &= expect(manifest.assets.heroBackground == "assets/hero_background.png",
+                 "hero background asset role");
     ok &= expect(manifest.controls.size() == 4U, "four overlay controls");
     ok &= expect(manifest.controls[0].id == "OUTPUT", "OUTPUT is first control");
     ok &= expect(manifest.controls[3].id == "WOOL", "WOOL is fourth control");
@@ -112,6 +198,16 @@ int main()
         circuitpedal::resolvePedalPackagePath(manifest, manifest.presets.front()));
     ok &= expect(std::filesystem::exists(presetPath),
                  "default preset path resolves");
+
+    const std::filesystem::path faceplatePath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.faceplate));
+    const std::filesystem::path thumbnailPath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.thumbnail));
+    const std::filesystem::path backgroundPath(
+        circuitpedal::resolvePedalPackagePath(manifest, manifest.assets.heroBackground));
+    ok &= expect(std::filesystem::exists(faceplatePath), "hero faceplate asset exists");
+    ok &= expect(std::filesystem::exists(thumbnailPath), "signal-chain thumbnail asset exists");
+    ok &= expect(std::filesystem::exists(backgroundPath), "hero background asset exists");
 
     ok &= validatePackageLibrary(pedalsRoot);
 

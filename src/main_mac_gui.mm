@@ -656,8 +656,6 @@ NSString* dbText(double peak)
     NSPopUpButton* _devicePopup;
     NSPopUpButton* _channelPopup;
     NSPopUpButton* _bufferPopup;
-    NSButton* _startButton;
-    NSButton* _stopButton;
 
     NSTextField* _diodeLabel;
     NSPopUpButton* _diodePopup;
@@ -684,6 +682,8 @@ NSString* dbText(double peak)
     NSTextField* _errorLabel;
     NSTimer* _meterTimer;
 }
+- (void)startAudio:(id)sender;
+- (void)stopAudio:(id)sender;
 @end
 
 @implementation CircuitPedalAppDelegate
@@ -851,23 +851,6 @@ NSString* dbText(double peak)
     _bufferPopup.autoresizingMask = NSViewMinYMargin;
     stylePopup(_bufferPopup);
     [_leftPanel addSubview:_bufferPopup];
-
-    _startButton = makeButton(@"START AUDIO", NSMakeRect(14.0, 202.0, 112.0, 36.0), self, @selector(startAudio:));
-    _startButton.contentTintColor = liveColor();
-    _startButton.autoresizingMask = NSViewMinYMargin;
-    [_leftPanel addSubview:_startButton];
-    _stopButton = makeButton(@"STOP", NSMakeRect(134.0, 202.0, 112.0, 36.0), self, @selector(stopAudio:));
-    _stopButton.autoresizingMask = NSViewMinYMargin;
-    [_leftPanel addSubview:_stopButton];
-
-    NSTextField* safety = makeLabel(@"Start with interface / amp volume low.",
-                                    NSMakeRect(16.0, 164.0, 228.0, 28.0),
-                                    10.0,
-                                    NSFontWeightRegular,
-                                    warningColor());
-    safety.usesSingleLineMode = NO;
-    safety.autoresizingMask = NSViewMinYMargin;
-    [_leftPanel addSubview:safety];
 
     NSTextField* phaseNote = makeLabel(@"Pedal packages are bundled, but package-aware browsing remains a later UI phase.",
                                        NSMakeRect(16.0, 28.0, 228.0, 82.0),
@@ -1038,13 +1021,14 @@ NSString* dbText(double peak)
     _inputMeter = [[CircuitPedalMeterView alloc] initWithFrame:NSMakeRect(78.0, 48.0, 198.0, 16.0)]; [_bottomPanel addSubview:_inputMeter];
     NSTextField* trimLabel = makeSectionLabel(@"TRIM", NSMakeRect(16.0, 78.0, 54.0, 14.0)); trimLabel.alignment = NSTextAlignmentCenter; [_bottomPanel addSubview:trimLabel];
 
-    _bypassButton = makeButton(@"ACTIVE", NSMakeRect(610.0, 26.0, 120.0, 48.0), self, @selector(bypassChanged:));
+    _bypassButton = makeButton(@"OFF", NSMakeRect(610.0, 26.0, 120.0, 48.0), self, @selector(bypassChanged:));
     _bypassButton.buttonType = NSButtonTypePushOnPushOff;
-    _bypassButton.contentTintColor = liveColor();
+    _bypassButton.state = NSControlStateValueOn;
+    _bypassButton.contentTintColor = warningColor();
     _bypassButton.autoresizingMask = NSViewMinXMargin | NSViewMaxXMargin;
     [_bottomPanel addSubview:_bypassButton];
 
-    _statusLabel = makeLabel(@"Audio stopped — choose a pedal and audio device, then Start Audio.",
+    _statusLabel = makeLabel(@"Audio stopped — choose a pedal and audio device, then press the stomp.",
                              NSMakeRect(760.0, 48.0, 270.0, 34.0),
                              10.0,
                              NSFontWeightRegular,
@@ -1069,6 +1053,7 @@ NSString* dbText(double peak)
     [self populateDevices];
     [self refreshModelControls];
     [self setRunningControls:NO];
+    _engine->setBypass(true);
     [self refreshBypassAppearance];
     _engine->setInputTrimDb(0.0f);
     _engine->setMasterOutputDb(0.0f);
@@ -1141,7 +1126,7 @@ NSString* dbText(double peak)
 {
     (void)sender;
     if (_engine->isRunning())
-        return;
+        [self stopAudio:nil];
     const NSInteger row = _circuitLibraryPopup.indexOfSelectedItem;
     if (row < 0 || static_cast<std::size_t>(row) >= _circuitLibraryPaths.size())
         return;
@@ -1164,9 +1149,10 @@ NSString* dbText(double peak)
         NSBeep();
         return;
     }
-    _bypassButton.state = NSControlStateValueOff;
+    _bypassButton.state = NSControlStateValueOn;
+    _engine->setBypass(true);
     _errorLabel.textColor = mutedTextColor();
-    _errorLabel.stringValue = @"Circuit selected. Start Audio when ready.";
+    _errorLabel.stringValue = @"Circuit selected. Press the stomp when ready.";
     [self refreshModelControls];
     [self setRunningControls:NO];
     [self refreshBypassAppearance];
@@ -1312,8 +1298,8 @@ NSString* dbText(double peak)
     _devicePopup.enabled = !running && !_devices.empty();
     _channelPopup.enabled = !running && _channelPopup.numberOfItems > 0;
     _bufferPopup.enabled = !running;
-    _circuitLibraryPopup.enabled = !running;
-    _builtinButton.enabled = !running && _engine->usingCircuitFile();
+    _circuitLibraryPopup.enabled = YES;
+    _builtinButton.enabled = _engine->usingCircuitFile();
     _diodePopup.enabled = !running && !_engine->usingCircuitFile();
     _distortionSlider.enabled = !_engine->usingCircuitFile();
     _outputSlider.enabled = !_engine->usingCircuitFile();
@@ -1322,8 +1308,6 @@ NSString* dbText(double peak)
         _circuitSliders[i].enabled = _engine->usingCircuitFile();
         _circuitSwitchPopups[i].enabled = _engine->usingCircuitFile();
     }
-    _startButton.enabled = !running && !_devices.empty() && _channelPopup.numberOfItems > 0;
-    _stopButton.enabled = running;
     _liveDot.active = running;
     _liveText.stringValue = running ? @"AUDIO ACTIVE" : @"AUDIO STOPPED";
     _liveText.textColor = running ? liveColor() : mutedTextColor();
@@ -1332,7 +1316,7 @@ NSString* dbText(double peak)
 - (void)refreshBypassAppearance
 {
     const BOOL bypassed = _bypassButton.state == NSControlStateValueOn;
-    _bypassButton.title = bypassed ? @"BYPASSED" : @"ACTIVE";
+    _bypassButton.title = bypassed ? @"OFF" : @"ACTIVE";
     _bypassButton.contentTintColor = bypassed ? warningColor() : liveColor();
     _chainView.bypassed = bypassed;
     _heroView.bypassed = bypassed;
@@ -1393,7 +1377,7 @@ NSString* dbText(double peak)
 {
     (void)sender;
     if (_engine->isRunning())
-        return;
+        [self stopAudio:nil];
     NSOpenPanel* panel = [NSOpenPanel openPanel];
     panel.canChooseDirectories = NO;
     panel.canChooseFiles = YES;
@@ -1418,7 +1402,8 @@ NSString* dbText(double peak)
         return;
     }
     [_circuitLibraryPopup selectItemAtIndex:0];
-    _bypassButton.state = NSControlStateValueOff;
+    _bypassButton.state = NSControlStateValueOn;
+    _engine->setBypass(true);
     _errorLabel.textColor = mutedTextColor();
     _errorLabel.stringValue = @"External circuit loaded.";
     [self refreshModelControls];
@@ -1429,10 +1414,13 @@ NSString* dbText(double peak)
 - (void)useBuiltin:(id)sender
 {
     (void)sender;
+    if (_engine->isRunning())
+        [self stopAudio:nil];
     if (!_engine->useBuiltInDistortionPlus())
         return;
     [_circuitLibraryPopup selectItemAtIndex:0];
-    _bypassButton.state = _engine->bypassed() ? NSControlStateValueOn : NSControlStateValueOff;
+    _bypassButton.state = NSControlStateValueOn;
+    _engine->setBypass(true);
     _errorLabel.textColor = mutedTextColor();
     _errorLabel.stringValue = @"Built-in Distortion+ selected.";
     [self refreshModelControls];
@@ -1499,8 +1487,11 @@ NSString* dbText(double peak)
     _latencyLabel.stringValue = @"-- ms";
     _errorLabel.textColor = mutedTextColor();
     _errorLabel.stringValue = @"Audio stopped.";
+    _bypassButton.state = NSControlStateValueOn;
+    _engine->setBypass(true);
     [self refreshModelControls];
     [self setRunningControls:NO];
+    [self refreshBypassAppearance];
 }
 
 - (void)distortionSliderChanged:(id)sender
@@ -1548,8 +1539,29 @@ NSString* dbText(double peak)
 - (void)bypassChanged:(id)sender
 {
     (void)sender;
-    _engine->setBypass(_bypassButton.state == NSControlStateValueOn);
+    const BOOL pedalOff = _bypassButton.state == NSControlStateValueOn;
+    _engine->setBypass(pedalOff);
     [self refreshBypassAppearance];
+
+    if (pedalOff)
+    {
+        if (_engine->isRunning())
+            [self stopAudio:nil];
+        return;
+    }
+
+    if (!_engine->isRunning())
+    {
+        [self startAudio:nil];
+        if (!_engine->isRunning())
+        {
+            // A missing/invalid device or an engine start failure must not leave
+            // the pedal looking engaged while audio is stopped.
+            _bypassButton.state = NSControlStateValueOn;
+            _engine->setBypass(true);
+            [self refreshBypassAppearance];
+        }
+    }
 }
 
 - (void)updateMeters:(NSTimer*)timer

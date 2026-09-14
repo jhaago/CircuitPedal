@@ -1,0 +1,8 @@
+{
+  "name": "Default",
+  "values": {
+    "SUSTAIN": 0.65,
+    "TONE": 0.50,
+    "VOLUME": 0.55
+  }
+}

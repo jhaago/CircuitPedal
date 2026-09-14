@@ -45,15 +45,21 @@ The `assets` object may provide:
 "assets": {
   "faceplate": "assets/faceplate.png",
   "thumbnail": "assets/thumbnail.png",
-  "icon": "assets/icon.png"
+  "icon": "assets/icon.png",
+  "heroBackground": "assets/hero_background.png"
 }
 ```
 
 Recommended v0.1 sizes:
 
-- faceplate: 1600 x 1000 PNG, transparent background where practical;
-- thumbnail: 640 x 400 PNG;
-- icon: 128 x 128 PNG.
+- faceplate: 1600 x 1000 PNG with a transparent outer background;
+- thumbnail: 640 x 400 PNG with a transparent outer background;
+- icon: 128 x 128 PNG with a transparent outer background.
+- heroBackground: a wide PNG sized for Retina rendering in the hero stage.
+
+Foreground assets must contain an alpha channel so only the enclosure and its
+natural edge shadow are composited over the hero scene or signal-chain well.
+Do not export them against a baked black rectangular matte.
 
 App/product branding should not be baked into pedal artwork. The artwork may contain the pedal model name and control legends. Interactive knobs and switches are rendered by the UI rather than permanently drawn into the faceplate.
 

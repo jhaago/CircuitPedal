@@ -1,0 +1,8 @@
+{
+  "name": "Default",
+  "values": {
+    "RANGE": 0.5,
+    "BOOST": 0.7,
+    "HEAT": 0.7
+  }
+}

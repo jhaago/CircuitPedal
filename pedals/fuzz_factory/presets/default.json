@@ -1,0 +1,10 @@
+{
+  "name": "Default",
+  "values": {
+    "STAB": 1.0,
+    "GATE": 0.0,
+    "COMP": 0.2,
+    "DRIVE": 0.5,
+    "VOLUME": 0.3
+  }
+}

@@ -110,7 +110,7 @@ The current format includes compact named aliases for common pedal parts.
 - NPN: `NTE103` (germanium), `2N3904`, `2SC1815`, `2SC2240` / `C2240`,
   `2N2222A`, `2N5088`, `2N5089`, `2N5133`, `BC239C`, `BC550C`, `KT3102E`
 - PNP: `NTE102` (germanium), `AC128`, `2N1308`, `2N3906`, `GENERIC_PNP`
-- N-JFET: `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
+- N-JFET: `BF244A`, `2N5457`, `J201`, `J113`, `MPF4393`, `2N5952`
 - N-MOSFET: `BS170`
 - op-amp: `4558`, `4558D`, `JRC4558`, `JRC4558D`, `CA3130`, `CA3130E`, `CA3130EZ`
 - diode: `1N4148`, `1N914`, `1S1588`, `KD521`, `1N4001`, `1N4007`,
@@ -132,15 +132,15 @@ until a higher-fidelity primitive is introduced.
 
 ## macOS loading workflow
 
-1. Stop audio.
+1. Audio stops automatically when a different pedal is selected.
 2. Click **Load External…** or choose a bundled circuit from **Choose Circuit…**.
 3. Choose a circuit file if loading externally.
 4. CircuitPedal parses and validates it.
 5. Up to sixteen named controls appear in the scrollable macOS GUI.
-6. Click **Start Audio**.
+6. Press the on-screen stomp to start audio and engage the pedal.
 7. CircuitPedal calculates the DC operating point and starts the real-time MNA
    transient solver.
-8. Pot and switch controls can then be moved live.
+8. Pot and switch controls can then be moved live; pressing the stomp again stops audio.
 
 Loading, topology compilation and DC setup are deliberately outside the audio
 callback. Live control targets are atomic and the transient solver uses

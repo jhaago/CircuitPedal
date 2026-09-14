@@ -450,6 +450,16 @@ GenericNjfetModel builtInNjfetModel(const std::string& name, bool& ok) noexcept
         ok = true;
         return model;
     }
+    if (normalized == "BF244" || normalized == "BF244A")
+    {
+        // Fairchild's BF244A grade specifies IDSS from 2.0 to 6.5 mA.
+        // Use a representative mid-range device and the -2.5 V family curve
+        // until a measured transistor from the reference pedal is available.
+        model.idssAmps = 4.0e-3;
+        model.pinchOffVoltageVolts = -2.5;
+        ok = true;
+        return model;
+    }
     if (normalized == "J201")
     {
         model.idssAmps = 0.8e-3;

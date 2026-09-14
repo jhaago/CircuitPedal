@@ -6,9 +6,10 @@
   "inspiredBy": "Woolly Mammoth-style bass fuzz",
   "description": "Heavy low-end fuzz with EQ, pinch/gating and wool/fuzz controls.",
   "assets": {
-    "faceplate": "assets/faceplate.png",
-    "thumbnail": "assets/thumbnail.png",
-    "icon": "assets/icon.png"
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
   },
   "circuit": {
     "file": "../../circuits/woolly_mammoth_reference_draft.cpedal"
@@ -18,10 +19,34 @@
     "controlStyle": "knob_overlay"
   },
   "controls": [
-    { "id": "OUTPUT", "label": "OUTPUT", "type": "knob", "x": 0.14, "y": 0.20 },
-    { "id": "EQ", "label": "EQ", "type": "knob", "x": 0.38, "y": 0.20 },
-    { "id": "PINCH", "label": "PINCH", "type": "knob", "x": 0.62, "y": 0.20 },
-    { "id": "WOOL", "label": "WOOL", "type": "knob", "x": 0.86, "y": 0.20 }
+    {
+      "id": "OUTPUT",
+      "label": "OUTPUT",
+      "type": "knob",
+      "x": 0.14,
+      "y": 0.2
+    },
+    {
+      "id": "EQ",
+      "label": "EQ",
+      "type": "knob",
+      "x": 0.38,
+      "y": 0.2
+    },
+    {
+      "id": "PINCH",
+      "label": "PINCH",
+      "type": "knob",
+      "x": 0.62,
+      "y": 0.2
+    },
+    {
+      "id": "WOOL",
+      "label": "WOOL",
+      "type": "knob",
+      "x": 0.86,
+      "y": 0.2
+    }
   ],
   "presets": [
     "presets/default.json"

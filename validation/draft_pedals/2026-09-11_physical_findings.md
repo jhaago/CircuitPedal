@@ -43,19 +43,24 @@ First live test:
 - DRIVE at 100% produced very little overdrive;
 - physical behaviour was therefore not accepted.
 
-An initial reference review incorrectly concluded that the JFET drain resistor
-should be `56k` rather than `5k6`. That change was physically retested and made
-the model worse: it produced no useful output.
+The first correction campaign remained based on the different Mad
+Professor/Procyon version and therefore produced a hybrid rather than an
+accurate BJFE Blueberry. The supplied BJFE #045 trace resolves the discrepancies.
 
-Re-checking the current Aion Procyon V2 documentation showed that `R10 = 5k6`
-is correct and the Blueberry substitution list does not change it. The mistaken
-`56k` conclusion came from mixing resistor numbering from an older schematic
-revision.
+Action: the source-only candidate has been rebuilt around the traced 370k Drive,
+1M input pulldown, 14k7 op-amp input resistor, 22n JFET coupling capacitor,
+BF244A output device and 2k6 source resistor. The incorrect JFET-source Tone
+branch has been removed; Tone now connects its 22u side to the op-amp feedback
+node and its 2n2 side to the final signal node, matching both the schematic and
+the tracer's explanation that BJFE Tone affects output treble response.
 
-Action: the model has been restored to `R10 = 5k6`, which returns it to the last
-audible state. This is only a regression rollback, not a fidelity fix. The weak
-overdrive behaviour still requires a dedicated topology/gain-stage validation
-pass before promotion.
+The live-silence report exposed a separate model-I/O calibration error:
+`AUDIO ... 0.20` was paired with `OUTPUT ... 0.5`, attenuating the analogue
+result by 10x relative to unity conversion. Output is now calibrated at 5
+digital full scale per volt. Automated 48 kHz / 1x validation checks Drive
+range, distortion, solver convergence, usable BF244A DC bias and audible output
+at a 2 mV input. The 2026-09-14 physical retest confirmed working output, and
+the Blueberry was promoted to the bundled pedal list.
 
 ## Human Gear Animato
 
@@ -73,5 +78,6 @@ trace/control-orientation review rather than speculative tuning.
 
 ## Promotion rule
 
-None of these three models should be added back to the stable bundled pedal
-library until a repeat physical listening pass accepts their behaviour.
+Blueberry passed its 2026-09-14 output retest and is now bundled. EQD Tentacle
+and Human Gear Animato remain withheld until repeat physical listening accepts
+their behaviour.

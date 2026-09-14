@@ -26,15 +26,15 @@ In the GUI:
 1. Turn the physical interface/headphone/amplifier output down before starting.
 2. Leave **Built-in Distortion+** selected for the established reference path, or choose a bundled model from the **Choose Circuit…** menu. **Load External…** still accepts any compatible `.cpedal` file.
 3. Select a duplex audio interface and the physical input channel carrying the guitar.
-4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio and try 128 or 256.
+4. Start with a 64-frame buffer. If the interface does not support it reliably, stop audio with the stomp and try 128 or 256.
 5. For a loaded circuit, up to sixteen named controls appear in a scrollable panel and can be moved live while audio is running. Linked pot sections move together behind one control.
-6. Click **Start Audio**. A loaded circuit is compiled for the device sample rate and its DC operating point is solved before Core Audio starts.
-7. **Bypass** works for both the built-in and generic circuit paths.
+6. Press the on-screen stomp to start audio and engage the pedal. Press it again to stop audio; pedals load in the off state.
+7. Selecting another pedal stops audio before the new pedal is loaded.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory Reference, Fat Fuzz Factory Reference, Fuzzolo Reference Draft, TS10 Tube Screamer Reference Draft, Human Gear Animato Reference Draft, Lovepedal Kalamazoo Reference Draft and BearFoot Blueberry Bass Overdrive Reference Draft. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory, Fat Fuzz Factory, Fuzzolo, TS10 Tube Screamer, Human Gear Animato, Lovepedal Kalamazoo and BearFoot Blueberry Bass Overdrive. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
 
-Startup errors remain visible in the window so settings can be changed and Start can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
+Startup errors remain visible in the window so settings can be changed and the stomp can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
 
 The new validation tool is built on macOS and Linux. For example:
 

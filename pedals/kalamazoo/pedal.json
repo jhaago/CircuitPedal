@@ -1,0 +1,30 @@
+{
+  "id": "kalamazoo",
+  "displayName": "Kalamazoo",
+  "modelStatus": "reference_draft",
+  "category": "overdrive",
+  "inspiredBy": "Kalamazoo-style boutique overdrive",
+  "description": "A soft-clipping overdrive with separate tone, glass and output level controls.",
+  "assets": {
+    "faceplate": "assets/hero_pedal.png",
+    "thumbnail": "assets/mini_pedal.png",
+    "icon": "assets/mini_pedal.png",
+    "heroBackground": "assets/hero_background.png"
+  },
+  "circuit": {
+    "file": "../../circuits/kalamazoo_reference_draft.cpedal"
+  },
+  "ui": {
+    "faceplateAspectRatio": 0.64,
+    "controlStyle": "knob_overlay"
+  },
+  "controls": [
+    { "id": "DRIVE", "label": "DRIVE", "type": "knob", "x": 0.25, "y": 0.16 },
+    { "id": "TONE", "label": "TONE", "type": "knob", "x": 0.75, "y": 0.16 },
+    { "id": "GLASS", "label": "GLASS", "type": "knob", "x": 0.25, "y": 0.38 },
+    { "id": "LEVEL", "label": "LEVEL", "type": "knob", "x": 0.75, "y": 0.38 }
+  ],
+  "presets": [
+    "presets/default.json"
+  ]
+}
