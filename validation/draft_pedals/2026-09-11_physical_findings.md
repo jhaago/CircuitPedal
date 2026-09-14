@@ -53,9 +53,15 @@ is correct and the Blueberry substitution list does not change it. The mistaken
 revision.
 
 Action: the model has been restored to `R10 = 5k6`, which returns it to the last
-audible state. This is only a regression rollback, not a fidelity fix. The weak
-overdrive behaviour still requires a dedicated topology/gain-stage validation
-pass before promotion.
+audible state. A subsequent dedicated reference review found that the model had
+also transcribed the Drive control as `250k`, while the corrected Procyon V2
+trace and its Blueberry substitution list retain `500kA`. The model now uses the
+documented 500k Drive, 15k input resistor and 2k2 JFET source resistor.
+
+Automated 48 kHz / 1x validation now checks that Drive provides a substantial
+gain range and produces measurable third-harmonic clipping at a 100 mV peak
+bass-scale input without solver failures. This is a candidate fidelity fix, but
+physical listening acceptance is still required before promotion.
 
 ## Human Gear Animato
 

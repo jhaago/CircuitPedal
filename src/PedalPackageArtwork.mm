@@ -205,7 +205,11 @@ void CPPackageHeroDraw(id object, SEL command, NSRect dirtyRect)
 
     // Keep the package scenery atmospheric so the enclosure remains the focus.
     [[NSColor colorWithWhite:0.0 alpha:(bypassed ? 0.46 : 0.16)] setFill];
-    NSRectFill(bounds);
+    // NSRectFill uses copy compositing, which replaces the freshly drawn image
+    // with a translucent black surface.  When that surface is composited over
+    // the dark hero view it makes the package background appear to be missing.
+    // Source-over preserves the scenery and applies the intended darkening.
+    NSRectFillUsingOperation(bounds, NSCompositingOperationSourceOver);
 
     const CGFloat maximumPedalHeight =
         std::min<CGFloat>(410.0, std::max<CGFloat>(80.0, NSHeight(bounds) - 20.0));

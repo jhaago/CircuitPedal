@@ -3,8 +3,9 @@ NAME "BearFoot Blueberry Bass Overdrive Reference Draft"
 
 # Reconstructed from the supplied verified Effects Layouts BearFoot BBOD board
 # and cross-checked against Aion's Procyon V2 schematic/variant annotations.
-# The supplied layout uses CA3130EZ, 2N5457, A250k Drive, A50k Tone and B50k
-# Volume, so those values are retained even where BJFe-era units differ.
+# The current corrected Procyon V2 trace uses CA3130EZ, 2N5457, A500k Drive,
+# A50k Nature/Tone and B50k Volume. The documented Blueberry substitutions are
+# applied below; notably they do not reduce the Drive control to 250k.
 #
 # The circuit uses several frequency-dependent feedback paths rather than a
 # generic distortion block. Red LEDs provide the first soft-clipping limit,
@@ -30,7 +31,7 @@ C C_VB VB 0 22u
 R RPD INPUT 0 2M2
 C C1 INPUT INPUT_BIAS 22n
 R R1 VB INPUT_BIAS 360k
-R R2 INPUT_BIAS OP_PLUS 14k7
+R R2 INPUT_BIAS OP_PLUS 15k
 
 # CA3130 voltage-amplifier stage.
 OPAMP U1 OP_PLUS OP_MINUS OP_OUT VA 0 CA3130EZ
@@ -39,7 +40,7 @@ OPAMP U1 OP_PLUS OP_MINUS OP_OUT VA 0 CA3130EZ
 D D1 OP_MINUS OP_OUT LED_RED
 D D2 OP_OUT OP_MINUS LED_RED
 R R3 OP_MINUS DRIVE_LOW 3k
-POT DRIVE DRIVE_LOW OP_OUT OP_OUT 250k LOG 0.55
+POT DRIVE DRIVE_LOW OP_OUT OP_OUT 500k LOG 0.55
 
 # Base low-frequency leg of the inverting network.
 R R4 OP_MINUS LOW_FB 1k
@@ -69,7 +70,7 @@ C C11 CLAMP_B Q1G 47n
 R R9 Q1G 0 1M
 JFET Q1 Q1D Q1G Q1S 2N5457
 R R10 VA Q1D 5k6
-R R11 Q1S 0 2k6
+R R11 Q1S 0 2k2
 
 # The three-terminal Tone control is intentionally used with its wiper grounded.
 # One end varies source bypass/bass reinforcement; the other varies the final
