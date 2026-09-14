@@ -48,6 +48,18 @@ jobs:
         with:
           name: woolly-1x-acceptance
           path: build/validation/woolly-acceptance
+      - name: Animato 1x acceptance diagnostics
+        if: runner.os == 'Linux'
+        run: |
+          python3 validation/animato/run_acceptance.py \
+            build/circuitpedal_validate \
+            build/validation/animato-acceptance
+      - name: Upload Animato acceptance report
+        if: ${{ always() && runner.os == 'Linux' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: animato-1x-acceptance
+          path: build/validation/animato-acceptance
       - name: Confirm stable macOS GUI bundle
         if: runner.os == 'macOS'
         run: |
