@@ -1,6 +1,9 @@
 #import <Cocoa/Cocoa.h>
 
 #include "MacAudioEngine.h"
+#include "MacControllerTarget.h"
+#include "MacMidiInput.h"
+#include "ControllerRouter.h"
 
 #include <algorithm>
 #include <cmath>
@@ -616,6 +619,9 @@ NSString* dbText(double peak)
 @interface CircuitPedalAppDelegate : NSObject <NSApplicationDelegate, NSWindowDelegate> {
 @private
     std::unique_ptr<circuitpedal::MacAudioEngine> _engine;
+    std::unique_ptr<circuitpedal::MacControllerTarget> _controllerTarget;
+    std::unique_ptr<circuitpedal::ControllerRouter> _controllerRouter;
+    std::unique_ptr<circuitpedal::MacMidiInput> _midiInput;
     std::vector<circuitpedal::AudioDeviceInfo> _devices;
     std::vector<circuitpedal::CircuitFileControl> _circuitControls;
     std::vector<std::string> _circuitLibraryPaths;
@@ -684,6 +690,7 @@ NSString* dbText(double peak)
     NSTextField* _errorLabel;
     NSTimer* _meterTimer;
 }
+- (void)refreshControllerStateFromEngine;
 @end
 
 @implementation CircuitPedalAppDelegate
@@ -1073,6 +1080,34 @@ NSString* dbText(double peak)
     _engine->setInputTrimDb(0.0f);
     _engine->setMasterOutputDb(0.0f);
 
+    _controllerTarget = std::make_unique<circuitpedal::MacControllerTarget>(*_engine);
+    _controllerRouter = std::make_unique<circuitpedal::ControllerRouter>(*_controllerTarget);
+    _midiInput = std::make_unique<circuitpedal::MacMidiInput>();
+    __weak CircuitPedalAppDelegate* weakSelf = self;
+    circuitpedal::ControllerRouter* controllerRouter = _controllerRouter.get();
+    std::string midiError;
+    if (!_midiInput->start(
+            [weakSelf, controllerRouter](const circuitpedal::ControllerAction& action) {
+                CircuitPedalAppDelegate* strongSelf = weakSelf;
+                if (strongSelf == nil || controllerRouter == nullptr)
+                    return;
+                const auto result = controllerRouter->route(action);
+                if (result.stateChanged)
+                    [strongSelf refreshControllerStateFromEngine];
+            },
+            [weakSelf](const std::string& message) {
+                CircuitPedalAppDelegate* strongSelf = weakSelf;
+                if (strongSelf == nil)
+                    return;
+                strongSelf->_errorLabel.textColor = errorColor();
+                strongSelf->_errorLabel.stringValue = nsString(message);
+            },
+            midiError))
+    {
+        _errorLabel.textColor = errorColor();
+        _errorLabel.stringValue = nsString(midiError);
+    }
+
     _meterTimer = [NSTimer scheduledTimerWithTimeInterval:0.05
                                                    target:self
                                                  selector:@selector(updateMeters:)
@@ -1094,6 +1129,8 @@ NSString* dbText(double peak)
 {
     (void)notification;
     [_meterTimer invalidate];
+    if (_midiInput)
+        _midiInput->stop();
     if (_engine)
         _engine->stop();
 }
@@ -1305,6 +1342,58 @@ NSString* dbText(double peak)
         [_circuitDocumentView scrollPoint:NSMakePoint(0.0, 0.0)];
     if (_inspectorTabIndex != 0)
         [self inspectorTabChanged:_inspectorTabButtons[_inspectorTabIndex]];
+}
+
+- (void)refreshControllerStateFromEngine
+{
+    if (_engine->usingCircuitFile())
+    {
+        const std::size_t visibleControlCount =
+            std::min<std::size_t>(_circuitControls.size(), 16U);
+        for (std::size_t index = 0; index < visibleControlCount; ++index)
+        {
+            const auto& control = _circuitControls[index];
+            const double normalized = static_cast<double>(_engine->circuitControl(index));
+            if (control.kind == circuitpedal::CircuitFileControlKind::Switch)
+            {
+                const std::uint32_t count =
+                    std::max<std::uint32_t>(2U, control.switchPositionCount);
+                const NSInteger position = static_cast<NSInteger>(std::llround(
+                    normalized * static_cast<double>(count - 1U)));
+                if (_circuitSwitchPopups[index].numberOfItems > 0)
+                {
+                    [_circuitSwitchPopups[index] selectItemAtIndex:
+                        std::clamp<NSInteger>(position,
+                                              0,
+                                              _circuitSwitchPopups[index].numberOfItems - 1)];
+                }
+            }
+            else
+            {
+                const double percentage = 100.0 * normalized;
+                _circuitSliders[index].doubleValue = percentage;
+                _circuitValues[index].stringValue =
+                    [NSString stringWithFormat:@"%.0f%%", percentage];
+            }
+        }
+    }
+    else
+    {
+        const double distortion = 100.0 * static_cast<double>(_engine->distortion());
+        _distortionSlider.doubleValue = distortion;
+        _distortionValue.stringValue = [NSString stringWithFormat:@"%.0f%%", distortion];
+        const double output = 100.0 * static_cast<double>(_engine->output());
+        _outputSlider.doubleValue = output;
+        _outputValue.stringValue = [NSString stringWithFormat:@"%.0f%%", output];
+    }
+
+    const float masterDb = _engine->masterOutputDb();
+    _masterOutputSlider.doubleValue = static_cast<double>(masterDb);
+    _masterOutputValue.stringValue = [NSString stringWithFormat:@"%+.1f dB", masterDb];
+    _bypassButton.state = _engine->bypassed()
+        ? NSControlStateValueOn
+        : NSControlStateValueOff;
+    [self refreshBypassAppearance];
 }
 
 - (void)setRunningControls:(BOOL)running
