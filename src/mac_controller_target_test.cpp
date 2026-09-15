@@ -1,3 +1,5 @@
+#include "CircuitStompProtocol.h"
+#include "ControllerRouter.h"
 #include "MacAudioEngine.h"
 #include "MacControllerTarget.h"
 
@@ -77,6 +79,18 @@ void testLoadedCircuitControls()
     expect(target.setParameterNormalized(0U, 0.83f), "Woolly P1 write succeeds");
     expectNear(engine.circuitControl(0U), 0.83f,
                "loaded-circuit P1 reaches authoritative engine control");
+
+    circuitpedal::ControllerRouter router(target);
+    const auto midiAction = circuitpedal::circuitstomp::decodeMidi1Message(0xB0, 20, 1);
+    expect(midiAction.has_value(), "Prototype 1 P1 increment decodes for macOS integration");
+    if (midiAction.has_value())
+    {
+        const auto result = router.route(*midiAction);
+        expect(result.handled && result.stateChanged,
+               "decoded P1 increment routes through the macOS target");
+        expectNear(engine.circuitControl(0U), 0.84f,
+                   "simulated CircuitStomp MIDI changes the live engine P1 value");
+    }
     expect(!target.setParameterNormalized(4U, 0.5f),
            "unavailable loaded-circuit parameter fails safely");
 }
