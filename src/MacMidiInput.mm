@@ -26,8 +26,8 @@ struct MidiState final : std::enable_shared_from_this<MidiState> {
     MIDIClientRef client = 0;
     MIDIPortRef inputPort = 0;
     std::set<MIDIEndpointRef> connectedSources;
-    ActionCallback actionCallback;
-    DiagnosticCallback diagnosticCallback;
+    MacMidiInput::ActionCallback actionCallback;
+    MacMidiInput::DiagnosticCallback diagnosticCallback;
     std::atomic<bool> active { false };
     std::atomic<bool> reconciliationQueued { false };
     std::atomic<std::size_t> connectedSourceCount { 0U };
