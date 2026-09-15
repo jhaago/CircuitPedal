@@ -1,6 +1,8 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
+#include "KnobInteraction.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -644,6 +646,51 @@ void CPInstallDrawPass()
 
 @implementation CPPremiumKnobCell
 
+- (BOOL)startTracking:(NSPoint)startPoint
+                    at:(NSPoint)currentPoint
+                inView:(NSView*)controlView
+{
+    (void)startPoint;
+    (void)currentPoint;
+    (void)controlView;
+    // Deliberately preserve the current value on mouse-down. Native circular
+    // slider tracking jumps to the pointer angle, which makes small knobs feel
+    // unpredictable before a drag has even begun.
+    return self.enabled;
+}
+
+- (BOOL)continueTracking:(NSPoint)lastPoint
+                       at:(NSPoint)currentPoint
+                   inView:(NSView*)controlView
+{
+    const double range = self.maxValue - self.minValue;
+    if (!self.enabled || range <= 0.0)
+        return NO;
+
+    const double verticalPoints = controlView.isFlipped
+        ? static_cast<double>(lastPoint.y - currentPoint.y)
+        : static_cast<double>(currentPoint.y - lastPoint.y);
+    const double normalized = (self.doubleValue - self.minValue) / range;
+    const BOOL fineAdjustment =
+        (NSApp.currentEvent.modifierFlags & NSEventModifierFlagShift) != 0;
+    const double next = circuitpedal::normalizedValueAfterVerticalDrag(
+        normalized, verticalPoints, fineAdjustment);
+    self.doubleValue = self.minValue + next * range;
+    controlView.needsDisplay = YES;
+    return YES;
+}
+
+- (void)stopTracking:(NSPoint)lastPoint
+                   at:(NSPoint)stopPoint
+               inView:(NSView*)controlView
+            mouseIsUp:(BOOL)flag
+{
+    (void)lastPoint;
+    (void)stopPoint;
+    (void)controlView;
+    (void)flag;
+}
+
 - (void)drawWithFrame:(NSRect)cellFrame inView:(NSView*)controlView
 {
     (void)controlView;
@@ -662,9 +709,9 @@ void CPInstallDrawPass()
     NSBezierPath* arcBackground = [NSBezierPath bezierPath];
     [arcBackground appendBezierPathWithArcWithCenter:center
                                               radius:radius + 0.3
-                                          startAngle:-135.0
-                                            endAngle:135.0
-                                           clockwise:NO];
+                                          startAngle:225.0
+                                            endAngle:-45.0
+                                           clockwise:YES];
     [CPColor(0.105, 0.122, 0.132) setStroke];
     arcBackground.lineWidth = 2.0;
     [arcBackground stroke];
@@ -672,9 +719,9 @@ void CPInstallDrawPass()
     NSBezierPath* valueArc = [NSBezierPath bezierPath];
     [valueArc appendBezierPathWithArcWithCenter:center
                                          radius:radius + 0.3
-                                     startAngle:-135.0
-                                       endAngle:-135.0 + 270.0 * normalized
-                                      clockwise:NO];
+                                     startAngle:225.0
+                                       endAngle:circuitpedal::knobAngleDegrees(normalized)
+                                      clockwise:YES];
     [[CPSteel() colorWithAlphaComponent:0.70] setStroke];
     valueArc.lineWidth = 1.45;
     [valueArc stroke];
@@ -712,7 +759,8 @@ void CPInstallDrawPass()
     innerRing.lineWidth = 0.75;
     [innerRing stroke];
 
-    const CGFloat angle = (-135.0 + 270.0 * normalized) * static_cast<CGFloat>(M_PI / 180.0);
+    const CGFloat angle = static_cast<CGFloat>(
+        circuitpedal::knobAngleDegrees(normalized) * (M_PI / 180.0));
     NSBezierPath* marker = [NSBezierPath bezierPath];
     [marker moveToPoint:NSMakePoint(center.x + std::cos(angle) * radius * 0.24,
                                     center.y + std::sin(angle) * radius * 0.24)];

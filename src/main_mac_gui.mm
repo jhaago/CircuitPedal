@@ -374,6 +374,7 @@ NSString* dbText(double peak)
 @interface CircuitPedalHeroView : CircuitPedalPanelView
 @property(nonatomic, copy) NSString* pedalName;
 @property(nonatomic, copy) NSString* pedalType;
+@property(nonatomic, copy) NSDictionary<NSString*, NSNumber*>* controlValues;
 @property(nonatomic) BOOL bypassed;
 @end
 
@@ -388,6 +389,7 @@ NSString* dbText(double peak)
         self.cornerRadius = 14.0;
         _pedalName = @"Built-in Distortion+";
         _pedalType = @"REFERENCE CIRCUIT MODEL";
+        _controlValues = @{};
         _bypassed = NO;
     }
     return self;
@@ -400,6 +402,11 @@ NSString* dbText(double peak)
 - (void)setPedalType:(NSString*)pedalType
 {
     _pedalType = [pedalType copy];
+    self.needsDisplay = YES;
+}
+- (void)setControlValues:(NSDictionary<NSString*, NSNumber*>*)controlValues
+{
+    _controlValues = [controlValues copy];
     self.needsDisplay = YES;
 }
 - (void)setBypassed:(BOOL)bypassed
@@ -1228,6 +1235,23 @@ NSString* dbText(double peak)
     [self updateDeviceSummary];
 }
 
+- (void)refreshHeroControlValues
+{
+    const std::size_t controlCount = std::min<std::size_t>(_circuitControls.size(), 16);
+    NSMutableDictionary<NSString*, NSNumber*>* values =
+        [NSMutableDictionary dictionaryWithCapacity:controlCount];
+    if (_engine->usingCircuitFile())
+    {
+        for (std::size_t i = 0; i < controlCount; ++i)
+        {
+            NSString* controlID = [nsString(_circuitControls[i].name) uppercaseString];
+            if (controlID.length > 0)
+                values[controlID] = @(_engine->circuitControl(i));
+        }
+    }
+    _heroView.controlValues = values;
+}
+
 - (void)refreshModelControls
 {
     const BOOL generic = _engine->usingCircuitFile();
@@ -1287,6 +1311,9 @@ NSString* dbText(double peak)
             _circuitValues[i].hidden = NO;
         }
     }
+
+    [self refreshHeroControlValues];
+
     if (generic)
         [_circuitDocumentView scrollPoint:NSMakePoint(0.0, 0.0)];
     if (_inspectorTabIndex != 0)
@@ -1519,6 +1546,7 @@ NSString* dbText(double peak)
     const double value = slider.doubleValue;
     _circuitValues[index].stringValue = [NSString stringWithFormat:@"%.0f%%", value];
     (void)_engine->setCircuitControl(static_cast<std::size_t>(index), static_cast<float>(value / 100.0));
+    [self refreshHeroControlValues];
 }
 
 - (void)circuitSwitchChanged:(id)sender
@@ -1534,6 +1562,7 @@ NSString* dbText(double peak)
         return;
     const float normalized = static_cast<float>(selected) / static_cast<float>(count - 1U);
     (void)_engine->setCircuitControl(static_cast<std::size_t>(index), normalized);
+    [self refreshHeroControlValues];
 }
 
 - (void)bypassChanged:(id)sender
