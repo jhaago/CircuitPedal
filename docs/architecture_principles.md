@@ -231,3 +231,31 @@ An ADR should capture:
 - whether the decision is accepted, provisional, superseded or deprecated.
 
 This makes future engineering work depend on repository evidence rather than chat history or temporary branches.
+
+## 16. Platform-specific hosts should sit around a portable shared core
+
+CircuitPedal should not treat the current macOS implementation as the definition of the application architecture.
+
+The reusable core should remain as platform-independent as practical. In particular, the following should be shared across supported platforms rather than duplicated or forked:
+
+- circuit and native-DSP processor implementations;
+- `.cpedal` parsing and circuit-model behaviour;
+- pedal-package metadata and assets;
+- processor/runtime contracts;
+- routing and board/session state;
+- parameter semantics;
+- validation and regression logic where platform-neutral execution is possible.
+
+Platform-specific responsibilities should live in thin host layers around that shared core. These include areas such as:
+
+- audio-device/session integration;
+- native application lifecycle;
+- permissions and sandbox integration;
+- platform-specific file access;
+- native UI presentation and interaction.
+
+The current AppKit/Core Audio macOS host is therefore one host implementation, not a requirement that portable DSP or pedal code depend on macOS frameworks.
+
+Future native iPadOS support is an intended architectural capability. It should be possible to add an iPad audio and UI host while reusing the same validated pedal models, packages, routing/session logic and DSP core used by macOS. iPad support is not an immediate implementation commitment, but new architectural decisions should avoid unnecessarily preventing it.
+
+Other future platforms may follow the same host/core boundary where there is a real product need. Cross-platform portability should not force lowest-common-denominator UI or audio design; the shared contract should preserve common behaviour while each host uses the appropriate native platform APIs.
