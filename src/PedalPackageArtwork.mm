@@ -1,11 +1,9 @@
 #import <Cocoa/Cocoa.h>
 #import <objc/runtime.h>
 
-#include "KnobInteraction.h"
 #include "PedalPackage.h"
 
 #include <algorithm>
-#include <cmath>
 #include <string>
 
 namespace {
@@ -21,16 +19,16 @@ enum class CPPackageAssetRole {
     MiniPedal
 };
 
-NSArray<NSDictionary<NSString*, id>*>* CPPackageArtworkCatalog()
+NSArray<NSDictionary<NSString*, NSString*>*>* CPPackageArtworkCatalog()
 {
-    static NSArray<NSDictionary<NSString*, id>*>* catalog = nil;
+    static NSArray<NSDictionary<NSString*, NSString*>*>* catalog = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSString* pedalsRoot =
             [NSBundle.mainBundle.resourcePath stringByAppendingPathComponent:@"pedals"];
         NSArray<NSString*>* packageNames = [[NSFileManager defaultManager]
             contentsOfDirectoryAtPath:pedalsRoot error:nil];
-        NSMutableArray<NSDictionary<NSString*, id>*>* discovered =
+        NSMutableArray<NSDictionary<NSString*, NSString*>*>* discovered =
             [NSMutableArray array];
 
         for (NSString* packageName in packageNames)
@@ -65,32 +63,12 @@ NSArray<NSDictionary<NSString*, id>*>* CPPackageArtworkCatalog()
                 continue;
             }
 
-            NSMutableArray<NSDictionary<NSString*, id>*>* controls =
-                [NSMutableArray arrayWithCapacity:manifest.controls.size()];
-            for (const auto& control : manifest.controls)
-            {
-                NSString* controlID =
-                    [[NSString stringWithUTF8String:control.id.c_str()] uppercaseString];
-                NSString* controlType =
-                    [[NSString stringWithUTF8String:control.type.c_str()] lowercaseString];
-                if (controlID.length == 0 || controlType.length == 0)
-                    continue;
-                [controls addObject:@{
-                    @"id": controlID,
-                    @"type": controlType,
-                    @"x": @(control.x),
-                    @"y": @(control.y),
-                    @"size": @(control.size)
-                }];
-            }
-
             [discovered addObject:@{
                 @"displayName": displayName,
                 @"packageID": packageID,
                 @"heroPedal": heroPedal,
                 @"heroBackground": heroBackground,
-                @"miniPedal": miniPedal,
-                @"controls": controls
+                @"miniPedal": miniPedal
             }];
         }
         catalog = [discovered copy];
@@ -99,12 +77,12 @@ NSArray<NSDictionary<NSString*, id>*>* CPPackageArtworkCatalog()
     return catalog;
 }
 
-NSDictionary<NSString*, id>* CPPackageForModelName(NSString* modelName)
+NSDictionary<NSString*, NSString*>* CPPackageForModelName(NSString* modelName)
 {
     if (modelName.length == 0)
         return nil;
 
-    for (NSDictionary<NSString*, id>* package in CPPackageArtworkCatalog())
+    for (NSDictionary<NSString*, NSString*>* package in CPPackageArtworkCatalog())
     {
         NSString* displayName = package[@"displayName"];
         if ([modelName rangeOfString:displayName
@@ -116,7 +94,7 @@ NSDictionary<NSString*, id>* CPPackageForModelName(NSString* modelName)
     return nil;
 }
 
-NSString* CPPackageAssetPath(NSDictionary<NSString*, id>* package,
+NSString* CPPackageAssetPath(NSDictionary<NSString*, NSString*>* package,
                              CPPackageAssetRole role)
 {
     switch (role)
@@ -128,7 +106,7 @@ NSString* CPPackageAssetPath(NSDictionary<NSString*, id>* package,
     return nil;
 }
 
-NSImage* CPPackageArtwork(NSDictionary<NSString*, id>* package,
+NSImage* CPPackageArtwork(NSDictionary<NSString*, NSString*>* package,
                           CPPackageAssetRole role)
 {
     static NSMutableDictionary<NSString*, NSImage*>* cache = nil;
@@ -186,75 +164,18 @@ void CPPackageDrawImage(NSImage* image, NSRect rect, CGFloat fraction)
     [NSGraphicsContext restoreGraphicsState];
 }
 
-void CPPackageDrawKnobOverlay(NSPoint center,
-                              CGFloat diameter,
-                              double normalizedValue,
-                              CGFloat opacity)
-{
-    const CGFloat safeDiameter = std::max<CGFloat>(12.0, diameter);
-    const CGFloat radius = safeDiameter * 0.5;
-    const NSRect outerRect = NSMakeRect(center.x - radius,
-                                        center.y - radius,
-                                        safeDiameter,
-                                        safeDiameter);
-
-    [NSGraphicsContext saveGraphicsState];
-    NSShadow* shadow = [[NSShadow alloc] init];
-    shadow.shadowColor = [NSColor colorWithWhite:0.0 alpha:0.72 * opacity];
-    shadow.shadowBlurRadius = std::max<CGFloat>(2.0, radius * 0.18);
-    shadow.shadowOffset = NSMakeSize(0.0, -std::max<CGFloat>(1.0, radius * 0.08));
-    [shadow set];
-    NSBezierPath* outer = [NSBezierPath bezierPathWithOvalInRect:outerRect];
-    [[NSColor colorWithSRGBRed:0.035 green:0.040 blue:0.044 alpha:opacity] setFill];
-    [outer fill];
-    [NSGraphicsContext restoreGraphicsState];
-
-    const NSRect faceRect = NSInsetRect(outerRect, radius * 0.10, radius * 0.10);
-    NSBezierPath* face = [NSBezierPath bezierPathWithOvalInRect:faceRect];
-    [NSGraphicsContext saveGraphicsState];
-    [face addClip];
-    NSGradient* gradient = [[NSGradient alloc]
-        initWithStartingColor:[NSColor colorWithSRGBRed:0.31 green:0.33 blue:0.34 alpha:opacity]
-        endingColor:[NSColor colorWithSRGBRed:0.045 green:0.050 blue:0.054 alpha:opacity]];
-    [gradient drawFromCenter:NSMakePoint(center.x - radius * 0.22,
-                                         center.y + radius * 0.25)
-                         radius:0.0
-                       toCenter:center
-                         radius:radius
-                        options:NSGradientDrawsBeforeStartingLocation |
-                                NSGradientDrawsAfterEndingLocation];
-    [NSGraphicsContext restoreGraphicsState];
-    [[NSColor colorWithWhite:0.75 alpha:0.72 * opacity] setStroke];
-    face.lineWidth = std::max<CGFloat>(0.8, radius * 0.045);
-    [face stroke];
-
-    const CGFloat radians = static_cast<CGFloat>(
-        circuitpedal::knobAngleDegrees(normalizedValue) * (M_PI / 180.0));
-    NSBezierPath* marker = [NSBezierPath bezierPath];
-    [marker moveToPoint:NSMakePoint(center.x + std::cos(radians) * radius * 0.18,
-                                    center.y + std::sin(radians) * radius * 0.18)];
-    [marker lineToPoint:NSMakePoint(center.x + std::cos(radians) * radius * 0.68,
-                                    center.y + std::sin(radians) * radius * 0.68)];
-    [[NSColor colorWithSRGBRed:0.93 green:0.94 blue:0.94 alpha:opacity] setStroke];
-    marker.lineWidth = std::max<CGFloat>(1.4, radius * 0.10);
-    marker.lineCapStyle = NSLineCapStyleRound;
-    [marker stroke];
-}
-
 void CPPackageHeroDraw(id object, SEL command, NSRect dirtyRect)
 {
     NSView* view = (NSView*)object;
     NSString* pedalName = nil;
-    NSDictionary<NSString*, NSNumber*>* controlValues = nil;
     BOOL bypassed = NO;
     @try {
         pedalName = [view valueForKey:@"pedalName"];
-        controlValues = [view valueForKey:@"controlValues"];
         bypassed = [[view valueForKey:@"bypassed"] boolValue];
     } @catch (__unused NSException* exception) {
     }
 
-    NSDictionary<NSString*, id>* package = CPPackageForModelName(pedalName);
+    NSDictionary<NSString*, NSString*>* package = CPPackageForModelName(pedalName);
     if (package == nil)
     {
         if (gPreviousPackageHeroDraw != nullptr)
@@ -310,29 +231,6 @@ void CPPackageHeroDraw(id object, SEL command, NSRect dirtyRect)
     CPPackageDrawImage(pedal, pedalRect, bypassed ? 0.48 : 1.0);
     [NSGraphicsContext restoreGraphicsState];
 
-    const CGFloat overlayOpacity = bypassed ? 0.48 : 1.0;
-    NSArray<NSDictionary<NSString*, id>*>* controls = package[@"controls"];
-    for (NSDictionary<NSString*, id>* control in controls)
-    {
-        if (![control[@"type"] isEqualToString:@"knob"])
-            continue;
-
-        NSString* controlID = control[@"id"];
-        NSNumber* value = controlValues[controlID];
-        if (value == nil)
-            continue;
-
-        const CGFloat x = std::clamp<CGFloat>([control[@"x"] doubleValue], 0.0, 1.0);
-        const CGFloat y = std::clamp<CGFloat>([control[@"y"] doubleValue], 0.0, 1.0);
-        const CGFloat size = std::clamp<CGFloat>([control[@"size"] doubleValue], 0.5, 2.0);
-        const NSPoint center = NSMakePoint(NSMinX(pedalRect) + x * NSWidth(pedalRect),
-                                           NSMaxY(pedalRect) - y * NSHeight(pedalRect));
-        CPPackageDrawKnobOverlay(center,
-                                 NSWidth(pedalRect) * 0.16 * size,
-                                 value.doubleValue,
-                                 overlayOpacity);
-    }
-
     [NSGraphicsContext restoreGraphicsState];
 
     [[NSColor colorWithSRGBRed:0.130 green:0.154 blue:0.176 alpha:1.0] setStroke];
@@ -359,7 +257,7 @@ void CPPackageChainDraw(id object, SEL command, NSRect dirtyRect)
     } @catch (__unused NSException* exception) {
     }
 
-    NSDictionary<NSString*, id>* package = CPPackageForModelName(selectedName);
+    NSDictionary<NSString*, NSString*>* package = CPPackageForModelName(selectedName);
     if (package == nil)
     {
         if (gPreviousPackageChainDraw != nullptr)

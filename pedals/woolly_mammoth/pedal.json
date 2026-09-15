@@ -23,33 +23,29 @@
       "id": "OUTPUT",
       "label": "OUTPUT",
       "type": "knob",
-      "x": 0.73,
-      "y": 0.31,
-      "size": 1.1
+      "x": 0.14,
+      "y": 0.2
     },
     {
       "id": "EQ",
       "label": "EQ",
       "type": "knob",
-      "x": 0.27,
-      "y": 0.31,
-      "size": 1.1
+      "x": 0.38,
+      "y": 0.2
     },
     {
       "id": "PINCH",
       "label": "PINCH",
       "type": "knob",
-      "x": 0.73,
-      "y": 0.13,
-      "size": 1.1
+      "x": 0.62,
+      "y": 0.2
     },
     {
       "id": "WOOL",
       "label": "WOOL",
       "type": "knob",
-      "x": 0.27,
-      "y": 0.13,
-      "size": 1.1
+      "x": 0.86,
+      "y": 0.2
     }
   ],
   "presets": [
