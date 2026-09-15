@@ -9,6 +9,7 @@ This file records the canonical active branches and the branches that are safe t
 | `main` | Stable/physically accepted 48 kHz / 1x baseline, reusable validation infrastructure, and tested pedal-package foundation | Authoritative project baseline |
 | `feature/reverb-engine` | Boing/BTDR-2 reverb implementation | Active feature workstream |
 | `feature/circuit-lab-ui` | Circuit Lab visual redesign preserved separately from package-core work | Active UI workstream; not yet promoted |
+| `feature/circuitstomp-control-layer` | Portable controller routing and macOS CoreMIDI Prototype 1 integration | Active feature workstream; unmerged |
 | `validation/fuzz-factory` | Focused Fuzz Factory validation using the Woolly acceptance process as the template | Next validation workstream; rebased to current `main` |
 
 ## Pedal package status

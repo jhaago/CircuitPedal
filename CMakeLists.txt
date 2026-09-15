@@ -41,6 +41,13 @@ add_library(circuit_validation
 target_include_directories(circuit_validation PUBLIC src)
 circuitpedal_target_defaults(circuit_validation)
 
+add_library(circuit_control
+    src/ControllerRouter.cpp
+    src/CircuitStompProtocol.cpp
+)
+target_include_directories(circuit_control PUBLIC src)
+circuitpedal_target_defaults(circuit_control)
+
 add_executable(circuit_core_test
     src/core_test.cpp
 )
@@ -77,6 +84,20 @@ add_executable(validation_test
 target_link_libraries(validation_test PRIVATE circuit_validation)
 circuitpedal_target_defaults(validation_test)
 
+add_executable(controller_router_test
+    src/controller_router_test.cpp
+)
+target_include_directories(controller_router_test PRIVATE src)
+target_link_libraries(controller_router_test PRIVATE circuit_control)
+circuitpedal_target_defaults(controller_router_test)
+
+add_executable(circuitstomp_protocol_test
+    src/circuitstomp_protocol_test.cpp
+)
+target_include_directories(circuitstomp_protocol_test PRIVATE src)
+target_link_libraries(circuitstomp_protocol_test PRIVATE circuit_control)
+circuitpedal_target_defaults(circuitstomp_protocol_test)
+
 add_executable(circuitpedal_validate
     src/validation_cli.cpp
 )
@@ -89,6 +110,8 @@ if(BUILD_TESTING)
     add_test(NAME circuit_file_validation COMMAND circuit_file_test)
     add_test(NAME pedal_package_validation COMMAND pedal_package_test)
     add_test(NAME validation_framework COMMAND validation_test)
+    add_test(NAME controller_router COMMAND controller_router_test)
+    add_test(NAME circuitstomp_protocol COMMAND circuitstomp_protocol_test)
 
     add_test(NAME validation_cli_render
         COMMAND circuitpedal_validate render
@@ -180,6 +203,30 @@ if(APPLE)
     )
     circuitpedal_target_defaults(circuit_mac_audio)
 
+    add_library(circuit_mac_control
+        src/MacControllerTarget.cpp
+        src/MacMidiInput.mm
+    )
+    target_include_directories(circuit_mac_control PUBLIC src)
+    target_link_libraries(circuit_mac_control PUBLIC
+        circuit_control
+        circuit_mac_audio
+        "-framework CoreMIDI"
+    )
+    circuitpedal_target_defaults(circuit_mac_control)
+
+    add_executable(mac_controller_target_test
+        src/mac_controller_target_test.cpp
+    )
+    target_link_libraries(mac_controller_target_test PRIVATE circuit_mac_control)
+    target_compile_definitions(mac_controller_target_test PRIVATE
+        CIRCUITPEDAL_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}"
+    )
+    circuitpedal_target_defaults(mac_controller_target_test)
+    if(BUILD_TESTING)
+        add_test(NAME mac_controller_target COMMAND mac_controller_target_test)
+    endif()
+
     add_executable(circuitpedal
         src/main_mac.cpp
         src/LiveGeneric1x.cpp
@@ -210,6 +257,7 @@ if(APPLE)
     )
     target_link_libraries(CircuitPedalGUI PRIVATE
         circuit_mac_audio
+        circuit_mac_control
         "-framework AppKit"
     )
     target_compile_options(CircuitPedalGUI PRIVATE -fobjc-arc)
