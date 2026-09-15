@@ -30,6 +30,7 @@ add_library(circuit_core
     src/GenericCircuit.cpp
     src/GenericCircuitProcessor.cpp
     src/CircuitFile.cpp
+    src/KnobInteraction.cpp
     src/PedalPackage.cpp
 )
 target_include_directories(circuit_core PUBLIC src)
@@ -77,6 +78,12 @@ add_executable(validation_test
 target_link_libraries(validation_test PRIVATE circuit_validation)
 circuitpedal_target_defaults(validation_test)
 
+add_executable(knob_interaction_test
+    src/knob_interaction_test.cpp
+)
+target_link_libraries(knob_interaction_test PRIVATE circuit_core)
+circuitpedal_target_defaults(knob_interaction_test)
+
 add_executable(circuitpedal_validate
     src/validation_cli.cpp
 )
@@ -89,6 +96,7 @@ if(BUILD_TESTING)
     add_test(NAME circuit_file_validation COMMAND circuit_file_test)
     add_test(NAME pedal_package_validation COMMAND pedal_package_test)
     add_test(NAME validation_framework COMMAND validation_test)
+    add_test(NAME knob_interaction_validation COMMAND knob_interaction_test)
 
     add_test(NAME validation_cli_render
         COMMAND circuitpedal_validate render
