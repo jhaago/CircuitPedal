@@ -23,6 +23,37 @@ enum class GenericProcessingMode : std::uint8_t {
 void setGenericProcessingMode(GenericProcessingMode mode) noexcept;
 GenericProcessingMode genericProcessingMode() noexcept;
 
+// Aligns the dry side of a generic-circuit bypass crossfade with the active
+// processing mode. OneX is sample-synchronous; FourX uses the FIR delay.
+class GenericDryDelay {
+public:
+    static constexpr std::size_t capacity =
+        Oversampler4x::wetDelayHostSamples + 1U;
+
+    void reset() noexcept
+    {
+        samples_.fill(0.0);
+        writeIndex_ = 0U;
+    }
+
+    double process(double input, std::size_t delayHostSamples) noexcept
+    {
+        const std::size_t delay = delayHostSamples < capacity
+            ? delayHostSamples
+            : capacity - 1U;
+        const std::size_t readIndex =
+            (writeIndex_ + capacity - delay) % capacity;
+        const double output = delay == 0U ? input : samples_[readIndex];
+        samples_[writeIndex_] = input;
+        writeIndex_ = (writeIndex_ + 1U) % capacity;
+        return output;
+    }
+
+private:
+    std::array<double, capacity> samples_ {};
+    std::size_t writeIndex_ = 0U;
+};
+
 // Generic nonlinear circuit wrapper. FourX remains available for engineering
 // work, but the live macOS app currently selects OneX. The class name is kept
 // for source compatibility with the existing audio engine while oversampling is
@@ -78,6 +109,12 @@ public:
     double hostSampleRate() const noexcept { return hostSampleRate_; }
     double circuitSampleRate() const noexcept { return circuit_.sampleRate(); }
     GenericProcessingMode activeProcessingMode() const noexcept { return activeMode_; }
+    std::size_t processingDelayHostSamples() const noexcept
+    {
+        return activeMode_ == GenericProcessingMode::FourX
+            ? delayHostSamples
+            : 0U;
+    }
 
 private:
     GenericCircuit circuit_;

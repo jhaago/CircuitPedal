@@ -594,6 +594,9 @@ void testOversampledGenericCircuit()
            "oversampled generic circuit failed to compile: " + error);
     expect(std::abs(circuit.circuitSampleRate() - 192000.0) < 1.0e-6,
            "oversampled circuit did not run at 4x host sample rate");
+    expect(circuit.processingDelayHostSamples()
+               == circuitpedal::Oversampler4x::wetDelayHostSamples,
+           "4x generic circuit did not report its FIR delay");
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
@@ -615,6 +618,45 @@ void testOversampledGenericCircuit()
     const float resetOutput = circuit.processSample(0.0f);
     expect(std::isfinite(resetOutput),
            "oversampled generic circuit did not recover after reset");
+
+    circuitpedal::setGenericProcessingMode(
+        circuitpedal::GenericProcessingMode::OneX);
+    circuitpedal::OversampledGenericCircuit oneX;
+    expect(oneX.compile(definition, 48000.0, error),
+           "1x generic circuit failed to compile: " + error);
+    expect(oneX.processingDelayHostSamples() == 0U,
+           "1x generic circuit incorrectly reported the 4x FIR delay");
+
+    // Avoid leaking the mode selection into later tests and callers.
+    circuitpedal::setGenericProcessingMode(
+        circuitpedal::GenericProcessingMode::FourX);
+}
+
+void testGenericDryDelayAlignment()
+{
+    circuitpedal::GenericDryDelay delay;
+    delay.reset();
+
+    for (int n = 0; n < 64; ++n)
+    {
+        const double input = n == 0 ? 1.0 : 0.0;
+        expect(delay.process(input, 0U) == input,
+               "zero-latency generic dry path did not use the current sample");
+    }
+
+    delay.reset();
+    for (std::size_t n = 0;
+         n <= circuitpedal::Oversampler4x::wetDelayHostSamples;
+         ++n)
+    {
+        const double input = n == 0U ? 1.0 : 0.0;
+        const double output = delay.process(
+            input, circuitpedal::Oversampler4x::wetDelayHostSamples);
+        const double expected =
+            n == circuitpedal::Oversampler4x::wetDelayHostSamples ? 1.0 : 0.0;
+        expect(output == expected,
+               "4x generic dry path did not reproduce the exact FIR delay");
+    }
 }
 
 void testTwoTransistorFuzzLikeNetwork()
@@ -692,6 +734,7 @@ int main()
     testOpAmpBandwidthAndSlew();
     testLiveSwitches();
     testOversampledGenericCircuit();
+    testGenericDryDelayAlignment();
     testTwoTransistorFuzzLikeNetwork();
 
     if (failures != 0)

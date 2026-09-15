@@ -295,8 +295,7 @@ struct MacAudioEngine::Impl {
     OversampledGenericCircuit genericCircuit;
     CircuitFileDocument circuitDocument;
     bool circuitFileSelected = false;
-    std::array<double, 64> genericDryDelay {};
-    std::size_t genericDryDelayWriteIndex = 0;
+    GenericDryDelay genericDryDelay;
     std::array<float, GenericCircuit::maximumLivePotentiometers> circuitControlTargets {};
     std::size_t circuitControlCount = 0;
     std::atomic<bool> genericBypass { false };
@@ -358,17 +357,10 @@ struct MacAudioEngine::Impl {
             {
                 const float wet = state->genericCircuit.processSample(input);
 
-                const std::size_t dryReadIndex =
-                    (state->genericDryDelayWriteIndex
-                     + state->genericDryDelay.size()
-                     - OversampledGenericCircuit::delayHostSamples)
-                    % state->genericDryDelay.size();
-                const double delayedDry =
-                    state->genericDryDelay[dryReadIndex];
-                state->genericDryDelay[state->genericDryDelayWriteIndex] = input;
-                state->genericDryDelayWriteIndex =
-                    (state->genericDryDelayWriteIndex + 1)
-                    % state->genericDryDelay.size();
+                const std::size_t processingDelay =
+                    state->genericCircuit.processingDelayHostSamples();
+                const double delayedDry = state->genericDryDelay.process(
+                    static_cast<double>(input), processingDelay);
 
                 const double wetTarget =
                     state->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
@@ -719,8 +711,7 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
             }
             impl_->genericWetMix =
                 impl_->genericBypass.load(std::memory_order_relaxed) ? 0.0 : 1.0;
-            impl_->genericDryDelay.fill(0.0);
-            impl_->genericDryDelayWriteIndex = 0;
+            impl_->genericDryDelay.reset();
             constexpr double bypassSmoothingSeconds = 0.005;
             impl_->genericBypassCoefficient =
                 1.0 - std::exp(-1.0 / (bypassSmoothingSeconds * sampleRate));
@@ -754,7 +745,7 @@ bool MacAudioEngine::start(const AudioStartConfiguration& configuration, std::st
                                                             kAudioObjectPropertyScopeOutput);
         runtime.dspDelayFrames = impl_->circuitFileSelected
             ? static_cast<std::uint32_t>(
-                  OversampledGenericCircuit::delayHostSamples)
+                  impl_->genericCircuit.processingDelayHostSamples())
             : static_cast<std::uint32_t>(
                   Oversampler4x::wetDelayHostSamples);
         impl_->info = runtime;

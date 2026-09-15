@@ -35,8 +35,10 @@ SWITCH_LINK BIAS BIAS_EMITTER 0
 R R6 PAIR_E 0 4k7
 C C2 PAIR_E 0 2.2u
 
-# Rangemaster collector/boost control and first Distortion gang.
-POT BOOST PAIR_C BOOST_W VA 10k LIN 0.65
+# Rangemaster collector/boost control and first Distortion gang. CircuitPedal
+# maps normalized pot position 0 to terminal 1 and 1 to terminal 3, so terminal
+# 3 is the signal end and terminal 1 is the AC-ground supply end.
+POT BOOST VA BOOST_W PAIR_C 10k LIN 0.65
 C C3 BOOST_W DISTA_3 6.8n
 POT DISTORTION 0 DISTA_W DISTA_3 100k LOG 0.65
 R R7 DISTA_W 0 470k

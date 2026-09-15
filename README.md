@@ -32,7 +32,7 @@ In the GUI:
 7. Selecting another pedal stops audio before the new pedal is loaded.
 8. Read the meters/status area for the active model, buffer and latency information.
 
-The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory, Fat Fuzz Factory, Fuzzolo, TS10 Tube Screamer, Human Gear Animato, Lovepedal Kalamazoo and BearFoot Blueberry Bass Overdrive. Generic circuits report the same 47-host-sample FIR delay as the reference Distortion+ oversampling path.
+The bundled library currently includes the generic two-transistor fuzz demo, Woolly Mammoth Reference Draft, Naga Viper, four Big Muff variants, Fuzz Factory, Fat Fuzz Factory, Fuzzolo, TS10 Tube Screamer, Lovepedal Kalamazoo and BearFoot Blueberry Bass Overdrive. The Human Gear Animato remains available as a source/external-load validation draft until physical listening is accepted. Generic circuits report the delay of their active processing mode: zero samples for the accepted 1x live path and 47 host samples for the experimental 4x FIR path.
 
 Startup errors remain visible in the window so settings can be changed and the stomp can be retried. macOS may ask for microphone access on first launch; if it was denied, enable CircuitPedal under **System Settings > Privacy & Security > Microphone**.
 
@@ -152,7 +152,7 @@ See `docs/validation_tool.md` for SPICE CSV comparison, control overrides, harmo
 
 ## Compatibility-library changes introduced in V0.10
 
-- Bundles all repository `.cpedal` files into the macOS app and provides an in-app circuit selector.
+- Bundles physically accepted repository `.cpedal` files into the macOS app and provides an in-app circuit selector; validation drafts remain externally loadable.
 - Expands the macOS circuit control panel from four fixed sliders to a scrollable sixteen-control view.
 - Adds `POT_LINK` so one physical/GUI control can drive multiple electrical potentiometer sections such as a dual-gang control.
 - Adds a five-control Fuzz Factory reference model using separate lower/higher-gain AC128 compact models.
@@ -225,7 +225,7 @@ See `docs/validation_tool.md` for SPICE CSV comparison, control overrides, harmo
 
 The exact V0.2 engineering reference and its remaining assumptions are defined in [`docs/reference_circuit.md`](docs/reference_circuit.md). That file is normative when code comments or external schematics disagree.
 
-The legacy Distortion+ implementation remains a dedicated reference model. The generic path uses the same 4x FIR oversampling concept, while the `.cpedal` layer lets supported pedal topologies load without recompiling C++.
+The legacy Distortion+ implementation remains a dedicated 4x reference model. The generic wrapper retains the same 4x FIR concept for engineering work, while the physically accepted macOS live path selects 1x and the `.cpedal` layer lets supported pedal topologies load without recompiling C++.
 
 ## Build and test
 
@@ -293,7 +293,7 @@ The app reports:
 - milliseconds per buffer period;
 - device input/output latency;
 - input/output safety offsets;
-- the 47-sample FIR oversampling delay.
+- the active DSP delay (0 samples for generic 1x; 47 for a 4x FIR path).
 
 These values are not a substitute for physical loopback measurement. Converter delay and driver behaviour must be included when deciding whether a configuration feels like a hardware pedal.
 

@@ -847,17 +847,34 @@ void testAnimatoRepositoryModel()
                "Animato Distortion did not retain its second pot gang");
     }
 
+    circuitpedal::setGenericProcessingMode(
+        circuitpedal::GenericProcessingMode::OneX);
     circuitpedal::OversampledGenericCircuit circuit;
     const bool compiled = circuit.compile(document.definition, 48000.0, error);
-    expect(compiled, "Animato did not compile at 4x: " + error);
+    expect(compiled, "Animato did not compile on the live 1x path: " + error);
     if (!compiled)
+    {
+        circuitpedal::setGenericProcessingMode(
+            circuitpedal::GenericProcessingMode::FourX);
         return;
+    }
+    expect(circuit.activeProcessingMode()
+               == circuitpedal::GenericProcessingMode::OneX,
+           "Animato repository test did not exercise the live 1x path");
+    expect(circuit.processingDelayHostSamples() == 0U,
+           "Animato live 1x path reported a spurious processing delay");
 
     constexpr double pi = 3.14159265358979323846;
     double peak = 0.0;
     int failureCount = 0;
     for (int n = 0; n < 24000; ++n)
     {
+        if (n == 3000 && boost < document.controls.size())
+        {
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[boost].potentiometerIndex, 0.85),
+                   "Animato Boost could not move live");
+        }
         if (n == 6000 && bias < document.controls.size())
         {
             const auto& control = document.controls[bias];
@@ -883,6 +900,12 @@ void testAnimatoRepositoryModel()
                        document.controls[tone].potentiometerIndex, 0.8),
                    "Animato Tone could not move");
         }
+        if (n == 21000 && volume < document.controls.size())
+        {
+            expect(circuit.setPotentiometerPosition(
+                       document.controls[volume].potentiometerIndex, 0.90),
+                   "Animato Volume could not move live");
+        }
 
         const float input = static_cast<float>(
             0.35 * std::sin(2.0 * pi * 82.0
@@ -896,6 +919,13 @@ void testAnimatoRepositoryModel()
     expect(failureCount == 0,
            "Animato nonlinear solve failed during live-control sweep");
     expect(peak > 1.0e-6, "Animato produced no meaningful audio");
+    circuit.reset();
+    expect(std::isfinite(circuit.processSample(0.0f)),
+           "Animato did not recover cleanly after reset");
+    expect(circuit.lastSolveConverged(),
+           "Animato reset left the nonlinear solver unstable");
+    circuitpedal::setGenericProcessingMode(
+        circuitpedal::GenericProcessingMode::FourX);
 #endif
 }
 
