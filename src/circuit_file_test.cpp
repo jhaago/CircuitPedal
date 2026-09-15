@@ -460,23 +460,76 @@ void testTentacleRepositoryModel()
         return;
 
     constexpr double pi = 3.14159265358979323846;
-    double peak = 0.0;
-    int failureCount = 0;
-    for (int n = 0; n < 24000; ++n)
-    {
-        const float input = static_cast<float>(
-            0.45 * std::sin(2.0 * pi * 110.0
-                * static_cast<double>(n) / 48000.0));
-        const float output = circuit.processSample(input);
-        expect(std::isfinite(output), "Tentacle produced non-finite audio");
-        if (!circuit.lastSolveConverged())
-            ++failureCount;
-        peak = std::max(peak, std::abs(static_cast<double>(output)));
-    }
+    constexpr double sampleRate = 48000.0;
+    constexpr int totalSamples = 24000;
+    constexpr int analysisStart = 6000;
+    constexpr double analysisSamples = totalSamples - analysisStart;
 
-    expect(failureCount == 0,
-           "Tentacle nonlinear solve failed during transient validation");
-    expect(peak > 1.0e-6, "Tentacle produced no meaningful audio");
+    struct OctaveCase {
+        double frequency;
+        double digitalInputPeak;
+        bool requireNearUnityLevel;
+    };
+
+    for (const auto& testCase : {
+             OctaveCase { 110.0, 0.10, false },
+             OctaveCase { 440.0, 0.10, false },
+             OctaveCase { 440.0, 0.25, true },
+             OctaveCase { 880.0, 0.25, true } })
+    {
+        circuitpedal::OversampledGenericCircuit probe;
+        std::string probeError;
+        const bool probeCompiled = probe.compile(document.definition, sampleRate, probeError);
+        expect(probeCompiled, "Tentacle octave probe did not compile: " + probeError);
+        if (!probeCompiled)
+            continue;
+
+        double squareSum = 0.0;
+        double h1Sin = 0.0;
+        double h1Cos = 0.0;
+        double h2Sin = 0.0;
+        double h2Cos = 0.0;
+        int failureCount = 0;
+        for (int n = 0; n < totalSamples; ++n)
+        {
+            const double phase = 2.0 * pi * testCase.frequency
+                * static_cast<double>(n) / sampleRate;
+            const float input = static_cast<float>(
+                testCase.digitalInputPeak * std::sin(phase));
+            const double output = static_cast<double>(probe.processSample(input));
+            expect(std::isfinite(output), "Tentacle produced non-finite audio");
+            if (!probe.lastSolveConverged())
+                ++failureCount;
+            if (n >= analysisStart)
+            {
+                squareSum += output * output;
+                h1Sin += output * std::sin(phase);
+                h1Cos += output * std::cos(phase);
+                h2Sin += output * std::sin(2.0 * phase);
+                h2Cos += output * std::cos(2.0 * phase);
+            }
+        }
+
+        const double rms = std::sqrt(squareSum / analysisSamples);
+        const double h1 = 2.0 * std::hypot(h1Sin, h1Cos) / analysisSamples;
+        const double h2 = 2.0 * std::hypot(h2Sin, h2Cos) / analysisSamples;
+        const double dryRms = testCase.digitalInputPeak / std::sqrt(2.0);
+
+        std::ostringstream context;
+        context << " at " << testCase.frequency << " Hz and "
+                << testCase.digitalInputPeak * 0.20 * 1000.0 << " mV peak";
+        expect(failureCount == 0,
+               "Tentacle nonlinear solve failed" + context.str());
+        expect(h2 > h1 * 10.0,
+               "Tentacle octave harmonic does not dominate the fundamental"
+                   + context.str());
+        if (testCase.requireNearUnityLevel)
+        {
+            expect(rms >= dryRms * 0.80,
+                   "Tentacle output is more than 1.9 dB below the dry input"
+                       + context.str());
+        }
+    }
 #endif
 }
 
