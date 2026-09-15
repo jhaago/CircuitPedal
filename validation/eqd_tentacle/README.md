@@ -46,17 +46,36 @@ Squidward BOM found that the model had incorrectly used `4k7` for the final
 output load. The reference value is `R13 = 47k`; the separate `R100 = 4k7`
 belongs to the utility/supply section rather than this audio-path load.
 
-The model has therefore been corrected to `R_OUTPUT_LOAD = 47k`. This correction
-requires a repeat physical listening test before the Tentacle can be promoted
-from Reference Draft.
+The model was corrected to `R_OUTPUT_LOAD = 47k`, but the repeat physical test
+showed no meaningful level improvement. A later review found a separate host
+calibration error: `AUDIO ... 0.20` was paired with `OUTPUT ... 1`, so a roughly
+unity-voltage-gain analogue path was attenuated by another factor of five when
+converted back to digital audio.
+
+The candidate now uses `OUTPUT OUT 5`, the reciprocal of the 0.20 V/full-scale
+input calibration. This changes only the model/host conversion; it does not
+increase gain inside the analogue circuit or alter the rectifier topology.
 
 ## Validation status
 
 The file parses, compiles and completes automated transient tests without
-nonlinear-solver failure. With a 110 Hz sine input, the current compact model
-produces a dominant 220 Hz component, which confirms that the intended
-octave-generating signal path is active numerically.
+nonlinear-solver failure. `run_signal_campaign.py` checks 82.41-1318.51 Hz at
+20-100 mV peak circuit inputs. It requires:
+
+- the doubled-frequency component to exceed the fundamental by at least 10:1;
+- the Q2 emitter/collector AC levels to remain balanced within 10% and their
+  normalized correlation to remain at or below -0.95, proving phase opposition;
+- calibrated output to remain within 1.9 dB of dry level at normal inputs;
+- useful low-level output and zero nonlinear-solver failures.
+
+The topology was rechecked against the PedalPCB Squidward revision 04.04.20
+schematic. Q2's emitter feeds the VCC-side 10k branch, its collector feeds the
+ground-side 10k branch, both 1N4148 anodes receive the opposing AC phases, and
+their cathodes combine at Q3's base. The current `.cpedal` matches those
+connections and component values; no speculative topology change was made.
 
 This is still a **Reference Draft**. The 2N5089 and 2N3906 aliases are compact
 Ebers-Moll approximations; no manufacturer-quality SPICE comparison or accepted
-physical Tentacle match has yet been completed.
+physical Tentacle match has yet been completed. The calibrated candidate still
+requires a repeat physical listening test, especially with a neck pickup above
+the 12th fret, before the Tentacle is bundled in the stable app.

@@ -50,4 +50,8 @@ R R_Q3_EMITTER Q3_EMITTER 0 10k
 C C_OUTPUT Q3_EMITTER OUT 100n
 R R_OUTPUT_LOAD OUT 0 47k
 
-OUTPUT OUT 1
+# AUDIO maps digital full scale to 0.20 V at the circuit input. The Tentacle
+# is approximately unity-voltage-gain at normal guitar levels, so apply the
+# reciprocal output conversion rather than attenuating the analogue result by
+# another factor of five at the host boundary.
+OUTPUT OUT 5
